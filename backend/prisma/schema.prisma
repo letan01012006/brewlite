@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -14,3 +8,238 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =========================
+// ENUMS
+// =========================
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PREPARING
+  READY
+  COMPLETED
+  PAYMENT_FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  WALLET
+  CARD
+}
+
+enum PaymentStatus {
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum Size {
+  S
+  M
+  L
+}
+
+enum Role {
+  CUSTOMER
+  BARISTA
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+// =========================
+// PRODUCT
+// =========================
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  price       Int
+  imageUrl    String
+  category    String
+  stock       Int      @default(0)
+  version     Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  orderItems OrderItem[]
+
+  @@index([category])
+}
+
+// =========================
+// TOPPING
+// =========================
+
+model Topping {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  price    Int
+  isActive Boolean @default(true)
+}
+
+// =========================
+// USER
+// =========================
+
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  passwordHash  String
+  fullName      String
+  role          Role     @default(CUSTOMER)
+  loyaltyPoints Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  orders              Order[]
+  loyaltyTransactions LoyaltyTransaction[]
+}
+
+// =========================
+// ORDER
+// =========================
+
+model Order {
+  id     Int         @id @default(autoincrement())
+  userId Int
+  status OrderStatus @default(PENDING)
+
+  subtotal       Int
+  discountAmount Int @default(0)
+  total          Int
+
+  promoCode    String?
+  pointsEarned Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id])
+  promotion PromoCode? @relation(fields: [promoCode], references: [code])
+
+  items              OrderItem[]
+  payments           Payment[]
+  loyaltyTransaction LoyaltyTransaction?
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+// =========================
+// ORDER ITEM
+// =========================
+
+model OrderItem {
+  id Int @id @default(autoincrement())
+
+  orderId   Int
+  productId Int
+
+  productName String
+  size        Size
+
+  // Snapshot topping tại thời điểm đặt hàng
+  // Ví dụ: [{ "id": 1, "name": "Trân châu", "price": 5000 }]
+  toppings Json @default("[]")
+
+  unitPrice Int
+  qty       Int
+  lineTotal Int
+
+  note String?
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// =========================
+// PAYMENT
+// =========================
+
+model Payment {
+  id Int @id @default(autoincrement())
+
+  orderId Int
+
+  idempotencyKey String @unique
+  requestHash    String
+
+  amount Int
+  method PaymentMethod
+  status PaymentStatus @default(PROCESSING)
+
+  providerRef   String?
+  failureReason String?
+
+  responseSnapshot Json?
+
+  // Hoàn tiền mock khi hủy đơn đã PAID (không có bảng Refund riêng).
+  // Giữ nguyên status = SUCCESS và responseSnapshot của lần thanh toán đầu.
+  refundedAt     DateTime?
+  refundedAmount Int       @default(0)
+  refundRef      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, status])
+}
+
+// =========================
+// PROMO CODE
+// =========================
+
+model PromoCode {
+  id Int @id @default(autoincrement())
+
+  code String       @unique
+  type DiscountType
+
+  // PERCENT: ví dụ 10 = 10%
+  // FIXED: ví dụ 20000 = 20.000 VND
+  value Int
+
+  minOrderValue Int  @default(0)
+  maxDiscount   Int?
+
+  startsAt  DateTime
+  expiresAt DateTime
+
+  usageLimit Int?
+  usedCount  Int  @default(0)
+
+  isActive Boolean @default(true)
+
+  orders Order[]
+}
+
+// =========================
+// LOYALTY TRANSACTION
+// =========================
+
+model LoyaltyTransaction {
+  id Int @id @default(autoincrement())
+
+  userId  Int
+  orderId Int @unique
+
+  points Int
+
+  // Có giá trị khi điểm đã bị thu hồi (hủy đơn PAID). `points` giữ nguyên số điểm ban đầu.
+  reversedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([userId])
+}
