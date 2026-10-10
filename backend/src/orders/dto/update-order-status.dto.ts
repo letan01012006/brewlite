@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty } from 'class-validator';
 
 export const ORDER_STATUSES = [
@@ -12,10 +13,18 @@ export const ORDER_STATUSES = [
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+export const BARISTA_ALLOWED_STATUSES = ['PREPARING', 'READY', 'COMPLETED'] as const;
+export type BaristaAllowedStatus = (typeof BARISTA_ALLOWED_STATUSES)[number];
+
 export class UpdateOrderStatusDto {
-  @IsNotEmpty({ message: 'Trạng thái đơn hàng không được để trống' })
-  @IsIn(ORDER_STATUSES, {
-    message: `Trạng thái không hợp lệ. Phải là một trong các giá trị: ${ORDER_STATUSES.join(', ')}`,
+  @ApiProperty({
+    description: 'Trạng thái mới của đơn hàng (Barista chỉ được chuyển PREPARING, READY, COMPLETED)',
+    enum: BARISTA_ALLOWED_STATUSES,
+    example: 'PREPARING',
   })
-  status: OrderStatus;
+  @IsNotEmpty({ message: 'Trạng thái đơn hàng không được để trống' })
+  @IsIn(BARISTA_ALLOWED_STATUSES, {
+    message: `Trạng thái không hợp lệ. Barista chỉ được đổi sang: ${BARISTA_ALLOWED_STATUSES.join(', ')}`,
+  })
+  status: BaristaAllowedStatus;
 }

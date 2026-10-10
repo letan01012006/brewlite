@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -14,7 +15,10 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import { OrdersService } from './orders.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../common/guards/roles.guard.js';
+import { Roles } from '../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../auth/interfaces/jwt-payload.interface.js';
 
@@ -78,5 +82,52 @@ export class OrdersController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.ordersService.findOne(id, user.id, user.role);
+  }
+
+  /**
+   * Hủy đơn hàng và hoàn trả quyền lợi (Task 10 - Mục 6.11)
+   * POST /api/orders/:id/cancel
+   * Dành cho Chủ đơn hoặc Barista
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Hủy đơn hàng (hoàn kho, hoàn lượt mã giảm giá, hoàn tiền/thu hồi điểm nếu đã PAID)',
+  })
+  @ApiParam({ name: 'id', description: 'ID đơn hàng cần hủy', example: 1 })
+  @ApiResponse({ status: 200, description: 'Hủy đơn hàng thành công' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Không có quyền hủy đơn của người khác' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
+  @ApiResponse({ status: 409, description: 'Chuyển trạng thái không hợp lệ hoặc đang thanh toán dở' })
+  async cancelOrder(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.ordersService.cancelOrder(id, user.id, user.role);
+  }
+
+  /**
+   * Barista cập nhật trạng thái làm đồ uống (Task 10 - Mục 6.13)
+   * PATCH /api/orders/:id/status
+   * YÊU CẦU: Role BARISTA
+   */
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('BARISTA')
+  @ApiOperation({
+    summary: 'Barista cập nhật trạng thái đơn hàng (chỉ nhận: PREPARING -> READY -> COMPLETED)',
+  })
+  @ApiParam({ name: 'id', description: 'ID đơn hàng cần cập nhật', example: 1 })
+  @ApiResponse({ status: 200, description: 'Cập nhật trạng thái thành công' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({ status: 403, description: 'Chỉ tài khoản BARISTA mới có quyền thực hiện' })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
+  @ApiResponse({ status: 409, description: 'Nhảy cóc trạng thái bất hợp lệ (INVALID_TRANSITION)' })
+  async updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.ordersService.updateStatus(id, dto.status);
   }
 }
