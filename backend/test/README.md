@@ -40,3 +40,7 @@ Concurrency tests queue HTTP requests behind real PostgreSQL locks and observe
 blocked connections before releasing them. E2E apps use the same `configureApp`
 function as the server for the `/api` prefix, validation, error filter, and CORS.
 State-machine unit tests run with `npm test` and do not need a database.
+
+The kitchen regression verifies `GET /api/orders/active` requires BARISTA and
+returns all active orders (63 in the fixture), even behind 65 newer inactive
+orders. History pages use a deterministic ID tie-breaker for equal timestamps.

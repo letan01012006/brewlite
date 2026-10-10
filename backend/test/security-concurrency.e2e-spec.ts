@@ -242,6 +242,66 @@ describe.skipIf(!databaseUrl)(
       },
     );
 
+    it('active kitchen orders require BARISTA and include more than 50 old unfinished orders', async () => {
+      await request(app.getHttpServer()).get('/api/orders/active').expect(401);
+      await request(app.getHttpServer()).get('/api/orders/active')
+        .auth(customerToken, { type: 'bearer' }).expect(403);
+      const active = await db.order.createManyAndReturn({
+        data: Array.from({ length: 63 }, (_, index) => ({
+          userId, subtotal: 35000, total: 35000,
+          status: (['PAID', 'PREPARING', 'READY'] as const)[index % 3],
+          createdAt: new Date('2001-01-01'),
+        })),
+      });
+      const history = await db.order.createManyAndReturn({
+        data: Array.from({ length: 65 }, (_, index) => ({
+          userId, subtotal: 35000, total: 35000,
+          status: (['PENDING', 'PAYMENT_FAILED', 'COMPLETED', 'CANCELLED'] as const)[index % 4],
+          createdAt: new Date('2099-01-01'),
+        })),
+      });
+      const result = await request(app.getHttpServer()).get('/api/orders/active')
+        .auth(baristaToken, { type: 'bearer' }).expect(200);
+      const rows = result.body as Array<{ id: number; status: string; user: Record<string, unknown>; items: unknown[] }>;
+      const ids = rows.map((row) => row.id);
+      expect(ids).toEqual(expect.arrayContaining(active.map((row) => row.id)));
+      expect(ids.filter((id) => history.some((row) => row.id === id))).toEqual([]);
+      expect(rows.every((row) => ['PAID', 'PREPARING', 'READY'].includes(row.status))).toBe(true);
+      expect(rows[0].user).not.toHaveProperty('passwordHash');
+      expect(rows[0].items).toBeInstanceOf(Array);
+      const activeIds = new Set(active.map((row) => row.id));
+      const ownIds = ids.filter((id) => activeIds.has(id));
+      expect(ownIds).toEqual([...ownIds].sort((a, b) => a - b));
+      // Equal timestamps must not cause duplicates across history pages.
+      const first = await request(app.getHttpServer()).get('/api/orders?limit=50&page=1')
+        .auth(baristaToken, { type: 'bearer' }).expect(200);
+      const second = await request(app.getHttpServer()).get('/api/orders?limit=50&page=2')
+        .auth(baristaToken, { type: 'bearer' }).expect(200);
+      const firstIds = new Set((first.body.data as Array<{ id: number }>).map((row) => row.id));
+      expect((second.body.data as Array<{ id: number }>).some((row) => firstIds.has(row.id))).toBe(false);
+    });
+
+    it('customer history pages include older orders without ties or other customers', async () => {
+      const created = await db.order.createManyAndReturn({
+        data: Array.from({ length: 25 }, () => ({
+          userId, subtotal: 35000, total: 35000,
+          createdAt: new Date('2025-01-01'),
+        })),
+      });
+      const expectedIds = created.map((order) => order.id).sort((a, b) => b - a);
+      for (const page of [1, 2]) {
+        const result = await request(app.getHttpServer()).get(`/api/orders/me?limit=20&page=${page}`)
+          .auth(customerToken, { type: 'bearer' }).expect(200);
+        expect(result.body.meta.total).toBe(25);
+        expect(result.body.meta.totalPages).toBe(2);
+        expect((result.body.data as Array<{ id: number }>).map((order) => order.id))
+          .toEqual(expectedIds.slice((page - 1) * 20, page * 20));
+      }
+      const other = await request(app.getHttpServer()).get('/api/orders/me?limit=20&page=1')
+        .auth(otherToken, { type: 'bearer' }).expect(200);
+      expect(other.body.data).toEqual([]);
+    });
+
     it('promotion validation requires JWT and still accepts a customer', async () => {
       const { product, promo } = await fixture(true);
       const body = {
