@@ -50,6 +50,21 @@ export class OrdersController {
   }
 
   /**
+   * Barista xem toàn bộ đơn hàng của quán (Task 9 & Task 10)
+   * GET /api/orders
+   * YÊU CẦU: Role BARISTA
+   */
+  @Get()
+  @UseGuards(RolesGuard)
+  @Roles('BARISTA')
+  @ApiOperation({ summary: 'Barista xem toàn bộ đơn hàng trong quầy pha chế' })
+  @ApiResponse({ status: 200, description: 'Lấy danh sách toàn bộ đơn hàng thành công' })
+  @ApiResponse({ status: 403, description: 'Chỉ tài khoản BARISTA mới có quyền xem' })
+  async findAllOrders(@Query() query: QueryOrderDto) {
+    return this.ordersService.findAllOrders(query);
+  }
+
+  /**
    * Xem lịch sử đơn hàng của tôi (Task 9)
    * GET /api/orders/me
    * LƯU Ý: Phải đặt route 'me' trước ':id' để không bị hiểu lầm 'me' là tham số :id
@@ -63,6 +78,14 @@ export class OrdersController {
     @Query() query: QueryOrderDto,
   ) {
     return this.ordersService.findMyOrders(userId, query);
+  }
+
+  @Get('active')
+  @UseGuards(RolesGuard)
+  @Roles('BARISTA')
+  @ApiOperation({ summary: 'Toàn bộ đơn đang chờ pha chế, đang pha chế hoặc chờ nhận' })
+  async findActiveOrders() {
+    return this.ordersService.findActiveOrders();
   }
 
   /**

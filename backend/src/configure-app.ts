@@ -5,7 +5,8 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 export function configureApp(app: INestApplication) {
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: true,
+    credentials: true,
     exposedHeaders: ['Idempotent-Replayed'],
   });
   app.useGlobalPipes(

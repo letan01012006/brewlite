@@ -300,7 +300,7 @@ export class OrdersService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: {
           items: {
             select: { id: true, qty: true },
@@ -323,6 +323,57 @@ export class OrdersService {
 
     return {
       data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Barista xem toàn bộ đơn hàng của quán (phân loại theo tiến trình pha chế)
+   * GET /api/orders
+   */
+  async findActiveOrders() {
+    // One query across all active states: history and offset pagination cannot
+    // hide an older unfinished order. Oldest orders are served first.
+    return this.prisma.order.findMany({
+      where: { status: { in: ['PAID', 'PREPARING', 'READY'] } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      include: {
+        items: true,
+        user: { select: { fullName: true, email: true } },
+      },
+    });
+  }
+
+  async findAllOrders(query: QueryOrderDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 50;
+    const skip = (page - 1) * limit;
+
+    const where = query.status ? { status: query.status } : {};
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: {
+          items: true,
+          user: { select: { fullName: true, email: true } },
+        },
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      data: orders,
       meta: {
         page,
         limit,
