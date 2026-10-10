@@ -10,11 +10,13 @@ import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PromotionsModule } from './promotions/promotions.module.js';
 import { HealthModule } from './health/health.module.js';
+import { PricingModule } from './common/pricing/pricing.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    PricingModule,
     ProductsModule,
     ToppingsModule,
     AuthModule,
