@@ -5,12 +5,24 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PricingService, type PricingItemInput } from '../common/pricing/pricing.service.js';
+import {
+  PricingService,
+  type PricingItemInput,
+} from '../common/pricing/pricing.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { assertTransition } from './order-state.js';
-import { type BaristaAllowedStatus, type OrderStatus } from './dto/update-order-status.dto.js';
+import { lockOrder } from './order-lock.js';
+import {
+  type BaristaAllowedStatus,
+  type OrderStatus,
+} from './dto/update-order-status.dto.js';
+
+class StockRetryError extends Error {}
+const MAX_STOCK_ATTEMPTS = 10;
 
 @Injectable()
 export class OrdersService {
@@ -28,6 +40,25 @@ export class OrdersService {
    * - Toàn bộ chạy trong 1 Transaction an toàn
    */
   async create(userId: number, dto: CreateOrderDto) {
+    for (let attempt = 0; attempt < MAX_STOCK_ATTEMPTS; attempt++) {
+      try {
+        return await this.createAttempt(userId, dto);
+      } catch (error) {
+        if (!(error instanceof StockRetryError)) throw error;
+        if (attempt === MAX_STOCK_ATTEMPTS - 1) {
+          throw new ConflictException({
+            code: 'STOCK_CONFLICT',
+            message: 'Tồn kho đang được cập nhật đồng thời, vui lòng thử lại',
+          });
+        }
+        // Retry only after the entire failed transaction has rolled back.
+        await delay(randomInt(10, 51));
+      }
+    }
+    throw new Error('Unreachable stock retry state');
+  }
+
+  private async createAttempt(userId: number, dto: CreateOrderDto) {
     const pricingInput: PricingItemInput[] = dto.items.map((i) => ({
       productId: i.productId,
       size: i.size,
@@ -39,7 +70,10 @@ export class OrdersService {
     // Chạy toàn bộ luồng tạo đơn trong Transaction
     return this.prisma.$transaction(async (tx) => {
       // 1. Tính giá server-side (không tin giá client)
-      const pricingResult = await this.pricingService.calculate(pricingInput, tx);
+      const pricingResult = await this.pricingService.calculate(
+        pricingInput,
+        tx,
+      );
       const subtotal = pricingResult.subtotal;
 
       // 2. Tính tổng số lượng cần cho từng sản phẩm (gộp dòng cùng productId)
@@ -73,18 +107,52 @@ export class OrdersService {
           throw new ConflictException({
             code: 'OUT_OF_STOCK',
             message: `Sản phẩm '${current.name}' chỉ còn ${current.stock} phần`,
-            details: [{ productId: pId, available: current.stock, requested: neededQty }],
+            details: [
+              {
+                productId: pId,
+                available: current.stock,
+                requested: neededQty,
+              },
+            ],
           });
         }
 
         // Trừ tồn kho và tăng version cho optimistic locking
-        await tx.product.update({
-          where: { id: pId },
+        const reserved = await tx.product.updateMany({
+          where: {
+            id: pId,
+            isActive: true,
+            version: current.version,
+            stock: { gte: neededQty },
+          },
           data: {
             stock: { decrement: neededQty },
             version: { increment: 1 },
           },
         });
+        if (reserved.count === 0) {
+          const latest = await tx.product.findUnique({ where: { id: pId } });
+          if (!latest || !latest.isActive) {
+            throw new NotFoundException({
+              code: 'PRODUCT_NOT_FOUND',
+              message: `Không tìm thấy sản phẩm #${pId}`,
+            });
+          }
+          if (latest.stock < neededQty) {
+            throw new ConflictException({
+              code: 'OUT_OF_STOCK',
+              message: `Sản phẩm '${latest.name}' chỉ còn ${latest.stock} phần`,
+              details: [
+                {
+                  productId: pId,
+                  available: latest.stock,
+                  requested: neededQty,
+                },
+              ],
+            });
+          }
+          throw new StockRetryError();
+        }
       }
 
       // 4. Xử lý khuyến mãi nếu có mã promoCode
@@ -137,7 +205,7 @@ export class OrdersService {
         // Tính tiền giảm (PERCENT hoặc FIXED)
         if (promo.type === 'PERCENT') {
           const rawDiscount = Math.floor((subtotal * promo.value) / 100);
-          discountAmount = promo.maxDiscount ? Math.min(rawDiscount, promo.maxDiscount) : rawDiscount;
+          discountAmount = Math.min(rawDiscount, promo.maxDiscount ?? Infinity);
         } else {
           discountAmount = Math.min(promo.value, subtotal);
         }
@@ -145,12 +213,24 @@ export class OrdersService {
         appliedPromoCode = promo.code;
 
         // Tăng số lượt đã sử dụng của mã
-        await tx.promoCode.update({
-          where: { id: promo.id },
+        const claimed = await tx.promoCode.updateMany({
+          where: {
+            id: promo.id,
+            OR: [
+              { usageLimit: null },
+              { usedCount: { lt: tx.promoCode.fields.usageLimit } },
+            ],
+          },
           data: {
             usedCount: { increment: 1 },
           },
         });
+        if (claimed.count === 0) {
+          throw new UnprocessableEntityException({
+            code: 'PROMO_USAGE_EXCEEDED',
+            message: 'Mã khuyến mãi đã hết lượt sử dụng',
+          });
+        }
       }
 
       const total = Math.max(0, subtotal - discountAmount);
@@ -315,6 +395,7 @@ export class OrdersService {
    */
   async cancelOrder(orderId: number, userId: number, role: string) {
     return this.prisma.$transaction(async (tx) => {
+      await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: {
@@ -340,23 +421,35 @@ export class OrdersService {
       }
 
       // Nếu đơn đang có giao dịch thanh toán PROCESSING thì không được hủy
-      const processingPayment = order.payments.find((p) => p.status === 'PROCESSING');
+      const processingPayment = order.payments.find(
+        (p) => p.status === 'PROCESSING',
+      );
       if (processingPayment) {
         throw new ConflictException({
           code: 'PAYMENT_IN_PROGRESS',
-          message: 'Đơn hàng đang có giao dịch thanh toán đang xử lý, không thể hủy lúc này',
+          message:
+            'Đơn hàng đang có giao dịch thanh toán đang xử lý, không thể hủy lúc này',
         });
       }
 
       // Kiểm tra State Machine: chỉ PENDING, PAYMENT_FAILED hoặc PAID mới được hủy
       assertTransition(order.status as OrderStatus, 'CANCELLED');
 
-      // 1. Hoàn kho cho từng sản phẩm
+      // 1. Gộp và khóa sản phẩm cùng thứ tự với luồng tạo đơn để tránh deadlock.
+      const qtyByProduct = new Map<number, number>();
       for (const item of order.items) {
+        qtyByProduct.set(
+          item.productId,
+          (qtyByProduct.get(item.productId) ?? 0) + item.qty,
+        );
+      }
+      for (const [productId, qty] of [...qtyByProduct].sort(
+        ([a], [b]) => a - b,
+      )) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: productId },
           data: {
-            stock: { increment: item.qty },
+            stock: { increment: qty },
             version: { increment: 1 },
           },
         });
@@ -394,7 +487,9 @@ export class OrdersService {
         }
 
         // Ghi nhận hoàn tiền mock trên giao dịch thành công
-        const successfulPayment = order.payments.find((p) => p.status === 'SUCCESS');
+        const successfulPayment = order.payments.find(
+          (p) => p.status === 'SUCCESS',
+        );
         if (successfulPayment) {
           const refundRef = `REFUND-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
           await tx.payment.update({
@@ -420,7 +515,8 @@ export class OrdersService {
         id: cancelledOrder.id,
         code: `#${cancelledOrder.id}`,
         status: cancelledOrder.status,
-        message: 'Hủy đơn hàng thành công, tồn kho và các quyền lợi đã được hoàn trả',
+        message:
+          'Hủy đơn hàng thành công, tồn kho và các quyền lợi đã được hoàn trả',
       };
     });
   }
@@ -432,6 +528,7 @@ export class OrdersService {
    */
   async updateStatus(orderId: number, newStatus: BaristaAllowedStatus) {
     return this.prisma.$transaction(async (tx) => {
+      await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
         where: { id: orderId },
       });
@@ -462,4 +559,3 @@ export class OrdersService {
     });
   }
 }
-

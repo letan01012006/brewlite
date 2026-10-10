@@ -1,17 +1,37 @@
-import {
+﻿import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  HttpException,
   HttpStatus,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import crypto from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { MockPaymentService } from './mock-payment.service.js';
+import {
+  MockPaymentService,
+  type ChargeResult,
+} from './mock-payment.service.js';
 import { ProcessPaymentDto } from './dto/process-payment.dto.js';
+import {
+  Prisma,
+  type Order,
+  type Payment,
+} from '../generated/prisma/client.js';
+import { lockOrder } from '../orders/order-lock.js';
+import { VND_PER_LOYALTY_POINT } from '../common/pricing/pricing.constants.js';
+
+type OwnedPayment = Prisma.PaymentGetPayload<{
+  include: { order: { select: { userId: true } } };
+}>;
+type PaymentClaim =
+  | { kind: 'claimed'; order: Order; payment: Payment }
+  | { kind: 'existing'; payment: OwnedPayment };
+
+const REPLAY_WAIT_MS = 3000;
+const REPLAY_POLL_MS = 200;
 
 @Injectable()
 export class PaymentsService {
@@ -20,31 +40,20 @@ export class PaymentsService {
     private readonly mockPaymentService: MockPaymentService,
   ) {}
 
-  /**
-   * Xử lý thanh toán không tiền mặt bảo mật cao (Task 8 & Task 10)
-   * POST /api/payments
-   * - Hỗ trợ Idempotency-Key chống thanh toán trùng
-   * - Kiểm tra Request Hash SHA-256
-   * - Khóa đơn hàng trong Transaction
-   * - Chuyển trạng thái Order sang PAID và cộng điểm tích lũy
-   */
   async processPayment(
     userId: number,
     dto: ProcessPaymentDto,
     keyFromHeader?: string,
+    requestPath = '/api/payments',
   ) {
-    // Ưu tiên key từ body nếu được truyền trực tiếp, sau đó mới đến header
     const idempotencyKey = dto.idempotencyKey?.trim() || keyFromHeader?.trim();
-
-    // 1. Kiểm tra Idempotency-Key
     if (!idempotencyKey) {
       throw new BadRequestException({
         code: 'IDEMPOTENCY_KEY_REQUIRED',
-        message: 'Thiếu Idempotency-Key. Vui lòng truyền qua Header hoặc Body để đảm bảo an toàn giao dịch',
+        message:
+          'Thiếu Idempotency-Key. Vui lòng truyền qua Header hoặc Body để đảm bảo an toàn giao dịch',
       });
     }
-
-    // 2. Tính Request Hash (SHA-256) từ các trường cố định
     const requestHash = crypto
       .createHash('sha256')
       .update(
@@ -55,211 +64,244 @@ export class PaymentsService {
         }),
       )
       .digest('hex');
+    const deadline = Date.now() + REPLAY_WAIT_MS;
+    const existing = await this.findPayment(idempotencyKey);
+    if (existing) {
+      return this.replay(existing, userId, dto.orderId, requestHash, deadline);
+    }
 
-    // 3. Tra cứu lịch sử thanh toán theo Idempotency-Key
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: { idempotencyKey },
-    });
+    let claim: PaymentClaim;
+    try {
+      claim = await this.prisma.$transaction(
+        async (tx): Promise<PaymentClaim> => {
+          await lockOrder(tx, dto.orderId);
+          // Another request may have claimed this key while we waited for the row.
+          // Release this transaction before polling so finalization can acquire it.
+          const raced = await this.findPayment(idempotencyKey, tx);
+          if (raced) return { kind: 'existing', payment: raced };
 
-    if (existingPayment) {
-      // Nếu key đã dùng nhưng hash khác hoặc thuộc về đơn khác -> Chặn gian lận
+          const order = await tx.order.findUnique({
+            where: { id: dto.orderId },
+          });
+          if (!order) {
+            throw new NotFoundException({
+              code: 'ORDER_NOT_FOUND',
+              message: `Không tìm thấy đơn hàng #${dto.orderId}`,
+            });
+          }
+          if (order.userId !== userId) {
+            throw new ForbiddenException({
+              code: 'FORBIDDEN',
+              message:
+                'Bạn không có quyền thanh toán cho đơn hàng của người khác',
+            });
+          }
+          this.assertPayable(order);
+          const inProgress = await tx.payment.findFirst({
+            where: { orderId: order.id, status: 'PROCESSING' },
+          });
+          if (inProgress) throw this.inProgress();
+
+          const payment = await tx.payment.create({
+            data: {
+              orderId: order.id,
+              idempotencyKey,
+              requestHash,
+              amount: order.total,
+              method: dto.method,
+              status: 'PROCESSING',
+            },
+          });
+          return { kind: 'claimed', order, payment };
+        },
+      );
+    } catch (error) {
       if (
-        existingPayment.orderId !== dto.orderId ||
-        existingPayment.requestHash !== requestHash
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+      // The key is global: requests for different orders can race at INSERT.
+      // Read only after the failed transaction has rolled back.
+      const raced = await this.findPayment(idempotencyKey);
+      if (!raced) throw this.inProgress(); // Partial unique index for this order.
+      return this.replay(raced, userId, dto.orderId, requestHash, deadline);
+    }
+    if (claim.kind === 'existing') {
+      return this.replay(
+        claim.payment,
+        userId,
+        dto.orderId,
+        requestHash,
+        deadline,
+      );
+    }
+
+    // Only the request that committed the PROCESSING row may call the gateway.
+    const { order, payment } = claim;
+    let chargeResult: ChargeResult;
+    try {
+      chargeResult = await this.mockPaymentService.charge({
+        amount: order.total,
+        method: dto.method,
+        mockResult: dto.mockResult,
+      });
+    } catch {
+      // The mock gateway has no external money movement. Persist a failure so
+      // retries replay it and the customer can retry with a new key or cancel.
+      chargeResult = {
+        success: false,
+        failureReason: 'Cổng thanh toán không phản hồi, vui lòng thử lại',
+      };
+    }
+
+    const points = Math.floor(order.total / VND_PER_LOYALTY_POINT);
+    const statusCode = chargeResult.success
+      ? HttpStatus.CREATED
+      : HttpStatus.PAYMENT_REQUIRED;
+    const response: Prisma.JsonObject = chargeResult.success
+      ? {
+          payment: {
+            id: payment.id,
+            orderId: order.id,
+            amount: order.total,
+            method: dto.method,
+            status: 'SUCCESS',
+            providerRef: chargeResult.providerRef ?? null,
+          },
+          order: {
+            id: order.id,
+            code: `#${order.id}`,
+            status: 'PAID',
+            total: order.total,
+            pointsEarned: points,
+          },
+        }
+      : {
+          statusCode,
+          code: 'PAYMENT_FAILED',
+          message:
+            chargeResult.failureReason ?? 'Cổng thanh toán từ chối giao dịch',
+          order: {
+            id: order.id,
+            code: `#${order.id}`,
+            status: 'PAYMENT_FAILED',
+          },
+          path: requestPath,
+          timestamp: new Date().toISOString(),
+        };
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockPayableOrder(tx, order.id);
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: chargeResult.success ? 'SUCCESS' : 'FAILED',
+          providerRef: chargeResult.providerRef,
+          failureReason: chargeResult.failureReason,
+          responseSnapshot: response,
+        },
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: chargeResult.success ? 'PAID' : 'PAYMENT_FAILED',
+          ...(chargeResult.success ? { pointsEarned: points } : {}),
+        },
+      });
+      if (chargeResult.success && points > 0) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { loyaltyPoints: { increment: points } },
+        });
+        await tx.loyaltyTransaction.create({
+          data: { userId, orderId: order.id, points },
+        });
+      }
+    });
+    return { isReplayed: false, statusCode, data: response };
+  }
+
+  private findPayment(
+    key: string,
+    db: Pick<Prisma.TransactionClient, 'payment'> = this.prisma,
+  ) {
+    return db.payment.findUnique({
+      where: { idempotencyKey: key },
+      include: { order: { select: { userId: true } } },
+    });
+  }
+
+  private async replay(
+    payment: OwnedPayment,
+    userId: number,
+    orderId: number,
+    requestHash: string,
+    deadline: number,
+  ) {
+    for (;;) {
+      // Authorization precedes both the status check and any snapshot access.
+      if (
+        payment.order.userId !== userId ||
+        payment.orderId !== orderId ||
+        payment.requestHash !== requestHash
       ) {
         throw new UnprocessableEntityException({
           code: 'IDEMPOTENCY_KEY_REUSED',
           message: 'Idempotency-Key này đã được sử dụng cho một giao dịch khác',
         });
       }
-
-      // Nếu đang trong quá trình xử lý song song
-      if (existingPayment.status === 'PROCESSING') {
-        throw new ConflictException({
-          code: 'PAYMENT_IN_PROGRESS',
-          message: 'Giao dịch với Idempotency-Key này đang được xử lý, vui lòng không gửi lặp lại',
-        });
-      }
-
-      // Nếu đã từng thanh toán trước đó (SUCCESS hoặc FAILED) -> REPLAY kết quả cũ (Không trừ tiền lại!)
-      if (existingPayment.status === 'SUCCESS') {
+      if (payment.status !== 'PROCESSING') {
+        if (payment.responseSnapshot === null) throw this.inProgress();
         return {
           isReplayed: true,
-          data: existingPayment.responseSnapshot,
+          statusCode:
+            payment.status === 'SUCCESS'
+              ? HttpStatus.CREATED
+              : HttpStatus.PAYMENT_REQUIRED,
+          data: payment.responseSnapshot,
         };
       }
-
-      if (existingPayment.status === 'FAILED') {
-        const errorBody =
-          (existingPayment.responseSnapshot as Record<string, any>) ?? {
-            statusCode: 402,
-            code: 'PAYMENT_FAILED',
-            message: existingPayment.failureReason ?? 'Thanh toán thất bại',
-          };
-        throw new HttpException(errorBody, HttpStatus.PAYMENT_REQUIRED);
-      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw this.inProgress();
+      await delay(Math.min(REPLAY_POLL_MS, remaining));
+      const current = await this.findPayment(payment.idempotencyKey);
+      if (!current) throw this.inProgress();
+      payment = current;
     }
+  }
 
-
-    // 4. Bước chiếm key và khóa đơn hàng (Transaction 1)
-    const { order, payment } = await this.prisma.$transaction(async (tx) => {
-      const ord = await tx.order.findUnique({
-        where: { id: dto.orderId },
-      });
-
-      if (!ord) {
-        throw new NotFoundException({
-          code: 'ORDER_NOT_FOUND',
-          message: `Không tìm thấy đơn hàng #${dto.orderId}`,
-        });
-      }
-
-      if (ord.userId !== userId) {
-        throw new ForbiddenException({
-          code: 'FORBIDDEN',
-          message: 'Bạn không có quyền thanh toán cho đơn hàng của người khác',
-        });
-      }
-
-      if (ord.status !== 'PENDING' && ord.status !== 'PAYMENT_FAILED') {
-        throw new ConflictException({
-          code: 'INVALID_TRANSITION',
-          message: `Không thể thanh toán đơn hàng đang ở trạng thái ${ord.status}`,
-        });
-      }
-
-      // Kiểm tra xem đơn này có giao dịch PROCESSING nào khác đang chạy không
-      const inProgress = await tx.payment.findFirst({
-        where: { orderId: ord.id, status: 'PROCESSING' },
-      });
-
-      if (inProgress) {
-        throw new ConflictException({
-          code: 'PAYMENT_IN_PROGRESS',
-          message: 'Đơn hàng đang có một giao dịch thanh toán khác đang xử lý',
-        });
-      }
-
-      // Ghi nhận Payment ở trạng thái PROCESSING
-      const p = await tx.payment.create({
-        data: {
-          orderId: ord.id,
-          idempotencyKey,
-          requestHash,
-          amount: ord.total,
-          method: dto.method,
-          status: 'PROCESSING',
-        },
-      });
-
-      return { order: ord, payment: p };
+  private inProgress() {
+    return new ConflictException({
+      code: 'PAYMENT_IN_PROGRESS',
+      message:
+        'Đơn hàng đang có giao dịch thanh toán đang xử lý, vui lòng thử lại',
     });
+  }
 
-    // 5. Gọi Mock Payment Gateway (Momo/VNPay/Stripe ảo)
-    const chargeResult = await this.mockPaymentService.charge({
-      amount: order.total,
-      method: dto.method,
-      mockResult: dto.mockResult,
-    });
-
-    // 6. Cập nhật kết quả cuối cùng (Transaction 2)
-    if (chargeResult.success) {
-      // Tính điểm thưởng: 1 điểm cho mỗi 1.000đ của total
-      const points = Math.floor(order.total / 1000);
-
-      const successResponse = {
-        payment: {
-          id: payment.id,
-          orderId: order.id,
-          amount: order.total,
-          method: dto.method,
-          status: 'SUCCESS',
-          providerRef: chargeResult.providerRef,
-        },
-        order: {
-          id: order.id,
-          code: `#${order.id}`,
-          status: 'PAID',
-          total: order.total,
-          pointsEarned: points,
-        },
-      };
-
-      await this.prisma.$transaction(async (tx) => {
-        // Cập nhật Payment
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: 'SUCCESS',
-            providerRef: chargeResult.providerRef,
-            responseSnapshot: successResponse,
-          },
-        });
-
-        // Cập nhật Order sang PAID
-        await tx.order.update({
-          where: { id: order.id },
-          data: {
-            status: 'PAID',
-            pointsEarned: points,
-          },
-        });
-
-        // Cộng điểm loyaltyPoints và ghi nhận giao dịch
-        if (points > 0) {
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              loyaltyPoints: { increment: points },
-            },
-          });
-
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId,
-              orderId: order.id,
-              points,
-            },
-          });
-        }
+  private assertPayable(order: Order) {
+    // A failed retry may remain PAYMENT_FAILED. Never overwrite terminal states.
+    if (order.status !== 'PENDING' && order.status !== 'PAYMENT_FAILED') {
+      throw new ConflictException({
+        code: 'INVALID_TRANSITION',
+        message: `Không thể thanh toán đơn hàng đang ở trạng thái ${order.status}`,
       });
-
-      return {
-        isReplayed: false,
-        data: successResponse,
-      };
-    } else {
-      // Thanh toán thất bại (Code 402)
-      const failedResponse = {
-        statusCode: 402,
-        code: 'PAYMENT_FAILED',
-        message: chargeResult.failureReason ?? 'Cổng thanh toán từ chối giao dịch',
-        order: {
-          id: order.id,
-          code: `#${order.id}`,
-          status: 'PAYMENT_FAILED',
-        },
-      };
-
-      await this.prisma.$transaction(async (tx) => {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            status: 'FAILED',
-            failureReason: chargeResult.failureReason,
-            responseSnapshot: failedResponse,
-          },
-        });
-
-        await tx.order.update({
-          where: { id: order.id },
-          data: {
-            status: 'PAYMENT_FAILED',
-          },
-        });
-      });
-
-      throw new HttpException(failedResponse, HttpStatus.PAYMENT_REQUIRED);
     }
+  }
+
+  private async lockPayableOrder(
+    tx: Prisma.TransactionClient,
+    orderId: number,
+  ) {
+    await lockOrder(tx, orderId);
+    const order = await tx.order.findUnique({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException({
+        code: 'ORDER_NOT_FOUND',
+        message: `Không tìm thấy đơn hàng #${orderId}`,
+      });
+    }
+    this.assertPayable(order);
   }
 }

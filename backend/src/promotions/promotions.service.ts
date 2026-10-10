@@ -1,6 +1,9 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { PricingService, type PricingItemInput } from '../common/pricing/pricing.service.js';
+import {
+  PricingService,
+  type PricingItemInput,
+} from '../common/pricing/pricing.service.js';
 import { ValidatePromotionDto } from './dto/apply-promotion.dto.js';
 
 @Injectable()
@@ -69,7 +72,9 @@ export class PromotionsService {
       throw new UnprocessableEntityException({
         code: 'PROMO_MIN_ORDER_NOT_MET',
         message: `Đơn hàng tối thiểu phải từ ${promo.minOrderValue.toLocaleString('vi-VN')}đ để áp dụng mã này`,
-        details: [{ minOrderValue: promo.minOrderValue, currentSubtotal: subtotal }],
+        details: [
+          { minOrderValue: promo.minOrderValue, currentSubtotal: subtotal },
+        ],
       });
     }
 
@@ -77,7 +82,7 @@ export class PromotionsService {
     let discountAmount = 0;
     if (promo.type === 'PERCENT') {
       const rawDiscount = Math.floor((subtotal * promo.value) / 100);
-      discountAmount = promo.maxDiscount ? Math.min(rawDiscount, promo.maxDiscount) : rawDiscount;
+      discountAmount = Math.min(rawDiscount, promo.maxDiscount ?? Infinity);
     } else {
       discountAmount = Math.min(promo.value, subtotal);
     }
