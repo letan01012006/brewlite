@@ -12,17 +12,24 @@ export default function LandingPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    // Tải 4 món nổi bật từ Backend
-    apiFetch<{ data: Product[] }>('/products?limit=4')
+    const controller = new AbortController();
+    apiFetch<{ data: Product[] }>('/products?limit=4', { auth: false, signal: controller.signal })
       .then((res) => {
+        if (controller.signal.aborted) return;
         setFeaturedProducts(res.data || []);
       })
-      .catch(() => {
-        // Fallback im lặng nếu backend chưa sẵn sàng
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : 'Không thể tải danh sách món.');
+      }).finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
       });
-  }, []);
+    return () => controller.abort();
+  }, [reload]);
 
   const handleOrderFeatured = (product: Product) => {
     if (!user) {
@@ -34,9 +41,9 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen dark:bg-stone-950 dark:text-stone-100 transition-colors">
-      {/* 1. HERO SECTION - ẢNH CHỦ ĐẠO & CÂU GIỚI THIỆU */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#18120e] via-[#221812] to-[#140e0b] text-white py-16 sm:py-24 px-4 border-b border-[#2e2019]/60 dark:border-stone-850">
+    <div className="pb-8 dark:bg-stone-950 dark:text-stone-100 transition-colors">
+      {/* 1. HERO SECTION */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#18120e] via-[#221812] to-[#140e0b] text-white py-8 sm:py-14 px-4 sm:px-6 rounded-3xl border border-[#2e2019]/60 dark:border-stone-850 shadow-xl mt-1 mb-8">
         {/* Glow hiệu ứng tinh tế */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-amber-500/10 blur-[120px] pointer-events-none rounded-full" />
 
@@ -115,27 +122,36 @@ export default function LandingPage() {
       </section>
 
       {/* 2. MÓN NỔI BẬT (FEATURED DRINKS) */}
-      <section className="py-16 sm:py-24 px-4 max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+      <section className="py-2 mb-6">
+        <div className="flex items-end justify-between gap-3 mb-4">
           <div>
-            <span className="inline-block uppercase tracking-widest text-[11px] font-black text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-3 py-1 rounded-full border border-amber-300/40 dark:border-amber-800/40 mb-2">
+            <span className="inline-block uppercase tracking-widest text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-full border border-amber-300/40 dark:border-amber-800/40 mb-1">
               Best-Sellers
             </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-stone-900 dark:text-stone-100 tracking-tight">
-              Món Nổi Bật Được Yêu Thích
+            <h2 className="text-lg sm:text-2xl font-extrabold text-stone-900 dark:text-stone-100 tracking-tight">
+              Món Nổi Bật
             </h2>
           </div>
           <Link
             href="/menu"
-            className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1.5 transition-colors self-start sm:self-auto py-1 px-3 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 transition-colors py-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40"
           >
-            <span>Xem toàn bộ thực đơn</span>
+            <span>Tất cả</span>
             <span>→</span>
           </Link>
         </div>
 
-        {featuredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {loadError ? (
+          <div role="alert" className="rounded-xl border border-amber-300 p-4 text-sm">
+            <p>{loadError}</p>
+            <button type="button" className="mt-2 min-h-11 font-semibold underline" onClick={() => {
+              setLoadError(null);
+              setIsLoading(true);
+              setReload((value) => value + 1);
+            }}>Thử lại</button>
+          </div>
+        ) : featuredProducts.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {featuredProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -145,8 +161,8 @@ export default function LandingPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-stone-400 dark:text-stone-500 text-xs">
-            Đang tải món nổi bật...
+          <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-xs">
+            {isLoading ? 'Đang tải món nổi bật...' : 'Chưa có món nổi bật.'}
           </div>
         )}
       </section>
@@ -202,7 +218,7 @@ export default function LandingPage() {
                 Nhận tại quầy liền tay
               </h3>
               <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-                Đơn hàng được gửi thẳng đến quầy Barista. Khi trạng thái chuyển sang "Sẵn sàng", bạn chỉ việc ghé quầy nhận đồ uống thơm ngon.
+                Đơn hàng được gửi thẳng đến quầy Barista. Khi trạng thái chuyển sang &quot;Sẵn sàng&quot;, bạn chỉ việc ghé quầy nhận đồ uống thơm ngon.
               </p>
             </div>
           </div>

@@ -100,8 +100,7 @@ function RegisterForm() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-6 sm:p-8 shadow-xl shadow-stone-200/40 dark:shadow-none space-y-6 animate-fadeIn">
+    <div className="w-full bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-6 sm:p-8 shadow-2xl space-y-6 animate-fadeIn">
         {/* Header */}
         <div className="text-center space-y-1.5">
           <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-200/60 dark:border-amber-800/50 shadow-sm">
@@ -241,6 +240,5 @@ function RegisterForm() {
           </Link>
         </div>
       </div>
-    </div>
   );
 }

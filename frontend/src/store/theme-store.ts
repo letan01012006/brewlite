@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { readPreference, writePreference } from '@/lib/browser-storage';
 
 export type Theme = 'light' | 'dark';
 
@@ -10,13 +11,14 @@ interface ThemeState {
   initTheme: () => void;
 }
 
-export const useThemeStore = create<ThemeState>((set, get) => ({
+export const useThemeStore = create<ThemeState>((set) => ({
   theme: 'light',
 
   initTheme: () => {
     if (typeof window === 'undefined') return;
     const isDarkInDom = document.documentElement.classList.contains('dark');
-    const saved = localStorage.getItem('brewlite_theme') as Theme | null;
+    const stored = readPreference('localStorage', 'brewlite_theme');
+    const saved = stored === 'dark' || stored === 'light' ? stored : null;
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const initialTheme: Theme = saved || (isDarkInDom ? 'dark' : prefersDark ? 'dark' : 'light');
 
@@ -34,7 +36,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const next: Theme = isCurrentlyDark ? 'light' : 'dark';
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('brewlite_theme', next);
+      writePreference('localStorage', 'brewlite_theme', next);
       if (next === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
