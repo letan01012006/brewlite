@@ -1,7 +1,7 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Navbar } from '@/components/navbar/navbar';
+import { PwaRegister } from '@/components/layout/pwa-register';
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -13,9 +13,31 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+export const viewport: Viewport = {
+  themeColor: '#1c1410',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export const metadata: Metadata = {
   title: 'BrewLite - Tiệm Cà Phê Không Tiền Mặt',
   description: 'Đặt cà phê nhanh chóng, thanh toán không tiền mặt và tích điểm thông minh.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'BrewLite',
+  },
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -49,13 +71,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 transition-colors duration-200">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 py-6 text-center text-xs text-stone-500 dark:text-stone-400">
-          <div className="max-w-6xl mx-auto px-4">
-            BrewLite © 2026 • Trải nghiệm đặt cà phê không tiền mặt tiện lợi & hiện đại.
-          </div>
-        </footer>
+        <div className="flex-1 flex flex-col">{children}</div>
+        <PwaRegister />
       </body>
     </html>
   );

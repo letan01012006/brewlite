@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useThemeStore } from '@/store/theme-store';
+
+const emptySubscribe = () => () => {};
 
 export function ThemeToggle() {
   const { theme, toggleTheme, initTheme } = useThemeStore();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   useEffect(() => {
     initTheme();
-    setMounted(true);
   }, [initTheme]);
 
   if (!mounted) {

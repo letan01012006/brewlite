@@ -16,6 +16,10 @@ export function sourceLoader(mocks = {}, globals = {}) {
     let file = path.resolve(root, relative);
     if (!path.extname(file))
       file += fs.existsSync(`${file}.ts`) ? ".ts" : ".tsx";
+    if (!fs.existsSync(file) && relative.startsWith("src/app/")) {
+      const shopCandidate = path.resolve(root, relative.replace("src/app/", "src/app/(shop)/"));
+      if (fs.existsSync(shopCandidate)) file = shopCandidate;
+    }
     if (cache.has(file)) return cache.get(file).exports;
     const loadedModule = { exports: {} };
     cache.set(file, loadedModule);

@@ -181,6 +181,8 @@ export default function CartPage() {
                     <div className="w-20 h-20 rounded-xl overflow-hidden bg-amber-50 dark:bg-[#201814] shrink-0 border border-amber-200/40 dark:border-[#33261f]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
+              loading="lazy"
+              decoding="async"
                         src={imageSrc}
                         alt={item.product.name}
                         className="w-full h-full object-cover"
@@ -235,13 +237,14 @@ export default function CartPage() {
 
                     <div className="flex items-center gap-3">
                       {/* Tăng giảm số lượng */}
-                      <div className="flex items-center border border-[#ede5dc] dark:border-[#2e241e] rounded-xl bg-stone-50 dark:bg-[#1f1915] shadow-sm overflow-hidden">
+                      <div className="flex items-center border border-[#ede5dc] dark:border-[#2e241e] rounded-xl bg-stone-50 dark:bg-[#1f1915] shadow-sm overflow-hidden h-9">
                         <button
                           type="button"
                           onClick={() =>
                             handleUpdateQty(item.id, item.quantity - 1)
                           }
-                          className="w-8 h-8 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-200 dark:hover:bg-[#281f19] cursor-pointer transition-colors"
+                          aria-label="Giảm"
+                          className="w-9 h-9 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-200 dark:hover:bg-[#281f19] active:scale-95 cursor-pointer transition-colors text-base font-bold"
                         >
                           −
                         </button>
@@ -254,7 +257,8 @@ export default function CartPage() {
                             handleUpdateQty(item.id, item.quantity + 1)
                           }
                           disabled={item.quantity >= 20}
-                          className="w-8 h-8 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-200 dark:hover:bg-[#281f19] disabled:opacity-40 cursor-pointer transition-colors"
+                          aria-label="Tăng"
+                          className="w-9 h-9 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-200 dark:hover:bg-[#281f19] active:scale-95 disabled:opacity-40 cursor-pointer transition-colors text-base font-bold"
                         >
                           +
                         </button>
@@ -263,8 +267,9 @@ export default function CartPage() {
                       {/* Nút Xóa */}
                       <button
                         onClick={() => handleRemoveItem(item.id)}
-                        className="text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                        className="w-9 h-9 flex items-center justify-center text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-90 transition-all cursor-pointer text-sm"
                         title="Xóa món này"
+                        aria-label="Xóa món"
                       >
                         ✕
                       </button>

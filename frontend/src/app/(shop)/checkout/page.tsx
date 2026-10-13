@@ -293,9 +293,9 @@ function CheckoutContent() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+    <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mb-2">
+      <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1.5">
         <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400">
           Trang chủ
         </Link>
@@ -311,13 +311,13 @@ function CheckoutContent() {
         <span className="text-stone-800 dark:text-stone-200 font-medium">Thanh toán</span>
       </div>
 
-      <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-stone-100 tracking-tight mb-8">
-        Xác Nhận & Thanh Toán Không Tiền Mặt
+      <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight mb-4">
+        Xác Nhận & Thanh Toán
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* CỘT TRÁI (7 cols): Chọn Phương Thức Thanh Toán */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-4">
           {/* 1. Thông tin khách hàng */}
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3">
             <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2">
@@ -625,7 +625,7 @@ function CheckoutContent() {
                 !token ||
                 (session !== null && !order)
               }
-              className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm py-3.5 px-4 rounded-xl shadow-md shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-98"
+              className="w-full h-12 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm px-4 rounded-2xl shadow-lg shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-95"
             >
               {isProcessing ? (
                 <>

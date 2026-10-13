@@ -7,6 +7,7 @@ import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
 import { unitPrice as calculateUnitPrice } from "@/lib/cart-rules";
 import { getProductImageUrl } from "@/lib/constants/product-images";
+import { Modal } from '@/components/ui/modal';
 
 interface ProductModalProps {
   product: Product | null;
@@ -101,13 +102,19 @@ function ProductSelection({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
+    <Modal onClose={onClose} labelledBy="modal-product-title">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+    >
       {/* Click outside to close */}
-      <div className="fixed inset-0" onClick={onClose} />
+      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-[#ede5dc] dark:border-[#2a221c] transition-colors">
+      <div className="relative z-10 w-full sm:max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border-t sm:border border-[#ede5dc] dark:border-[#2a221c] animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 transition-colors">
+        {/* Mobile Drag Handle */}
+        <div className="w-12 h-1 rounded-full bg-stone-300 dark:bg-stone-700 mx-auto my-2 sm:hidden shrink-0" />
+
         {/* Header với ảnh hoặc icon */}
-        <div className="relative h-44 sm:h-52 bg-gradient-to-br from-amber-100 via-stone-100 to-amber-50 dark:from-[#221a15] dark:via-[#1a1411] dark:to-[#120f0d] flex items-center justify-center border-b border-[#ede5dc] dark:border-[#2a221c]">
+        <div className="relative h-40 sm:h-52 bg-gradient-to-br from-amber-100 via-stone-100 to-amber-50 dark:from-[#221a15] dark:via-[#1a1411] dark:to-[#120f0d] flex items-center justify-center border-b border-[#ede5dc] dark:border-[#2a221c] shrink-0">
           {!modalImgError ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -132,7 +139,8 @@ function ProductSelection({
           {/* Nút đóng */}
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm"
+            aria-label="Đóng bảng tùy chọn"
+            className="absolute top-3 right-3 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm active:scale-95 text-base"
           >
             ✕
           </button>
@@ -156,7 +164,7 @@ function ProductSelection({
         {/* Nội dung tùy chỉnh */}
         <div className="p-5 overflow-y-auto space-y-5 flex-1">
           <div>
-            <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100">{product.name}</h2>
+            <h2 id="modal-product-title" className="text-xl font-bold text-stone-900 dark:text-stone-100">{product.name}</h2>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
               {product.description ||
                 "Thức uống tươi ngon được pha chế theo công thức chuẩn vị."}
@@ -189,7 +197,7 @@ function ProductSelection({
                     }`}
                   >
                     <div className="text-sm font-bold">{item.size}</div>
-                    <div className="text-[11px] text-stone-500 dark:text-[#9e8f83] mt-0.5">
+                    <div className="text-xs text-stone-500 dark:text-[#9e8f83] mt-0.5">
                       {item.upcharge > 0
                         ? `+${item.upcharge.toLocaleString("vi-VN")}₫`
                         : "Tiêu chuẩn"}
@@ -207,7 +215,7 @@ function ProductSelection({
                 <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-[#a39589]">
                   2. Thêm Topping
                 </label>
-                <span className="text-[11px] text-stone-400 dark:text-[#847569]">
+                <span className="text-xs text-stone-400 dark:text-[#847569]">
                   (Tối đa 3 loại • Đã chọn {selectedToppings.length}/3)
                 </span>
               </div>
@@ -219,7 +227,7 @@ function ProductSelection({
                   return (
                     <label
                       key={topping.id}
-                      className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer min-h-[48px] transition-colors ${
                         isChecked
                           ? "border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 font-medium"
                           : "border-[#ede5dc] dark:border-[#2a221c] hover:bg-stone-50 dark:hover:bg-[#201814] text-stone-700 dark:text-[#d5cbc3] bg-white/70 dark:bg-[#1a1411]"
@@ -261,25 +269,27 @@ function ProductSelection({
         </div>
 
         {/* Footer: Chọn số lượng & Nút Thêm vào giỏ */}
-        <div className="p-4 border-t border-[#ede5dc] dark:border-[#261e19] bg-[#fbf8f5] dark:bg-[#120f0d] flex items-center justify-between gap-4">
+        <div className="p-3 sm:p-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 border-t border-[#ede5dc] dark:border-[#261e19] bg-[#fbf8f5] dark:bg-[#120f0d] flex items-center justify-between gap-3 shrink-0 flex-wrap">
           {/* Tăng giảm số lượng */}
-          <div className="flex items-center border border-[#ede5dc] dark:border-[#2e241e] rounded-xl bg-white dark:bg-[#1a1411] shadow-sm overflow-hidden">
+          <div className="flex items-center border border-[#ede5dc] dark:border-[#2e241e] rounded-2xl bg-white dark:bg-[#1a1411] shadow-sm overflow-hidden h-12">
             <button
               type="button"
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
               disabled={quantity <= 1}
-              className="w-9 h-9 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-100 dark:hover:bg-[#281f19] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              aria-label="Giảm số lượng"
+              className="w-11 h-12 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-100 dark:hover:bg-[#281f19] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors text-lg font-bold"
             >
               −
             </button>
-            <span className="w-10 text-center font-bold text-sm text-stone-800 dark:text-[#f4ede6]">
+            <span className="w-9 text-center font-bold text-base text-stone-800 dark:text-[#f4ede6]">
               {quantity}
             </span>
             <button
               type="button"
               onClick={() => setQuantity(Math.min(20, available, quantity + 1))}
               disabled={quantity >= Math.min(20, available)}
-              className="w-9 h-9 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-100 dark:hover:bg-[#281f19] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              aria-label="Tăng số lượng"
+              className="w-11 h-12 flex items-center justify-center text-stone-600 dark:text-[#c4b6ab] hover:bg-stone-100 dark:hover:bg-[#281f19] disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors text-lg font-bold"
             >
               +
             </button>
@@ -290,19 +300,20 @@ function ProductSelection({
             type="button"
             onClick={handleAddToCart}
             disabled={isAdded || !isHydrated || available < quantity}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm text-white shadow-md transition-all flex items-center justify-between cursor-pointer ${
+            className={`flex-1 min-w-[170px] h-12 px-3 rounded-2xl font-bold text-sm text-white shadow-lg transition-all flex items-center justify-between cursor-pointer active:scale-95 ${
               isAdded
                 ? "bg-emerald-600 shadow-emerald-600/20"
-                : "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-600/25 active:scale-98"
+                : "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 shadow-amber-600/25"
             }`}
           >
-            <span>{isAdded ? "✓ Đã thêm vào giỏ!" : "Thêm vào giỏ hàng"}</span>
-            <span className="font-mono text-amber-100">
+            <span className="truncate">{isAdded ? "✓ Đã thêm vào giỏ!" : "Thêm vào giỏ"}</span>
+            <span className="font-mono text-amber-100 font-extrabold ml-2 shrink-0">
               {totalPrice.toLocaleString("vi-VN")}₫
             </span>
           </button>
         </div>
       </div>
     </div>
+    </Modal>
   );
 }

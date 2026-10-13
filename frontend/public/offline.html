@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1c1410" />
+  <title>Ngoại Tuyến • BrewLite</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #120f0d;
+      color: #fdfbf9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: #1c1512;
+      border: 1px solid #2e221c;
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+    .icon-badge {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, rgba(217, 119, 6, 0.25), rgba(120, 53, 15, 0.35));
+      border: 1px solid rgba(217, 119, 6, 0.3);
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon {
+      font-size: 42px;
+      user-select: none;
+    }
+    .offline-tag {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #dc2626;
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fde68a;
+      margin-bottom: 8px;
+    }
+    p {
+      font-size: 13px;
+      color: #a8a29e;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+    .btn-retry {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(180, 83, 9, 0.4);
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .btn-retry:active {
+      transform: scale(0.97);
+    }
+    .btn-home {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      background: #261d18;
+      color: #d6d3d1;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 16px;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn-home:hover {
+      background: #33261f;
+    }
+    .footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #281d17;
+      font-size: 11px;
+      color: #78716c;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-badge">
+      <span class="icon">☕</span>
+      <span class="offline-tag">Mất mạng</span>
+    </div>
+
+    <h1>Bạn đang ngoại tuyến</h1>
+    <p>Không có kết nối Internet. Vui lòng kiểm tra Wi-Fi hoặc dữ liệu di động (4G/5G) để tiếp tục đặt cà phê tại BrewLite.</p>
+
+    <button type="button" class="btn-retry" onclick="window.location.reload();">
+      🔄 Thử kết nối lại
+    </button>
+    <a href="/" class="btn-home">
+      Về trang chủ
+    </a>
+
+    <div class="footer">
+      BrewLite PWA • Tự động kết nối lại khi có mạng
+    </div>
+  </div>
+
+  <script>
+    // Auto-reload when network reconnects
+    window.addEventListener('online', function () {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

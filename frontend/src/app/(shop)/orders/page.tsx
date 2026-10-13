@@ -1,5 +1,6 @@
 "use client";
 
+import { Modal } from "@/components/ui/modal";
 import { AuthGate } from "@/components/auth/auth-gate";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -155,11 +156,11 @@ function OrdersContent() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+    <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-stone-200 dark:border-stone-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-200 dark:border-stone-800">
         <div>
-          <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mb-1">
+          <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1">
             <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400">
               Trang chủ
             </Link>
@@ -170,8 +171,8 @@ function OrdersContent() {
             <span>/</span>
             <span className="text-stone-800 dark:text-stone-200 font-medium">Lịch sử đơn hàng</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-stone-100 tracking-tight">
-            Lịch Sử Đơn Hàng Của Bạn
+          <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight">
+            Lịch Sử Đơn Hàng
           </h1>
         </div>
 
@@ -321,15 +322,16 @@ function OrdersContent() {
         disabled={isLoading}
       />
       {selectedOrder && (
+        <Modal onClose={closeDetail} labelledBy="order-detail-title">
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
           <div className="fixed inset-0" onClick={closeDetail} />
 
-          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-[#ede5dc] dark:border-[#2a221c]">
+          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c]">
             {/* Modal Header */}
             <div className="p-5 bg-stone-50 dark:bg-[#1a1411] border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h2 className="text-lg font-black text-stone-900 dark:text-[#f4ede6] font-mono">
+                  <h2 id="order-detail-title" className="text-lg font-black text-stone-900 dark:text-[#f4ede6] font-mono">
                     {selectedOrder.code}
                   </h2>
                   <StatusBadge status={selectedOrder.status} />
@@ -481,6 +483,7 @@ function OrdersContent() {
             </div>
           </div>
         </div>
+        </Modal>
       )}
     </div>
   );
