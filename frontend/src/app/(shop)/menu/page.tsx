@@ -137,22 +137,22 @@ function MenuContent() {
     <div className="pb-12 dark:bg-stone-950 transition-colors">
       {/* Menu heading */}
       <section className="pt-2 pb-3">
-        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-stone-900 dark:text-stone-100 flex items-center justify-between">
+        <h1 className="text-xl sm:text-2xl font-black tracking-tight text-stone-900 dark:text-stone-100 flex items-center justify-between light:text-cafe-ink ">
           <span>Thực Đơn Đồ Uống</span>
-          <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300/40">
+          <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300/40 light:text-cafe-primary ">
             {filteredProducts.length} món
           </span>
         </h1>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+        <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 light:text-cafe-muted ">
           Pha chế tươi mới • Đặt online nhận ngay
         </p>
       </section>
 
       {/* Sticky Search & Category Pills */}
-      <div className="sticky top-[var(--app-header-height)] z-20 bg-stone-50/95 dark:bg-stone-950/95 backdrop-blur-md pt-1 pb-3 space-y-2.5 transition-colors">
+      <div className="sticky top-[var(--app-header-height)] z-20 bg-stone-50/95 dark:bg-stone-950/95 backdrop-blur-md pt-1 pb-3 space-y-2.5 transition-colors light:bg-cafe-page/95 ">
         {/* Ô tìm kiếm */}
         <div className="relative">
-          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400 text-sm">
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400 text-sm light:text-cafe-muted ">
             🔍
           </span>
           <input
@@ -163,7 +163,7 @@ function MenuContent() {
               setPage(1);
             }}
             placeholder="Tìm món (Cà phê sữa, Latte, Trà đào...)..."
-            className="w-full pl-9 pr-8 py-2.5 bg-white dark:bg-[#1a1411] rounded-2xl border border-stone-200 dark:border-[#2e241e] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 shadow-sm transition-all"
+            className="w-full pl-9 pr-8 py-2.5 bg-white dark:bg-[#1a1411] rounded-2xl border border-stone-200 dark:border-[#2e241e] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 shadow-sm transition-all light:bg-cafe-surface light:border-cafe-line light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:text-cafe-ink light:placeholder:text-cafe-muted light:shadow-cafe-card "
           />
           {searchQuery && (
             <button
@@ -171,7 +171,7 @@ function MenuContent() {
                 setSearchQuery('');
                 setPage(1);
               }}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-stone-400 hover:text-stone-600 text-xs"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-stone-400 hover:text-stone-600 text-xs light:text-cafe-muted light:hover:text-cafe-muted "
             >
               ✕
             </button>
@@ -191,8 +191,8 @@ function MenuContent() {
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer ${
                   isActive
-                    ? 'bg-amber-600 text-white shadow-sm shadow-amber-900/30'
-                    : 'bg-white dark:bg-[#1a1411] hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-[#2e241e]'
+                    ? 'bg-amber-600 text-white shadow-sm shadow-amber-900/30 light:shadow-cafe-card cafe-primary '
+                    : 'bg-white dark:bg-[#1a1411] hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-[#2e241e] light:bg-cafe-surface light:hover:bg-cafe-soft light:text-cafe-ink light:border-cafe-line '
                 }`}
               >
                 {cat}
@@ -210,12 +210,12 @@ function MenuContent() {
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <div
                 key={n}
-                className="bg-white dark:bg-[#181412] rounded-3xl border border-stone-200/80 dark:border-[#2a221c] p-3 animate-pulse space-y-2.5"
+                className="bg-white dark:bg-[#181412] rounded-3xl border border-stone-200/80 dark:border-[#2a221c] p-3 animate-pulse space-y-2.5 light:bg-cafe-surface light:border-cafe-line "
               >
-                <div className="w-full h-32 sm:h-36 bg-stone-200 dark:bg-stone-800 rounded-2xl" />
-                <div className="h-4 bg-stone-200 dark:bg-stone-800 rounded w-3/4" />
-                <div className="h-3 bg-stone-200 dark:bg-stone-800 rounded w-1/2" />
-                <div className="h-8 bg-stone-200 dark:bg-stone-800 rounded-xl mt-2" />
+                <div className="w-full h-32 sm:h-36 bg-stone-200 dark:bg-stone-800 rounded-2xl light:bg-cafe-line " />
+                <div className="h-4 bg-stone-200 dark:bg-stone-800 rounded w-3/4 light:bg-cafe-line " />
+                <div className="h-3 bg-stone-200 dark:bg-stone-800 rounded w-1/2 light:bg-cafe-line " />
+                <div className="h-8 bg-stone-200 dark:bg-stone-800 rounded-xl mt-2 light:bg-cafe-line " />
               </div>
             ))}
           </div>
@@ -231,7 +231,7 @@ function MenuContent() {
             </p>
             <button
               onClick={fetchData}
-              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer"
+              className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm cursor-pointer light:shadow-cafe-card "
             >
               Thử lại ngay
             </button>
@@ -240,12 +240,12 @@ function MenuContent() {
 
         {/* Không tìm thấy kết quả */}
         {!isLoading && !error && filteredProducts.length === 0 && (
-          <div className="bg-white dark:bg-[#181412] border border-stone-200/80 dark:border-[#2a221c] rounded-3xl p-8 text-center space-y-2 my-6">
+          <div className="bg-white dark:bg-[#181412] border border-stone-200/80 dark:border-[#2a221c] rounded-3xl p-8 text-center space-y-2 my-6 light:bg-cafe-surface light:border-cafe-line ">
             <span className="text-3xl block">🔍</span>
-            <h3 className="font-bold text-stone-800 dark:text-stone-200 text-sm">
+            <h3 className="font-bold text-stone-800 dark:text-stone-200 text-sm light:text-cafe-ink ">
               Không tìm thấy món nào
             </h3>
-            <p className="text-xs text-stone-500 dark:text-stone-400">
+            <p className="text-xs text-stone-500 dark:text-stone-400 light:text-cafe-muted ">
               Thử tìm kiếm với từ khóa khác hoặc chọn danh mục khác.
             </p>
           </div>
@@ -290,7 +290,7 @@ export default function MenuPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center text-xs text-stone-400">
+        <div className="min-h-screen flex items-center justify-center text-xs text-stone-400 light:text-cafe-muted ">
           Đang tải thực đơn...
         </div>
       }

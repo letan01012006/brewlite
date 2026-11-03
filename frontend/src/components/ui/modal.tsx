@@ -25,7 +25,7 @@ export function Modal({ children, onClose, labelledBy }: {
 
   return (
     <dialog ref={dialog} aria-labelledby={labelledBy}
-      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-4 text-inherit open:flex open:items-center open:justify-center backdrop:bg-black/70 backdrop:backdrop-blur-sm"
+      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-4 text-inherit open:flex open:items-center open:justify-center backdrop:bg-black/70 backdrop:backdrop-blur-sm light:backdrop:bg-cafe-ink/40"
       onPointerDown={(event) => {
         pointerStartedOutside.current = event.target === event.currentTarget;
       }}

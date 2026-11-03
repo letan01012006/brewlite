@@ -14,7 +14,7 @@ export function ThemeToggle() {
   }, [initTheme]);
 
   if (!mounted) {
-    return <div className="w-8 h-8 rounded-xl bg-amber-900/40" />;
+    return <div className="w-8 h-8 rounded-xl bg-amber-900/40 cafe-icon" />;
   }
 
   const isDark = theme === 'dark';
@@ -25,7 +25,7 @@ export function ThemeToggle() {
       onClick={toggleTheme}
       aria-label="Chuyển chế độ Sáng / Tối"
       title={isDark ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
-      className="p-2 rounded-xl bg-amber-900/40 hover:bg-amber-800/60 dark:bg-stone-800 dark:hover:bg-stone-700 border border-amber-800/60 dark:border-stone-700 text-amber-200 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-sm"
+      className="p-2 rounded-xl bg-amber-900/40 hover:bg-amber-800/60 dark:bg-stone-800 dark:hover:bg-stone-700 border border-amber-800/60 dark:border-stone-700 text-amber-200 hover:text-white transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-sm light:shadow-cafe-card cafe-icon "
     >
       {isDark ? (
         <span className="text-base" role="img" aria-label="Giao diện Sáng">

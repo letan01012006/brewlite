@@ -1,12 +1,33 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(html:not(.dark), html:not(.dark) *));
+
+@theme inline {
+  --color-cafe-page: var(--background);
+  --color-cafe-surface: var(--surface);
+  --color-cafe-soft: var(--surface-soft);
+  --color-cafe-line: var(--surface-border);
+  --color-cafe-ink: var(--foreground);
+  --color-cafe-muted: var(--text-muted);
+  --color-cafe-primary: var(--primary);
+  --color-cafe-hover: var(--primary-hover);
+  --color-cafe-caramel: var(--caramel);
+  --color-cafe-accent: var(--accent-soft);
+  --shadow-cafe-card: 0 4px 20px rgb(43 33 24 / 0.05);
+}
 
 :root {
-  --background: #fbf8f5;
-  --foreground: #1c1917;
+  --background: #FAF7F2;
+  --foreground: #2B2118;
   --surface: #ffffff;
-  --surface-border: #ede5dc;
+  --surface-soft: #F3EADF;
+  --surface-border: #E6D9C9;
+  --text-muted: #74675B;
+  --primary: #8B4E2F;
+  --primary-hover: #713C24;
+  --caramel: #C87835;
+  --accent-soft: #F6E8D7;
   --app-header-height: 6.5rem;
   color-scheme: light;
 }
@@ -31,6 +52,64 @@ body {
   font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
   overflow-x: hidden;
+}
+
+/* Semantic controls are light-only; existing dark utilities remain authoritative. */
+html:not(.dark) .cafe-primary {
+  background: var(--primary);
+  color: var(--surface);
+  box-shadow: 0 3px 10px rgb(139 78 47 / 0.14);
+}
+
+html:not(.dark) .cafe-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+html:not(.dark) .cafe-primary:disabled {
+  background: var(--surface-border);
+  color: var(--text-muted);
+  box-shadow: none;
+  opacity: 1;
+}
+
+html:not(.dark) .cafe-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--surface);
+  color: var(--primary);
+  border: 1px solid var(--surface-border);
+  border-radius: 0.75rem;
+  box-shadow: none;
+}
+
+html:not(.dark) .cafe-icon:hover {
+  background: var(--accent-soft);
+  color: var(--primary-hover);
+}
+
+html:not(.dark) .cafe-logo,
+html:not(.dark) .cafe-step {
+  background: var(--primary);
+  color: var(--surface);
+  box-shadow: 0 2px 6px rgb(43 33 24 / 0.08);
+}
+
+html:not(.dark) :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+html:not(.dark) {
+  overflow-wrap: break-word;
+}
+
+html:not(.dark) :is(input, select, textarea) {
+  min-width: 0;
 }
 
 .no-scrollbar {

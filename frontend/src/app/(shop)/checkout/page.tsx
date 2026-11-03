@@ -119,8 +119,8 @@ function CheckoutContent() {
   if (successOrder) {
     return (
       <div className="max-w-xl mx-auto px-4 py-12 text-center animate-fadeIn">
-        <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/80 dark:border-stone-800 p-8 sm:p-12 shadow-xl space-y-6">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-4xl mx-auto border border-emerald-200 dark:border-emerald-800 shadow-sm animate-bounce">
+        <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/80 dark:border-stone-800 p-8 sm:p-12 shadow-xl space-y-6 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+          <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-4xl mx-auto border border-emerald-200 dark:border-emerald-800 shadow-sm animate-bounce light:shadow-cafe-card ">
             ✓
           </div>
 
@@ -128,35 +128,35 @@ function CheckoutContent() {
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-950/50 px-3 py-1 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
               Thanh Toán Thành Công
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-stone-100">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-stone-100 light:text-cafe-ink ">
               Cảm ơn bạn đã đặt món!
             </h1>
-            <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
+            <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 max-w-sm mx-auto light:text-cafe-muted ">
               Đơn hàng của bạn đã được chuyển tới quầy pha chế của Barista.
             </p>
           </div>
 
           {/* Chi tiết đơn tóm tắt */}
-          <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-4.5 border border-stone-200/70 dark:border-stone-700 text-left space-y-2.5 text-xs text-stone-600 dark:text-stone-300">
+          <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-4.5 border border-stone-200/70 dark:border-stone-700 text-left space-y-2.5 text-xs text-stone-600 dark:text-stone-300 light:bg-cafe-page light:border-cafe-line light:text-cafe-muted ">
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500">Mã đơn hàng:</span>
-              <span className="font-bold text-stone-900 dark:text-stone-100 font-mono text-sm">
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Mã đơn hàng:</span>
+              <span className="font-bold text-stone-900 dark:text-stone-100 font-mono text-sm light:text-cafe-ink ">
                 #{successOrder.id}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500">Phương thức:</span>
-              <span className="font-semibold text-stone-800 dark:text-stone-200">
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Phương thức:</span>
+              <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
                 {paymentMethod === "WALLET" ? "Ví điện tử" : "Thẻ ngân hàng"}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500">Tổng thanh toán:</span>
-              <span className="font-extrabold text-amber-900 dark:text-amber-400 font-mono text-sm">
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Tổng thanh toán:</span>
+              <span className="font-extrabold text-amber-900 dark:text-amber-400 font-mono text-sm light:text-cafe-primary ">
                 {successOrder.total.toLocaleString("vi-VN")}₫
               </span>
             </div>
-            <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400">
+            <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
               <span>⭐ Điểm tích lũy nhận được:</span>
               <span className="font-bold">+{pointsEarned} điểm</span>
             </div>
@@ -166,14 +166,14 @@ function CheckoutContent() {
             <Link
               href="/orders"
               onClick={() => user && checkoutFlow().clear(user.id)}
-              className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all text-center"
+              className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all text-center light:shadow-cafe-card cafe-primary "
             >
               Theo dõi đơn hàng của tôi →
             </Link>
             <Link
               href="/menu"
               onClick={() => user && checkoutFlow().clear(user.id)}
-              className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors text-center"
+              className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors text-center light:bg-cafe-soft light:hover:bg-cafe-line light:text-cafe-ink "
             >
               Về Menu chính
             </Link>
@@ -188,15 +188,15 @@ function CheckoutContent() {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
         <div className="text-5xl">☕</div>
-        <h2 className="text-xl font-bold text-stone-800">
+        <h2 className="text-xl font-bold text-stone-800 light:text-cafe-ink ">
           Giỏ hàng của bạn đang trống
         </h2>
-        <p className="text-xs text-stone-500">
+        <p className="text-xs text-stone-500 light:text-cafe-muted ">
           Vui lòng chọn món trước khi tiến hành thanh toán.
         </p>
         <Link
           href="/"
-          className="inline-block bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all"
+          className="inline-block bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all light:shadow-cafe-card cafe-primary "
         >
           Quay lại Menu đặt món
         </Link>
@@ -295,23 +295,23 @@ function CheckoutContent() {
   return (
     <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1.5">
-        <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400">
+      <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1.5 light:text-cafe-muted ">
+        <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
           Trang chủ
         </Link>
         <span>/</span>
-        <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400">
+        <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
           Menu
         </Link>
         <span>/</span>
-        <Link href="/cart" className="hover:text-amber-800 dark:hover:text-amber-400">
+        <Link href="/cart" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
           Giỏ hàng
         </Link>
         <span>/</span>
-        <span className="text-stone-800 dark:text-stone-200 font-medium">Thanh toán</span>
+        <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">Thanh toán</span>
       </div>
 
-      <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight mb-4">
+      <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight mb-4 light:text-cafe-ink ">
         Xác Nhận & Thanh Toán
       </h1>
 
@@ -319,23 +319,23 @@ function CheckoutContent() {
         {/* CỘT TRÁI (7 cols): Chọn Phương Thức Thanh Toán */}
         <div className="lg:col-span-7 space-y-4">
           {/* 1. Thông tin khách hàng */}
-          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3">
-            <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2">
+          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+            <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
               <span>👤</span>
               <span>Thông tin khách hàng</span>
             </h3>
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-stone-50 dark:bg-[#1f1915] p-3 rounded-xl border border-[#ede5dc] dark:border-[#2e241e]">
-                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5">Họ và tên:</span>
-                <span className="font-semibold text-stone-800 dark:text-[#f4ede6]">
+              <div className="bg-stone-50 dark:bg-[#1f1915] p-3 rounded-xl border border-[#ede5dc] dark:border-[#2e241e] light:bg-cafe-page light:border-cafe-line ">
+                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5 light:text-cafe-muted ">Họ và tên:</span>
+                <span className="font-semibold text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                   {user?.fullName || "Khách hàng"}
                 </span>
               </div>
-              <div className="bg-stone-50 dark:bg-[#1f1915] p-3 rounded-xl border border-[#ede5dc] dark:border-[#2e241e]">
-                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5">
+              <div className="bg-stone-50 dark:bg-[#1f1915] p-3 rounded-xl border border-[#ede5dc] dark:border-[#2e241e] light:bg-cafe-page light:border-cafe-line ">
+                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5 light:text-cafe-muted ">
                   Email tài khoản:
                 </span>
-                <span className="font-semibold text-stone-800 dark:text-[#f4ede6] truncate block">
+                <span className="font-semibold text-stone-800 dark:text-[#f4ede6] truncate block light:text-cafe-ink ">
                   {user?.email}
                 </span>
               </div>
@@ -343,9 +343,9 @@ function CheckoutContent() {
           </div>
 
           {/* 2. Phương thức thanh toán không tiền mặt */}
-          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3">
+          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2">
+              <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
                 <span>💳</span>
                 <span>Phương thức thanh toán</span>
               </h3>
@@ -359,8 +359,8 @@ function CheckoutContent() {
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
                   paymentMethod === "WALLET"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium"
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9]"
+                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
+                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
                 }`}
               >
                 <input
@@ -370,14 +370,14 @@ function CheckoutContent() {
                   value="WALLET"
                   checked={paymentMethod === "WALLET"}
                   onChange={() => setPaymentMethod("WALLET")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer"
+                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
                 />
                 <div className="space-y-1">
                   <div className="font-bold text-sm flex items-center gap-1.5">
                     <span>📱</span>
                     <span>Ví Điện Tử</span>
                   </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed">
+                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
                     Momo, ZaloPay, VNPay (Quét mã QR siêu nhanh)
                   </p>
                 </div>
@@ -387,8 +387,8 @@ function CheckoutContent() {
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
                   paymentMethod === "CARD"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium"
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9]"
+                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
+                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
                 }`}
               >
                 <input
@@ -398,14 +398,14 @@ function CheckoutContent() {
                   value="CARD"
                   checked={paymentMethod === "CARD"}
                   onChange={() => setPaymentMethod("CARD")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer"
+                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
                 />
                 <div className="space-y-1">
                   <div className="font-bold text-sm flex items-center gap-1.5">
                     <span>💳</span>
                     <span>Thẻ Ngân Hàng</span>
                   </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed">
+                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
                     ATM / Visa / Mastercard / Napas nội địa
                   </p>
                 </div>
@@ -416,11 +416,11 @@ function CheckoutContent() {
           {/* 3. Tùy chọn Demo / Test Cổng thanh toán */}
           <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 light:text-cafe-primary ">
                 <span>⚙️</span>
                 <span>Chế độ Demo Cổng Thanh Toán</span>
               </span>
-              <span className="text-[10px] text-stone-500 dark:text-[#8e7e72]">
+              <span className="text-[10px] text-stone-500 dark:text-[#8e7e72] light:text-cafe-muted ">
                 Hỗ trợ kiểm thử đề tài
               </span>
             </div>
@@ -457,7 +457,7 @@ function CheckoutContent() {
           </div>
 
           {session && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-sm space-y-3 text-stone-800 dark:text-stone-200">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-sm space-y-3 text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
               {order ? (
                 <>
                   <p>
@@ -495,7 +495,7 @@ function CheckoutContent() {
                       min="1"
                       value={recoveryId}
                       onChange={(e) => setRecoveryId(e.target.value)}
-                      className="border rounded p-2 ml-2 w-28 bg-white dark:bg-stone-800 dark:border-stone-700"
+                      className="border rounded p-2 ml-2 w-28 bg-white dark:bg-stone-800 dark:border-stone-700 light:bg-cafe-surface "
                     />
                   </label>
                   <button
@@ -556,10 +556,10 @@ function CheckoutContent() {
 
         {/* CỘT PHẢI (5 cols): Tóm tắt chi phí & Nút Xác Nhận */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-4">
-            <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm pb-2 border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between">
+          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-4 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+            <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm pb-2 border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between light:text-cafe-ink light:border-cafe-line ">
               <span>Đơn hàng của bạn</span>
-              <span className="text-xs text-stone-500 dark:text-[#9e8f83] font-normal">
+              <span className="text-xs text-stone-500 dark:text-[#9e8f83] font-normal light:text-cafe-muted ">
                 {displayItems.length} món
               </span>
             </h3>
@@ -572,23 +572,23 @@ function CheckoutContent() {
                   className="flex justify-between items-start gap-2"
                 >
                   <div className="truncate flex-1">
-                    <span className="font-bold text-stone-800 dark:text-[#f4ede6]">
+                    <span className="font-bold text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                       {item.quantity}x
                     </span>{" "}
-                    <span className="text-stone-700 dark:text-[#cfc3b9]">{item.product.name}</span>{" "}
-                    <span className="text-stone-400 dark:text-[#7d6e62]">({item.size})</span>
+                    <span className="text-stone-700 dark:text-[#cfc3b9] light:text-cafe-ink ">{item.product.name}</span>{" "}
+                    <span className="text-stone-400 dark:text-[#7d6e62] light:text-cafe-muted ">({item.size})</span>
                   </div>
-                  <span className="font-mono text-stone-700 dark:text-[#cfc3b9] shrink-0">
+                  <span className="font-mono text-stone-700 dark:text-[#cfc3b9] shrink-0 light:text-cafe-ink ">
                     {item.lineTotal.toLocaleString("vi-VN")}₫
                   </span>
                 </div>
               ))}
             </div>
 
-            <div className="space-y-2 pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] text-xs text-stone-600 dark:text-[#9e8f83]">
+            <div className="space-y-2 pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] text-xs text-stone-600 dark:text-[#9e8f83] light:border-cafe-line light:text-cafe-muted ">
               <div className="flex justify-between">
                 <span>Tạm tính:</span>
-                <span className="font-mono font-medium text-stone-800 dark:text-[#f4ede6]">
+                <span className="font-mono font-medium text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                   {subtotal.toLocaleString("vi-VN")}₫
                 </span>
               </div>
@@ -600,17 +600,17 @@ function CheckoutContent() {
                   </span>
                 </div>
               )}
-              <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c]">
+              <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
                 <span>⭐ Tích lũy điểm:</span>
                 <span className="font-bold">+{pointsEarned} điểm</span>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] flex justify-between items-baseline">
-              <span className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm">
+            <div className="pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] flex justify-between items-baseline light:border-cafe-line ">
+              <span className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm light:text-cafe-ink ">
                 Tổng thanh toán:
               </span>
-              <span className="text-2xl font-black text-amber-900 dark:text-amber-400 font-mono">
+              <span className="text-2xl font-black text-amber-900 dark:text-amber-400 font-mono light:text-cafe-primary ">
                 {total.toLocaleString("vi-VN")}₫
               </span>
             </div>
@@ -625,7 +625,7 @@ function CheckoutContent() {
                 !token ||
                 (session !== null && !order)
               }
-              className="w-full h-12 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm px-4 rounded-2xl shadow-lg shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-95"
+              className="w-full h-12 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm px-4 rounded-2xl shadow-lg shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-95 light:shadow-cafe-card cafe-primary "
             >
               {isProcessing ? (
                 <>

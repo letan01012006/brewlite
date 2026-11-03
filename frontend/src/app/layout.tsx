@@ -54,7 +54,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 transition-colors duration-200">
+      <body className="min-h-full flex flex-col bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 transition-colors duration-200 light:bg-cafe-page light:text-cafe-ink ">
         <div className="flex-1 flex flex-col">{children}</div>
         <LegacyPwaCleanup />
       </body>
