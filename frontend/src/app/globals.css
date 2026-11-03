@@ -7,8 +7,14 @@
   --foreground: #1c1917;
   --surface: #ffffff;
   --surface-border: #ede5dc;
-  --app-header-height: calc(4rem + env(safe-area-inset-top, 0px));
+  --app-header-height: 6.5rem;
   color-scheme: light;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --app-header-height: 4rem;
+  }
 }
 
 html.dark {

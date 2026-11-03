@@ -13,7 +13,7 @@ export default function AuthLayout({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/5 dark:bg-amber-500/10 blur-[140px] rounded-full pointer-events-none" />
 
       {/* Responsive Top Bar across full width on desktop */}
-      <header className="w-full max-w-7xl mx-auto h-[var(--app-header-height)] pt-[env(safe-area-inset-top,0px)] px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 relative z-10">
+      <header className="w-full max-w-7xl mx-auto h-[var(--app-header-height)] px-4 sm:px-6 lg:px-8 flex items-center justify-between shrink-0 relative z-10">
         <Link
           href="/"
           className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-stone-600 hover:text-amber-600 dark:text-stone-300 dark:hover:text-amber-400 transition-colors group"

@@ -104,14 +104,12 @@ function ProductSelection({
   return (
     <Modal onClose={onClose} labelledBy="modal-product-title">
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
     >
       {/* Click outside to close */}
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative z-10 w-full sm:max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border-t sm:border border-[#ede5dc] dark:border-[#2a221c] animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 transition-colors">
-        {/* Mobile Drag Handle */}
-        <div className="w-12 h-1 rounded-full bg-stone-300 dark:bg-stone-700 mx-auto my-2 sm:hidden shrink-0" />
+      <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c] animate-in zoom-in-95 duration-200 transition-colors">
 
         {/* Header với ảnh hoặc icon */}
         <div className="relative h-40 sm:h-52 bg-gradient-to-br from-amber-100 via-stone-100 to-amber-50 dark:from-[#221a15] dark:via-[#1a1411] dark:to-[#120f0d] flex items-center justify-center border-b border-[#ede5dc] dark:border-[#2a221c] shrink-0">
@@ -269,7 +267,7 @@ function ProductSelection({
         </div>
 
         {/* Footer: Chọn số lượng & Nút Thêm vào giỏ */}
-        <div className="p-3 sm:p-4 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:pb-4 border-t border-[#ede5dc] dark:border-[#261e19] bg-[#fbf8f5] dark:bg-[#120f0d] flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <div className="p-3 sm:p-4 border-t border-[#ede5dc] dark:border-[#261e19] bg-[#fbf8f5] dark:bg-[#120f0d] flex items-center justify-between gap-3 shrink-0 flex-wrap">
           {/* Tăng giảm số lượng */}
           <div className="flex items-center border border-[#ede5dc] dark:border-[#2e241e] rounded-2xl bg-white dark:bg-[#1a1411] shadow-sm overflow-hidden h-12">
             <button

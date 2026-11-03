@@ -35,8 +35,8 @@ export function AppHeader() {
   const firstName = user?.fullName ? user.fullName.trim().split(' ').slice(-1)[0] : null;
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-[#1c1410]/95 dark:bg-[#0c0a09]/95 border-b border-[#2e2019]/60 dark:border-stone-850 text-stone-100 shadow-sm transition-colors duration-200 pt-[env(safe-area-inset-top,0px)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 w-full h-[var(--app-header-height)] backdrop-blur-md bg-[#1c1410]/95 dark:bg-[#0c0a09]/95 border-b border-[#2e2019]/60 dark:border-stone-850 text-stone-100 shadow-sm transition-colors duration-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full grid grid-cols-[auto_1fr] grid-rows-[4rem_1fr] md:flex items-center justify-between gap-x-4">
         {/* Left: Logo & Brand */}
         <Link href="/" className="flex items-center gap-2 group shrink-0">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-base shadow-sm shadow-amber-900/30 group-hover:scale-105 transition-transform">
@@ -52,8 +52,8 @@ export function AppHeader() {
           </div>
         </Link>
 
-        {/* Center: Desktop Navigation Bar (hidden on mobile, shown on md:) */}
-        <nav className="hidden md:flex items-center gap-4 lg:gap-8 text-sm font-semibold ml-4 mr-auto">
+        {/* The same website navigation wraps onto a second header row in narrow windows. */}
+        <nav aria-label="Điều hướng chính" className="row-start-2 col-span-2 flex items-center gap-4 lg:gap-8 text-sm font-semibold md:ml-4 md:mr-auto self-stretch md:self-auto">
           <Link
             href="/"
             className={`transition-colors py-1 ${
@@ -86,7 +86,7 @@ export function AppHeader() {
           </Link>
         </nav>
 
-        {/* Center/Mobile: Greeting or Loyalty Points */}
+        {/* Greeting and loyalty points */}
         <div className="hidden lg:flex lg:flex-initial items-center justify-center md:justify-end min-w-0">
           {user ? (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
@@ -105,7 +105,7 @@ export function AppHeader() {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="col-start-2 row-start-1 justify-self-end flex items-center gap-1.5 shrink-0">
           {user?.role === 'BARISTA' && (
             <Link
               href="/barista"
