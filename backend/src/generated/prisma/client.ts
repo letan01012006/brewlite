@@ -84,3 +84,33 @@ export type PromoCode = Prisma.PromoCodeModel
  * 
  */
 export type LoyaltyTransaction = Prisma.LoyaltyTransactionModel
+/**
+ * Model Ingredient
+ * 
+ */
+export type Ingredient = Prisma.IngredientModel
+/**
+ * Model ProductRecipe
+ * 
+ */
+export type ProductRecipe = Prisma.ProductRecipeModel
+/**
+ * Model ProductRecipeIngredient
+ * 
+ */
+export type ProductRecipeIngredient = Prisma.ProductRecipeIngredientModel
+/**
+ * Model InventoryReservation
+ * 
+ */
+export type InventoryReservation = Prisma.InventoryReservationModel
+/**
+ * Model InventoryReservationItem
+ * 
+ */
+export type InventoryReservationItem = Prisma.InventoryReservationItemModel
+/**
+ * Model InventoryMovement
+ * 
+ */
+export type InventoryMovement = Prisma.InventoryMovementModel

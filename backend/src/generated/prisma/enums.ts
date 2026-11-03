@@ -62,3 +62,32 @@ export const DiscountType = {
 } as const
 
 export type DiscountType = (typeof DiscountType)[keyof typeof DiscountType]
+
+
+export const IngredientUnit = {
+  GRAM: 'GRAM',
+  MILLILITRE: 'MILLILITRE',
+  PIECE: 'PIECE'
+} as const
+
+export type IngredientUnit = (typeof IngredientUnit)[keyof typeof IngredientUnit]
+
+
+export const InventoryReservationStatus = {
+  HELD: 'HELD',
+  CONSUMED: 'CONSUMED',
+  RELEASED: 'RELEASED'
+} as const
+
+export type InventoryReservationStatus = (typeof InventoryReservationStatus)[keyof typeof InventoryReservationStatus]
+
+
+export const InventoryMovementKind = {
+  RECEIPT: 'RECEIPT',
+  ADJUSTMENT: 'ADJUSTMENT',
+  HOLD: 'HOLD',
+  RELEASE: 'RELEASE',
+  CONSUME: 'CONSUME'
+} as const
+
+export type InventoryMovementKind = (typeof InventoryMovementKind)[keyof typeof InventoryMovementKind]

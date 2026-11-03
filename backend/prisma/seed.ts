@@ -9,8 +9,13 @@ import {
   DEMO_TOPPINGS as toppings,
   seedDemoCatalog,
 } from './demo-catalog.js';
+import { seedDemoInventory } from './demo-inventory.js';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const databaseUrl = process.env.DATABASE_URL!;
+const adapter = new PrismaPg(
+  { connectionString: databaseUrl },
+  { schema: new URL(databaseUrl).searchParams.get('schema') ?? 'public' },
+);
 const prisma = new PrismaClient({ adapter });
 
 const promoCodes = [
@@ -51,6 +56,7 @@ async function main() {
   console.log('Seeding BrewLite...');
 
   await seedDemoCatalog(prisma);
+  await seedDemoInventory(prisma);
   for (const c of promoCodes) {
     await prisma.promoCode.upsert({
       where: { code: c.code },

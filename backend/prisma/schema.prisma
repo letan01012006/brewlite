@@ -49,6 +49,26 @@ enum DiscountType {
   FIXED
 }
 
+enum IngredientUnit {
+  GRAM
+  MILLILITRE
+  PIECE
+}
+
+enum InventoryReservationStatus {
+  HELD
+  CONSUMED
+  RELEASED
+}
+
+enum InventoryMovementKind {
+  RECEIPT
+  ADJUSTMENT
+  HOLD
+  RELEASE
+  CONSUME
+}
+
 // =========================
 // PRODUCT
 // =========================
@@ -60,6 +80,8 @@ model Product {
   price       Int
   imageUrl    String
   category    String
+  // Legacy finished-drink stock. Retire only AFTER the application switches
+  // to ingredient reservations. No automatic synchronization is installed.
   stock       Int      @default(0)
   version     Int      @default(0)
   isActive    Boolean  @default(true)
@@ -67,6 +89,7 @@ model Product {
 
   orderItems OrderItem[]
   toppings   Topping[]
+  recipes    ProductRecipe[]
 
   @@index([category])
 }
@@ -76,11 +99,19 @@ model Product {
 // =========================
 
 model Topping {
-  id       Int     @id @default(autoincrement())
-  name     String  @unique
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
   price    Int
-  isActive Boolean @default(true)
+  isActive Boolean   @default(true)
   products Product[]
+
+  // Prepared topping consumes this quantity in the ingredient's base unit.
+  // Both NULL means not configured yet (legacy toppings remain compatible).
+  ingredientId       Int?
+  quantityPerServing Decimal?    @db.Decimal(18, 3)
+  ingredient         Ingredient? @relation(fields: [ingredientId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([ingredientId])
 }
 
 // =========================
@@ -98,6 +129,7 @@ model User {
 
   orders              Order[]
   loyaltyTransactions LoyaltyTransaction[]
+  inventoryMovements  InventoryMovement[]
 }
 
 // =========================
@@ -122,9 +154,11 @@ model Order {
   user      User       @relation(fields: [userId], references: [id])
   promotion PromoCode? @relation(fields: [promoCode], references: [code])
 
-  items              OrderItem[]
-  payments           Payment[]
-  loyaltyTransaction LoyaltyTransaction?
+  items                OrderItem[]
+  payments             Payment[]
+  loyaltyTransaction   LoyaltyTransaction?
+  inventoryReservation InventoryReservation?
+  inventoryMovements   InventoryMovement[]
 
   @@index([userId, createdAt])
   @@index([status])
@@ -146,6 +180,10 @@ model OrderItem {
   // Snapshot topping tại thời điểm đặt hàng
   // Ví dụ: [{ "id": 1, "name": "Trân châu", "price": 5000 }]
   toppings Json @default("[]")
+
+  // SQL NULL identifies orders still handled by the legacy stock flow.
+  // Future backend must freeze exact ingredient IDs, units, amounts and versions.
+  recipeSnapshot Json?
 
   unitPrice Int
   qty       Int
@@ -244,4 +282,121 @@ model LoyaltyTransaction {
   order Order @relation(fields: [orderId], references: [id])
 
   @@index([userId])
+}
+
+// =========================
+// INGREDIENT INVENTORY (database foundation only; no automatic stock mutation)
+// =========================
+
+model Ingredient {
+  id               Int            @id @default(autoincrement())
+  code             String         @unique
+  name             String         @unique
+  unit             IngredientUnit
+  stockQuantity    Decimal        @default(0) @db.Decimal(18, 3)
+  reservedQuantity Decimal        @default(0) @db.Decimal(18, 3)
+  version          Int            @default(0)
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  productRecipeIngredients ProductRecipeIngredient[]
+  reservationItems         InventoryReservationItem[]
+  movements                InventoryMovement[]
+  toppings                 Topping[]
+
+  // Child rows bind their unit to this key, enabling PIECE checks without triggers.
+  @@unique([id, unit])
+}
+
+model ProductRecipe {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  size      Size
+  version   Int      @default(0)
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product     Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  ingredients ProductRecipeIngredient[]
+
+  @@unique([productId, size])
+}
+
+model ProductRecipeIngredient {
+  id           Int            @id @default(autoincrement())
+  recipeId     Int
+  ingredientId Int
+  unit         IngredientUnit
+  quantity     Decimal        @db.Decimal(18, 3)
+
+  recipe     ProductRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient    @relation(fields: [ingredientId, unit], references: [id, unit], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([recipeId, ingredientId])
+  @@index([ingredientId, unit])
+}
+
+model InventoryReservation {
+  id            Int                        @id @default(autoincrement())
+  orderId       Int                        @unique
+  eventKey      String                     @unique
+  status        InventoryReservationStatus @default(HELD)
+  version       Int                        @default(0)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  expiresAt     DateTime?
+  consumedAt    DateTime?
+  releasedAt    DateTime?
+  releaseReason String?
+
+  order     Order                      @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  items     InventoryReservationItem[]
+  movements InventoryMovement[]
+
+  @@unique([id, orderId])
+  @@index([status, expiresAt])
+}
+
+model InventoryReservationItem {
+  id            Int            @id @default(autoincrement())
+  reservationId Int
+  ingredientId  Int
+  unit          IngredientUnit
+  quantity      Decimal        @db.Decimal(18, 3)
+
+  reservation InventoryReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ingredient  Ingredient           @relation(fields: [ingredientId, unit], references: [id, unit], onDelete: Restrict, onUpdate: Restrict)
+  movements   InventoryMovement[]
+
+  @@unique([reservationId, ingredientId])
+  @@unique([reservationId, ingredientId, unit])
+  @@index([ingredientId, unit])
+}
+
+model InventoryMovement {
+  id            Int                   @id @default(autoincrement())
+  eventKey      String                @unique
+  kind          InventoryMovementKind
+  ingredientId  Int
+  unit          IngredientUnit
+  stockDelta    Decimal               @db.Decimal(18, 3)
+  reservedDelta Decimal               @db.Decimal(18, 3)
+  reservationId Int?
+  orderId       Int?
+  actorId       Int?
+  reason        String?
+  createdAt     DateTime              @default(now())
+
+  ingredient      Ingredient                @relation(fields: [ingredientId, unit], references: [id, unit], onDelete: Restrict, onUpdate: Restrict)
+  reservation     InventoryReservation?     @relation(fields: [reservationId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Restrict)
+  reservationItem InventoryReservationItem? @relation(fields: [reservationId, ingredientId, unit], references: [reservationId, ingredientId, unit], onDelete: Restrict, onUpdate: Restrict)
+  order           Order?                    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor           User?                     @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([reservationId, ingredientId, kind])
+  @@index([ingredientId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([actorId])
 }

@@ -75,6 +75,7 @@ export type OrderItemCountAggregateOutputType = {
   productName: number
   size: number
   toppings: number
+  recipeSnapshot: number
   unitPrice: number
   qty: number
   lineTotal: number
@@ -132,6 +133,7 @@ export type OrderItemCountAggregateInputType = {
   productName?: true
   size?: true
   toppings?: true
+  recipeSnapshot?: true
   unitPrice?: true
   qty?: true
   lineTotal?: true
@@ -232,6 +234,7 @@ export type OrderItemGroupByOutputType = {
   productName: string
   size: $Enums.Size
   toppings: runtime.JsonValue
+  recipeSnapshot: runtime.JsonValue | null
   unitPrice: number
   qty: number
   lineTotal: number
@@ -268,6 +271,7 @@ export type OrderItemWhereInput = {
   productName?: Prisma.StringFilter<"OrderItem"> | string
   size?: Prisma.EnumSizeFilter<"OrderItem"> | $Enums.Size
   toppings?: Prisma.JsonFilter<"OrderItem">
+  recipeSnapshot?: Prisma.JsonNullableFilter<"OrderItem">
   unitPrice?: Prisma.IntFilter<"OrderItem"> | number
   qty?: Prisma.IntFilter<"OrderItem"> | number
   lineTotal?: Prisma.IntFilter<"OrderItem"> | number
@@ -283,6 +287,7 @@ export type OrderItemOrderByWithRelationInput = {
   productName?: Prisma.SortOrder
   size?: Prisma.SortOrder
   toppings?: Prisma.SortOrder
+  recipeSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   unitPrice?: Prisma.SortOrder
   qty?: Prisma.SortOrder
   lineTotal?: Prisma.SortOrder
@@ -301,6 +306,7 @@ export type OrderItemWhereUniqueInput = Prisma.AtLeast<{
   productName?: Prisma.StringFilter<"OrderItem"> | string
   size?: Prisma.EnumSizeFilter<"OrderItem"> | $Enums.Size
   toppings?: Prisma.JsonFilter<"OrderItem">
+  recipeSnapshot?: Prisma.JsonNullableFilter<"OrderItem">
   unitPrice?: Prisma.IntFilter<"OrderItem"> | number
   qty?: Prisma.IntFilter<"OrderItem"> | number
   lineTotal?: Prisma.IntFilter<"OrderItem"> | number
@@ -316,6 +322,7 @@ export type OrderItemOrderByWithAggregationInput = {
   productName?: Prisma.SortOrder
   size?: Prisma.SortOrder
   toppings?: Prisma.SortOrder
+  recipeSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   unitPrice?: Prisma.SortOrder
   qty?: Prisma.SortOrder
   lineTotal?: Prisma.SortOrder
@@ -337,6 +344,7 @@ export type OrderItemScalarWhereWithAggregatesInput = {
   productName?: Prisma.StringWithAggregatesFilter<"OrderItem"> | string
   size?: Prisma.EnumSizeWithAggregatesFilter<"OrderItem"> | $Enums.Size
   toppings?: Prisma.JsonWithAggregatesFilter<"OrderItem">
+  recipeSnapshot?: Prisma.JsonNullableWithAggregatesFilter<"OrderItem">
   unitPrice?: Prisma.IntWithAggregatesFilter<"OrderItem"> | number
   qty?: Prisma.IntWithAggregatesFilter<"OrderItem"> | number
   lineTotal?: Prisma.IntWithAggregatesFilter<"OrderItem"> | number
@@ -347,6 +355,7 @@ export type OrderItemCreateInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -362,6 +371,7 @@ export type OrderItemUncheckedCreateInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -372,6 +382,7 @@ export type OrderItemUpdateInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -387,6 +398,7 @@ export type OrderItemUncheckedUpdateInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -400,6 +412,7 @@ export type OrderItemCreateManyInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -410,6 +423,7 @@ export type OrderItemUpdateManyMutationInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -423,6 +437,7 @@ export type OrderItemUncheckedUpdateManyInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -446,6 +461,7 @@ export type OrderItemCountOrderByAggregateInput = {
   productName?: Prisma.SortOrder
   size?: Prisma.SortOrder
   toppings?: Prisma.SortOrder
+  recipeSnapshot?: Prisma.SortOrder
   unitPrice?: Prisma.SortOrder
   qty?: Prisma.SortOrder
   lineTotal?: Prisma.SortOrder
@@ -586,6 +602,7 @@ export type OrderItemCreateWithoutProductInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -599,6 +616,7 @@ export type OrderItemUncheckedCreateWithoutProductInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -641,6 +659,7 @@ export type OrderItemScalarWhereInput = {
   productName?: Prisma.StringFilter<"OrderItem"> | string
   size?: Prisma.EnumSizeFilter<"OrderItem"> | $Enums.Size
   toppings?: Prisma.JsonFilter<"OrderItem">
+  recipeSnapshot?: Prisma.JsonNullableFilter<"OrderItem">
   unitPrice?: Prisma.IntFilter<"OrderItem"> | number
   qty?: Prisma.IntFilter<"OrderItem"> | number
   lineTotal?: Prisma.IntFilter<"OrderItem"> | number
@@ -651,6 +670,7 @@ export type OrderItemCreateWithoutOrderInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -664,6 +684,7 @@ export type OrderItemUncheckedCreateWithoutOrderInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -702,6 +723,7 @@ export type OrderItemCreateManyProductInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -712,6 +734,7 @@ export type OrderItemUpdateWithoutProductInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -725,6 +748,7 @@ export type OrderItemUncheckedUpdateWithoutProductInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -737,6 +761,7 @@ export type OrderItemUncheckedUpdateManyWithoutProductInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -749,6 +774,7 @@ export type OrderItemCreateManyOrderInput = {
   productName: string
   size: $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice: number
   qty: number
   lineTotal: number
@@ -759,6 +785,7 @@ export type OrderItemUpdateWithoutOrderInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -772,6 +799,7 @@ export type OrderItemUncheckedUpdateWithoutOrderInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -784,6 +812,7 @@ export type OrderItemUncheckedUpdateManyWithoutOrderInput = {
   productName?: Prisma.StringFieldUpdateOperationsInput | string
   size?: Prisma.EnumSizeFieldUpdateOperationsInput | $Enums.Size
   toppings?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  recipeSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   unitPrice?: Prisma.IntFieldUpdateOperationsInput | number
   qty?: Prisma.IntFieldUpdateOperationsInput | number
   lineTotal?: Prisma.IntFieldUpdateOperationsInput | number
@@ -799,6 +828,7 @@ export type OrderItemSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   productName?: boolean
   size?: boolean
   toppings?: boolean
+  recipeSnapshot?: boolean
   unitPrice?: boolean
   qty?: boolean
   lineTotal?: boolean
@@ -814,6 +844,7 @@ export type OrderItemSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   productName?: boolean
   size?: boolean
   toppings?: boolean
+  recipeSnapshot?: boolean
   unitPrice?: boolean
   qty?: boolean
   lineTotal?: boolean
@@ -829,6 +860,7 @@ export type OrderItemSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   productName?: boolean
   size?: boolean
   toppings?: boolean
+  recipeSnapshot?: boolean
   unitPrice?: boolean
   qty?: boolean
   lineTotal?: boolean
@@ -844,13 +876,14 @@ export type OrderItemSelectScalar = {
   productName?: boolean
   size?: boolean
   toppings?: boolean
+  recipeSnapshot?: boolean
   unitPrice?: boolean
   qty?: boolean
   lineTotal?: boolean
   note?: boolean
 }
 
-export type OrderItemOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orderId" | "productId" | "productName" | "size" | "toppings" | "unitPrice" | "qty" | "lineTotal" | "note", ExtArgs["result"]["orderItem"]>
+export type OrderItemOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "orderId" | "productId" | "productName" | "size" | "toppings" | "recipeSnapshot" | "unitPrice" | "qty" | "lineTotal" | "note", ExtArgs["result"]["orderItem"]>
 export type OrderItemInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
   product?: boolean | Prisma.ProductDefaultArgs<ExtArgs>
@@ -877,6 +910,7 @@ export type $OrderItemPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     productName: string
     size: $Enums.Size
     toppings: runtime.JsonValue
+    recipeSnapshot: runtime.JsonValue | null
     unitPrice: number
     qty: number
     lineTotal: number
@@ -1312,6 +1346,7 @@ export interface OrderItemFieldRefs {
   readonly productName: Prisma.FieldRef<"OrderItem", 'String'>
   readonly size: Prisma.FieldRef<"OrderItem", 'Size'>
   readonly toppings: Prisma.FieldRef<"OrderItem", 'Json'>
+  readonly recipeSnapshot: Prisma.FieldRef<"OrderItem", 'Json'>
   readonly unitPrice: Prisma.FieldRef<"OrderItem", 'Int'>
   readonly qty: Prisma.FieldRef<"OrderItem", 'Int'>
   readonly lineTotal: Prisma.FieldRef<"OrderItem", 'Int'>
