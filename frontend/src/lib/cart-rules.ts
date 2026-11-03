@@ -2,6 +2,8 @@ import type { CartItem, Product, Size, Topping } from "@/types";
 
 export const MAX_LINES = 30;
 export const MAX_QUANTITY = 20;
+// Compatibility only for old persisted carts. New selections use API sizes;
+// refreshCart replaces this cached estimate before any new order is created.
 const surcharges: Record<Size, number> = { S: 0, M: 5000, L: 10000 };
 
 export function unitPrice(product: Product, size: Size, toppings: Topping[]) {
@@ -33,6 +35,8 @@ export function makeItem(
     throw new Error("Thông tin món không hợp lệ. Vui lòng tải lại menu.");
   if (!["S", "M", "L"].includes(size))
     throw new Error("Kích cỡ món không hợp lệ.");
+  if (product.sizes && !product.sizes.some((entry) => entry.size === size))
+    throw new Error("Kích cỡ này không còn được bán. Vui lòng chọn lại món.");
   if (
     toppings.length > 3 ||
     new Set(toppings.map((t) => t.id)).size !== toppings.length ||
@@ -103,4 +107,15 @@ export function restoreItems(value: unknown): CartItem[] {
     }
   }
   return restored;
+}
+
+// Ignore harmless catalog metadata, but detect composition/name/price changes,
+// even when removing a free topping leaves the grand total unchanged.
+export function cartReviewKey(items: CartItem[]): string {
+  return JSON.stringify(items.map((item) => ({
+    productId: item.product.id, name: item.product.name, size: item.size,
+    quantity: item.quantity, note: item.note ?? '', unitPrice: item.unitPrice,
+    toppings: [...item.selectedToppings].sort((a, b) => a.id - b.id)
+      .map(({ id, name, price }) => ({ id, name, price })),
+  })));
 }

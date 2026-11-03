@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
@@ -35,7 +39,7 @@ export interface PricingResult {
 }
 
 /** Cho phép truyền cả PrismaService lẫn `tx` trong prisma.$transaction. */
-type Db = Pick<PrismaClient, 'product' | 'topping'>;
+type Db = Pick<PrismaClient, 'product'>;
 
 /**
  * Nguồn duy nhất để tính giá (mục 4.1 tài liệu API).
@@ -48,19 +52,17 @@ type Db = Pick<PrismaClient, 'product' | 'topping'>;
 export class PricingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async calculate(items: PricingItemInput[], db: Db = this.prisma): Promise<PricingResult> {
+  async calculate(
+    items: PricingItemInput[],
+    db: Db = this.prisma,
+  ): Promise<PricingResult> {
     const productIds = [...new Set(items.map((i) => i.productId))];
-    const toppingIds = [...new Set(items.flatMap((i) => i.toppingIds ?? []))];
-
-    const [products, toppings] = await Promise.all([
-      db.product.findMany({ where: { id: { in: productIds }, isActive: true } }),
-      toppingIds.length > 0
-        ? db.topping.findMany({ where: { id: { in: toppingIds }, isActive: true } })
-        : Promise.resolve([]),
-    ]);
+    const products = await db.product.findMany({
+      where: { id: { in: productIds }, isActive: true },
+      include: { toppings: { where: { isActive: true } } },
+    });
 
     const productMap = new Map(products.map((p) => [p.id, p]));
-    const toppingMap = new Map(toppings.map((t) => [t.id, t]));
 
     const lines: PricedLine[] = items.map((item) => {
       const product = productMap.get(item.productId);
@@ -72,7 +74,16 @@ export class PricingService {
         });
       }
 
-      const ids = [...new Set(item.toppingIds ?? [])];
+      const ids = item.toppingIds ?? [];
+      if (
+        new Set(ids).size !== ids.length ||
+        ids.some((id) => !Number.isInteger(id) || id < 1 || id > 2147483647)
+      ) {
+        throw new BadRequestException({
+          code: 'INVALID_TOPPING_IDS',
+          message: 'ID topping phải là số nguyên dương và không trùng',
+        });
+      }
       if (ids.length > MAX_TOPPINGS_PER_ITEM) {
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
@@ -81,19 +92,20 @@ export class PricingService {
       }
 
       const chosen = ids.map((id) => {
-        const t = toppingMap.get(id);
+        const t = product.toppings.find((topping) => topping.id === id);
         if (!t) {
           throw new BadRequestException({
-            code: 'VALIDATION_ERROR',
-            message: `Topping #${id} không tồn tại hoặc đã ngừng bán`,
-            details: [{ toppingId: id }],
+            code: 'TOPPING_NOT_ALLOWED',
+            message: `Topping #${id} không được phép dùng cho món này hoặc đã ngừng bán`,
+            details: [{ productId: item.productId, toppingId: id }],
           });
         }
         return { id: t.id, name: t.name, price: t.price };
       });
 
       const toppingTotal = chosen.reduce((sum, t) => sum + t.price, 0);
-      const unitPrice = product.price + SIZE_SURCHARGE[item.size] + toppingTotal;
+      const unitPrice =
+        product.price + SIZE_SURCHARGE[item.size] + toppingTotal;
 
       return {
         productId: product.id,

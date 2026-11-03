@@ -185,3 +185,50 @@ test("failed refresh preserves selections; late refresh cannot overwrite an edit
   assert.equal(offline.getState().items.length, 1);
   assert.ok(offline.getState().cartError);
 });
+
+test('legacy carts retain valid selections, refresh linked topping prices/sizes and revalidate promotion', async () => {
+  const requests = [];
+  const latest = {
+    ...product,
+    sizes: [{ size: 'M', surcharge: 8765 }],
+    toppings: [{ id: 17, name: 'New pearl', price: 4000 }, { id: 18, name: 'Inactive', price: 0, isActive: false }],
+  };
+  const { store } = fixture(memoryStorage(), async (path, options) => {
+    if (path.startsWith('/products/')) return latest;
+    requests.push(JSON.parse(options.body));
+    return { code: 'BREW10', discountAmount: 1000 };
+  });
+  store.getState().addItem({ ...input, size: 'M', note: 'Less ice', selectedToppings: [
+    { id: 17, name: 'Old pearl', price: 3000 }, { id: 18, name: 'Inactive', price: 0 }, { id: 19, name: 'Other product', price: 0 },
+  ] });
+  store.getState().setPromo('BREW10', 99999);
+  assert.equal(await store.getState().refreshCart(), true);
+  const state = store.getState();
+  assert.deepEqual(Array.from(state.items[0].selectedToppings, (t) => t.id), [17]);
+  assert.equal(state.items[0].selectedToppings[0].name, 'New pearl');
+  assert.equal(state.items[0].unitPrice, 62765);
+  assert.equal(state.items[0].note, 'Less ice');
+  assert.equal(state.discountAmount, 1000);
+  assert.deepEqual(requests[0].items[0].toppingIds, [17]);
+  assert.equal(state.requiresReview, true);
+  assert.ok(state.notice.includes('Other product'));
+});
+
+test('composition review survives repeated refresh and reload even for unchanged totals, without clearing other storage', async () => {
+  const storage = memoryStorage();
+  storage.setItem('brewlite_token', 'keep-token');
+  storage.setItem('brewlite_theme', 'dark');
+  const { store } = fixture(storage);
+  store.getState().addItem({ ...input, selectedToppings: [{ id: 77, name: 'Free', price: 0 }] });
+  await store.getState().refreshCart();
+  assert.equal(store.getState().getTotal(), 50000);
+  assert.equal(store.getState().requiresReview, true);
+  await store.getState().refreshCart();
+  assert.equal(store.getState().requiresReview, true);
+  const restored = fixture(storage).store;
+  assert.equal(restored.getState().requiresReview, true);
+  restored.getState().acknowledgeChanges();
+  assert.equal(fixture(storage).store.getState().requiresReview, false);
+  assert.equal(storage.getItem('brewlite_token'), 'keep-token');
+  assert.equal(storage.getItem('brewlite_theme'), 'dark');
+});

@@ -1,25 +1,9 @@
 import { create } from "zustand";
-import type { CartItem, Product, Size, Topping } from "@/types";
+import type { CartItem, Product, ProductDetail, Size, Topping } from "@/types";
 import type { ValidatePromotionResult } from "@/types";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { orderItems } from "@/lib/order-payload";
-import { makeItem, basketError, restoreItems } from "@/lib/cart-rules";
-
-const SIZE_UPCHARGES: Record<Size, number> = {
-  S: 0,
-  M: 5000,
-  L: 10000,
-};
-
-export function calculateItemUnitPrice(
-  basePrice: number,
-  size: Size,
-  toppings: Topping[],
-): number {
-  const sizePrice = SIZE_UPCHARGES[size] ?? 0;
-  const toppingTotal = toppings.reduce((sum, t) => sum + t.price, 0);
-  return basePrice + sizePrice + toppingTotal;
-}
+import { makeItem, basketError, restoreItems, cartReviewKey } from "@/lib/cart-rules";
 
 interface AddItemInput {
   product: Product;
@@ -36,6 +20,8 @@ interface CartState {
   isRefreshing: boolean;
   cartError: string | null;
   notice: string | null;
+  requiresReview: boolean;
+  acknowledgeChanges: () => void;
   hydrate: (ownerId: number | null) => void;
   deactivate: () => void;
   refreshCart: () => Promise<boolean>;
@@ -64,6 +50,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   isRefreshing: false,
   cartError: null,
   notice: null,
+  requiresReview: false,
+  acknowledgeChanges: () => set({ requiresReview: false }),
   hydrate: (ownerId) => {
     if (get().isHydrated && get().ownerId === ownerId) return;
     const memoryGuest =
@@ -73,12 +61,14 @@ export const useCartStore = create<CartState>((set, get) => ({
     let items: CartItem[] = memoryGuest?.items ?? [];
     let promoCode: string | null = memoryGuest?.promoCode ?? null;
     let notice: string | null = null;
+    let requiresReview = memoryGuest?.requiresReview ?? false;
     try {
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem(storageKey(ownerId));
         if (saved) {
           const parsed = JSON.parse(saved);
           items = restoreItems(parsed.items);
+          requiresReview = parsed.requiresReview === true;
           promoCode =
             items.length && typeof parsed.promoCode === "string"
               ? parsed.promoCode
@@ -86,12 +76,14 @@ export const useCartStore = create<CartState>((set, get) => ({
           if (items.length !== parsed.items?.length)
             notice =
               "Một số món đã lưu không hợp lệ hoặc vượt giới hạn nên đã được bỏ khỏi giỏ.";
+          if (notice) requiresReview = true;
         } else items = [];
         if (ownerId !== null) {
           const guestSaved = localStorage.getItem(storageKey(null));
           const guest =
             memoryGuest ?? (guestSaved ? JSON.parse(guestSaved) : null);
           const guestItems = restoreItems(guest?.items);
+          requiresReview ||= guest?.requiresReview === true;
           const remainingGuest: CartItem[] = [];
           for (const item of guestItems) {
             try {
@@ -125,6 +117,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               JSON.stringify({
                 items: remainingGuest,
                 promoCode: remainingGuest.length ? guest.promoCode : null,
+                requiresReview: guest.requiresReview === true,
               }),
             );
           if (remainingGuest.length)
@@ -146,6 +139,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       promoError: null,
       cartError: null,
       notice,
+      requiresReview,
       promoRevision: get().promoRevision + 1,
     });
   },
@@ -160,6 +154,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       promoError: null,
       cartError: null,
       notice: null,
+      requiresReview: false,
       promoRevision: get().promoRevision + 1,
     }),
   refreshCart: async () => {
@@ -171,7 +166,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const products = await Promise.all(
         [...new Set(items.map((item) => item.product.id))].map(async (id) => {
           try {
-            return await apiFetch<Product>(`/products/${id}`, { auth: false });
+            return await apiFetch<ProductDetail>(`/products/${id}`, { auth: false });
           } catch (error) {
             if (error instanceof ApiError && error.statusCode === 404)
               return null;
@@ -182,22 +177,42 @@ export const useCartStore = create<CartState>((set, get) => ({
       if (get().items !== items || get().ownerId !== ownerId) return false;
       const remaining = new Map(
         products
-          .filter((p): p is Product => p !== null)
+          .filter((p): p is ProductDetail => p !== null)
           .map((p) => [p.id, p.stock]),
       );
       const refreshed: CartItem[] = [];
+      const changes: string[] = [];
       for (const item of items) {
         const product = products.find((p) => p?.id === item.product.id);
-        if (!product) continue;
+        if (!product) {
+          changes.push(`${item.product.name}: đã ngừng bán hoặc không còn tồn tại`);
+          continue;
+        }
         const quantity = Math.min(
           item.quantity,
           remaining.get(product.id) ?? 0,
         );
-        if (!quantity) continue;
-        remaining.set(product.id, (remaining.get(product.id) ?? 0) - quantity);
+        if (!quantity) {
+          changes.push(`${product.name}: đã hết hàng`);
+          continue;
+        }
+        if (quantity !== item.quantity) changes.push(`${product.name}: số lượng còn ${quantity} ly`);
         const toppings = item.selectedToppings.flatMap(
-          (old) => product.toppings?.find((t) => t.id === old.id) ?? [],
+          (old) => product.toppings?.find((t) => t.id === old.id && t.isActive !== false) ?? [],
         );
+        const removed = item.selectedToppings.filter((old) => !toppings.some((t) => t.id === old.id));
+        if (removed.length) changes.push(`${product.name}: bỏ topping ${removed.map((t) => t.name || `#${t.id}`).join(', ')} vì không còn được phép hoặc đã ngừng bán`);
+        if (product.sizes && !product.sizes.some((entry) => entry.size === item.size)) {
+          changes.push(`${product.name}: size ${item.size} không còn được bán, vui lòng chọn lại món`);
+          continue;
+        }
+        remaining.set(product.id, (remaining.get(product.id) ?? 0) - quantity);
+        if (product.name !== item.product.name) changes.push(`${item.product.name}: tên mới ${product.name}`);
+        for (const topping of toppings) {
+          const old = item.selectedToppings.find((entry) => entry.id === topping.id)!;
+          if (old.name !== topping.name || old.price !== topping.price)
+            changes.push(`${product.name}: topping ${old.name || `#${old.id}`} đổi thành ${topping.name} (${topping.price.toLocaleString('vi-VN')}₫)`);
+        }
         const updated = makeItem(
           product,
           item.size,
@@ -205,21 +220,23 @@ export const useCartStore = create<CartState>((set, get) => ({
           quantity,
           item.note,
         );
+        if (updated.unitPrice !== item.unitPrice) changes.push(`${product.name}: đơn giá mới ${updated.unitPrice.toLocaleString('vi-VN')}₫`);
         const duplicate = refreshed.find((entry) => entry.id === updated.id);
         if (duplicate) {
           duplicate.quantity = Math.min(20, duplicate.quantity + quantity);
           duplicate.lineTotal = duplicate.quantity * duplicate.unitPrice;
         } else refreshed.push(updated);
       }
-      const changed = JSON.stringify(items) !== JSON.stringify(refreshed);
+      const changed = cartReviewKey(items) !== cartReviewKey(refreshed);
       set({
         items: refreshed,
+        requiresReview: get().requiresReview || changed,
         notice: changed
-          ? "Giỏ hàng đã được cập nhật theo giá, topping và tồn kho mới nhất. Vui lòng kiểm tra lại."
-          : null,
+          ? `${changes.join('; ') || 'Thông tin món/topping trong giỏ đã được cập nhật'}. Vui lòng kiểm tra lại trước khi tạo đơn.`
+          : get().notice,
       });
       if (get().promoCode) await get().validatePromo(get().promoCode!);
-      return true;
+      return get().items === refreshed && get().ownerId === ownerId;
     } catch {
       if (get().items === items && get().ownerId === ownerId)
         set({
@@ -363,6 +380,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       items: [],
       cartError: null,
       notice: null,
+      requiresReview: false,
       promoCode: null,
       discountAmount: 0,
       promoRevision: get().promoRevision + 1,
@@ -394,13 +412,14 @@ useCartStore.subscribe((state, previous) => {
     state.items === previous.items &&
     state.promoCode === previous.promoCode &&
     state.ownerId === previous.ownerId &&
+    state.requiresReview === previous.requiresReview &&
     previous.isHydrated
   )
     return;
   try {
     localStorage.setItem(
       storageKey(state.ownerId),
-      JSON.stringify({ items: state.items, promoCode: state.promoCode }),
+      JSON.stringify({ items: state.items, promoCode: state.promoCode, requiresReview: state.requiresReview }),
     );
   } catch {
     useCartStore.setState({

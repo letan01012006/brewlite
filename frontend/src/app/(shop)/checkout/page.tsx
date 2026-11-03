@@ -242,6 +242,12 @@ function CheckoutContent() {
           throw new Error(
             "Giỏ hàng không còn món khả dụng. Vui lòng chọn món khác.",
           );
+        if (refreshed.requiresReview) {
+          refreshed.acknowledgeChanges();
+          throw new Error(
+            `${refreshed.notice || 'Thành phần giỏ hàng đã thay đổi.'} Hãy kiểm tra các món và bấm thanh toán lần nữa để xác nhận.`,
+          );
+        }
         if (refreshed.getTotal() !== total)
           throw new Error(
             "Giá hoặc khuyến mãi đã thay đổi. Vui lòng kiểm tra tổng tiền và xác nhận lại.",

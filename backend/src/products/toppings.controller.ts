@@ -1,30 +1,38 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ToppingsService } from './toppings.service.js';
 import { CreateToppingDto } from './dto/create-topping.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 
-@ApiTags('toppings')
-@Controller('toppings')
+@ApiTags('products')
+@Controller('products/toppings')
 export class ToppingsController {
   constructor(private readonly toppingsService: ToppingsService) {}
 
   /**
    * Lấy danh sách topping còn bán (Task 4)
-   * GET /api/toppings
+   * GET /api/products/toppings
    */
   @Get()
   @ApiOperation({ summary: 'Lấy danh sách tất cả topping đang bán' })
-  @ApiResponse({ status: 200, description: 'Danh sách topping dạng [{ id, name, price }]' })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách topping dạng [{ id, name, price }]',
+  })
   async findAll() {
     return this.toppingsService.findAll();
   }
 
   /**
    * Thêm topping mới
-   * POST /api/toppings
+   * POST /api/products/toppings
    */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -40,4 +48,3 @@ export class ToppingsController {
     return this.toppingsService.create(createToppingDto);
   }
 }
-

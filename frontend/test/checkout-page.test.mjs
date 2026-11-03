@@ -176,3 +176,23 @@ test("checkout is blocked while a promotion request is pending", async () => {
   await button.props.onClick();
   assert.equal(calls.length, 0);
 });
+
+test("removing a free disallowed topping requires another confirmation before creating an order", async () => {
+  const calls = [];
+  const h = harness(async (path) => {
+    calls.push(path);
+    return path === '/payments'
+      ? { ...success, order: { ...success.order, total: 50000 } }
+      : { ...order, total: 50000, discountAmount: 0 };
+  });
+  h.store.getState().addItem({ ...item, selectedToppings: [{ id: 71, name: 'Free old topping', price: 0 }] });
+  await h.mount();
+  await payButton(h.render()).props.onClick();
+  assert.deepEqual(calls, []);
+  assert.equal(h.store.getState().getTotal(), 50000);
+  assert.equal(h.store.getState().items[0].selectedToppings.length, 0);
+  assert.ok(JSON.stringify(h.render()).includes('bấm thanh toán lần nữa'));
+  await payButton(h.render()).props.onClick();
+  assert.equal(calls.filter((path) => path === '/orders').length, 1);
+  assert.equal(calls.filter((path) => path === '/payments').length, 1);
+});
