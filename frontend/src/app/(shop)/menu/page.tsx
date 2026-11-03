@@ -135,7 +135,7 @@ function MenuContent() {
 
   return (
     <div className="pb-12 dark:bg-stone-950 transition-colors">
-      {/* Compact Mobile Header */}
+      {/* Menu heading */}
       <section className="pt-2 pb-3">
         <h1 className="text-xl sm:text-2xl font-black tracking-tight text-stone-900 dark:text-stone-100 flex items-center justify-between">
           <span>Thực Đơn Đồ Uống</span>
@@ -251,7 +251,7 @@ function MenuContent() {
           </div>
         )}
 
-        {/* Lưới sản phẩm Responsive: 2 cột mobile, 3 cột tablet, 4 cột desktop */}
+        {/* Lưới sản phẩm: 2, 3 hoặc 4 cột theo chiều rộng cửa sổ */}
         {!isLoading && !error && filteredProducts.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 mt-4">
             {filteredProducts

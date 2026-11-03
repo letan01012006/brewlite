@@ -274,7 +274,7 @@ function CheckoutContent() {
         setSuccessOrder(paid.order);
         setPaymentMethod(paid.paidMethod ?? paymentMethod);
         // The receipt stays in component state; a later visit can start a new
-        // purchase even when the customer leaves through the global navbar.
+        // purchase even when the customer leaves through the website header.
         flow.clear(user.id);
         await useAuthStore.getState().refreshUser();
       }

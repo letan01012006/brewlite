@@ -192,7 +192,7 @@ export default function LandingPage() {
                 Chọn món & Tùy biến
               </h3>
               <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-                Tự do chọn Size (S/M/L), thêm topping trân châu, thạch và ghi chú khẩu vị riêng (<i>Ít ngọt, ít đá</i>) ngay trên điện thoại hoặc máy tính.
+                Tự do chọn Size (S/M/L), thêm topping trân châu, thạch và ghi chú khẩu vị riêng (<i>Ít ngọt, ít đá</i>) ngay trên website.
               </p>
             </div>
 
