@@ -29,11 +29,15 @@ export type AggregateTopping = {
 export type ToppingAvgAggregateOutputType = {
   id: number | null
   price: number | null
+  ingredientId: number | null
+  quantityPerServing: runtime.Decimal | null
 }
 
 export type ToppingSumAggregateOutputType = {
   id: number | null
   price: number | null
+  ingredientId: number | null
+  quantityPerServing: runtime.Decimal | null
 }
 
 export type ToppingMinAggregateOutputType = {
@@ -41,6 +45,8 @@ export type ToppingMinAggregateOutputType = {
   name: string | null
   price: number | null
   isActive: boolean | null
+  ingredientId: number | null
+  quantityPerServing: runtime.Decimal | null
 }
 
 export type ToppingMaxAggregateOutputType = {
@@ -48,6 +54,8 @@ export type ToppingMaxAggregateOutputType = {
   name: string | null
   price: number | null
   isActive: boolean | null
+  ingredientId: number | null
+  quantityPerServing: runtime.Decimal | null
 }
 
 export type ToppingCountAggregateOutputType = {
@@ -55,6 +63,8 @@ export type ToppingCountAggregateOutputType = {
   name: number
   price: number
   isActive: number
+  ingredientId: number
+  quantityPerServing: number
   _all: number
 }
 
@@ -62,11 +72,15 @@ export type ToppingCountAggregateOutputType = {
 export type ToppingAvgAggregateInputType = {
   id?: true
   price?: true
+  ingredientId?: true
+  quantityPerServing?: true
 }
 
 export type ToppingSumAggregateInputType = {
   id?: true
   price?: true
+  ingredientId?: true
+  quantityPerServing?: true
 }
 
 export type ToppingMinAggregateInputType = {
@@ -74,6 +88,8 @@ export type ToppingMinAggregateInputType = {
   name?: true
   price?: true
   isActive?: true
+  ingredientId?: true
+  quantityPerServing?: true
 }
 
 export type ToppingMaxAggregateInputType = {
@@ -81,6 +97,8 @@ export type ToppingMaxAggregateInputType = {
   name?: true
   price?: true
   isActive?: true
+  ingredientId?: true
+  quantityPerServing?: true
 }
 
 export type ToppingCountAggregateInputType = {
@@ -88,6 +106,8 @@ export type ToppingCountAggregateInputType = {
   name?: true
   price?: true
   isActive?: true
+  ingredientId?: true
+  quantityPerServing?: true
   _all?: true
 }
 
@@ -182,6 +202,8 @@ export type ToppingGroupByOutputType = {
   name: string
   price: number
   isActive: boolean
+  ingredientId: number | null
+  quantityPerServing: runtime.Decimal | null
   _count: ToppingCountAggregateOutputType | null
   _avg: ToppingAvgAggregateOutputType | null
   _sum: ToppingSumAggregateOutputType | null
@@ -212,7 +234,10 @@ export type ToppingWhereInput = {
   name?: Prisma.StringFilter<"Topping"> | string
   price?: Prisma.IntFilter<"Topping"> | number
   isActive?: Prisma.BoolFilter<"Topping"> | boolean
+  ingredientId?: Prisma.IntNullableFilter<"Topping"> | number | null
+  quantityPerServing?: Prisma.DecimalNullableFilter<"Topping"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductListRelationFilter
+  ingredient?: Prisma.XOR<Prisma.IngredientNullableScalarRelationFilter, Prisma.IngredientWhereInput> | null
 }
 
 export type ToppingOrderByWithRelationInput = {
@@ -220,7 +245,10 @@ export type ToppingOrderByWithRelationInput = {
   name?: Prisma.SortOrder
   price?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrderInput | Prisma.SortOrder
   products?: Prisma.ProductOrderByRelationAggregateInput
+  ingredient?: Prisma.IngredientOrderByWithRelationInput
 }
 
 export type ToppingWhereUniqueInput = Prisma.AtLeast<{
@@ -231,7 +259,10 @@ export type ToppingWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.ToppingWhereInput | Prisma.ToppingWhereInput[]
   price?: Prisma.IntFilter<"Topping"> | number
   isActive?: Prisma.BoolFilter<"Topping"> | boolean
+  ingredientId?: Prisma.IntNullableFilter<"Topping"> | number | null
+  quantityPerServing?: Prisma.DecimalNullableFilter<"Topping"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductListRelationFilter
+  ingredient?: Prisma.XOR<Prisma.IngredientNullableScalarRelationFilter, Prisma.IngredientWhereInput> | null
 }, "id" | "name">
 
 export type ToppingOrderByWithAggregationInput = {
@@ -239,6 +270,8 @@ export type ToppingOrderByWithAggregationInput = {
   name?: Prisma.SortOrder
   price?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrderInput | Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.ToppingCountOrderByAggregateInput
   _avg?: Prisma.ToppingAvgOrderByAggregateInput
   _max?: Prisma.ToppingMaxOrderByAggregateInput
@@ -254,13 +287,17 @@ export type ToppingScalarWhereWithAggregatesInput = {
   name?: Prisma.StringWithAggregatesFilter<"Topping"> | string
   price?: Prisma.IntWithAggregatesFilter<"Topping"> | number
   isActive?: Prisma.BoolWithAggregatesFilter<"Topping"> | boolean
+  ingredientId?: Prisma.IntNullableWithAggregatesFilter<"Topping"> | number | null
+  quantityPerServing?: Prisma.DecimalNullableWithAggregatesFilter<"Topping"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingCreateInput = {
   name: string
   price: number
   isActive?: boolean
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductCreateNestedManyWithoutToppingsInput
+  ingredient?: Prisma.IngredientCreateNestedOneWithoutToppingsInput
 }
 
 export type ToppingUncheckedCreateInput = {
@@ -268,6 +305,8 @@ export type ToppingUncheckedCreateInput = {
   name: string
   price: number
   isActive?: boolean
+  ingredientId?: number | null
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductUncheckedCreateNestedManyWithoutToppingsInput
 }
 
@@ -275,7 +314,9 @@ export type ToppingUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductUpdateManyWithoutToppingsNestedInput
+  ingredient?: Prisma.IngredientUpdateOneWithoutToppingsNestedInput
 }
 
 export type ToppingUncheckedUpdateInput = {
@@ -283,6 +324,8 @@ export type ToppingUncheckedUpdateInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ingredientId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
   products?: Prisma.ProductUncheckedUpdateManyWithoutToppingsNestedInput
 }
 
@@ -291,12 +334,15 @@ export type ToppingCreateManyInput = {
   name: string
   price: number
   isActive?: boolean
+  ingredientId?: number | null
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingUpdateManyMutationInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingUncheckedUpdateManyInput = {
@@ -304,6 +350,8 @@ export type ToppingUncheckedUpdateManyInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ingredientId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingListRelationFilter = {
@@ -321,11 +369,15 @@ export type ToppingCountOrderByAggregateInput = {
   name?: Prisma.SortOrder
   price?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrder
 }
 
 export type ToppingAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
   price?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrder
 }
 
 export type ToppingMaxOrderByAggregateInput = {
@@ -333,6 +385,8 @@ export type ToppingMaxOrderByAggregateInput = {
   name?: Prisma.SortOrder
   price?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrder
 }
 
 export type ToppingMinOrderByAggregateInput = {
@@ -340,11 +394,15 @@ export type ToppingMinOrderByAggregateInput = {
   name?: Prisma.SortOrder
   price?: Prisma.SortOrder
   isActive?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrder
 }
 
 export type ToppingSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
   price?: Prisma.SortOrder
+  ingredientId?: Prisma.SortOrder
+  quantityPerServing?: Prisma.SortOrder
 }
 
 export type ToppingCreateNestedManyWithoutProductsInput = {
@@ -385,10 +443,70 @@ export type ToppingUncheckedUpdateManyWithoutProductsNestedInput = {
   deleteMany?: Prisma.ToppingScalarWhereInput | Prisma.ToppingScalarWhereInput[]
 }
 
+export type NullableDecimalFieldUpdateOperationsInput = {
+  set?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  increment?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  decrement?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  multiply?: runtime.Decimal | runtime.DecimalJsLike | number | string
+  divide?: runtime.Decimal | runtime.DecimalJsLike | number | string
+}
+
+export type NullableIntFieldUpdateOperationsInput = {
+  set?: number | null
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
+export type ToppingCreateNestedManyWithoutIngredientInput = {
+  create?: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput> | Prisma.ToppingCreateWithoutIngredientInput[] | Prisma.ToppingUncheckedCreateWithoutIngredientInput[]
+  connectOrCreate?: Prisma.ToppingCreateOrConnectWithoutIngredientInput | Prisma.ToppingCreateOrConnectWithoutIngredientInput[]
+  createMany?: Prisma.ToppingCreateManyIngredientInputEnvelope
+  connect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+}
+
+export type ToppingUncheckedCreateNestedManyWithoutIngredientInput = {
+  create?: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput> | Prisma.ToppingCreateWithoutIngredientInput[] | Prisma.ToppingUncheckedCreateWithoutIngredientInput[]
+  connectOrCreate?: Prisma.ToppingCreateOrConnectWithoutIngredientInput | Prisma.ToppingCreateOrConnectWithoutIngredientInput[]
+  createMany?: Prisma.ToppingCreateManyIngredientInputEnvelope
+  connect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+}
+
+export type ToppingUpdateManyWithoutIngredientNestedInput = {
+  create?: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput> | Prisma.ToppingCreateWithoutIngredientInput[] | Prisma.ToppingUncheckedCreateWithoutIngredientInput[]
+  connectOrCreate?: Prisma.ToppingCreateOrConnectWithoutIngredientInput | Prisma.ToppingCreateOrConnectWithoutIngredientInput[]
+  upsert?: Prisma.ToppingUpsertWithWhereUniqueWithoutIngredientInput | Prisma.ToppingUpsertWithWhereUniqueWithoutIngredientInput[]
+  createMany?: Prisma.ToppingCreateManyIngredientInputEnvelope
+  set?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  disconnect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  delete?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  connect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  update?: Prisma.ToppingUpdateWithWhereUniqueWithoutIngredientInput | Prisma.ToppingUpdateWithWhereUniqueWithoutIngredientInput[]
+  updateMany?: Prisma.ToppingUpdateManyWithWhereWithoutIngredientInput | Prisma.ToppingUpdateManyWithWhereWithoutIngredientInput[]
+  deleteMany?: Prisma.ToppingScalarWhereInput | Prisma.ToppingScalarWhereInput[]
+}
+
+export type ToppingUncheckedUpdateManyWithoutIngredientNestedInput = {
+  create?: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput> | Prisma.ToppingCreateWithoutIngredientInput[] | Prisma.ToppingUncheckedCreateWithoutIngredientInput[]
+  connectOrCreate?: Prisma.ToppingCreateOrConnectWithoutIngredientInput | Prisma.ToppingCreateOrConnectWithoutIngredientInput[]
+  upsert?: Prisma.ToppingUpsertWithWhereUniqueWithoutIngredientInput | Prisma.ToppingUpsertWithWhereUniqueWithoutIngredientInput[]
+  createMany?: Prisma.ToppingCreateManyIngredientInputEnvelope
+  set?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  disconnect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  delete?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  connect?: Prisma.ToppingWhereUniqueInput | Prisma.ToppingWhereUniqueInput[]
+  update?: Prisma.ToppingUpdateWithWhereUniqueWithoutIngredientInput | Prisma.ToppingUpdateWithWhereUniqueWithoutIngredientInput[]
+  updateMany?: Prisma.ToppingUpdateManyWithWhereWithoutIngredientInput | Prisma.ToppingUpdateManyWithWhereWithoutIngredientInput[]
+  deleteMany?: Prisma.ToppingScalarWhereInput | Prisma.ToppingScalarWhereInput[]
+}
+
 export type ToppingCreateWithoutProductsInput = {
   name: string
   price: number
   isActive?: boolean
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  ingredient?: Prisma.IngredientCreateNestedOneWithoutToppingsInput
 }
 
 export type ToppingUncheckedCreateWithoutProductsInput = {
@@ -396,6 +514,8 @@ export type ToppingUncheckedCreateWithoutProductsInput = {
   name: string
   price: number
   isActive?: boolean
+  ingredientId?: number | null
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingCreateOrConnectWithoutProductsInput = {
@@ -427,12 +547,59 @@ export type ToppingScalarWhereInput = {
   name?: Prisma.StringFilter<"Topping"> | string
   price?: Prisma.IntFilter<"Topping"> | number
   isActive?: Prisma.BoolFilter<"Topping"> | boolean
+  ingredientId?: Prisma.IntNullableFilter<"Topping"> | number | null
+  quantityPerServing?: Prisma.DecimalNullableFilter<"Topping"> | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+}
+
+export type ToppingCreateWithoutIngredientInput = {
+  name: string
+  price: number
+  isActive?: boolean
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  products?: Prisma.ProductCreateNestedManyWithoutToppingsInput
+}
+
+export type ToppingUncheckedCreateWithoutIngredientInput = {
+  id?: number
+  name: string
+  price: number
+  isActive?: boolean
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  products?: Prisma.ProductUncheckedCreateNestedManyWithoutToppingsInput
+}
+
+export type ToppingCreateOrConnectWithoutIngredientInput = {
+  where: Prisma.ToppingWhereUniqueInput
+  create: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput>
+}
+
+export type ToppingCreateManyIngredientInputEnvelope = {
+  data: Prisma.ToppingCreateManyIngredientInput | Prisma.ToppingCreateManyIngredientInput[]
+  skipDuplicates?: boolean
+}
+
+export type ToppingUpsertWithWhereUniqueWithoutIngredientInput = {
+  where: Prisma.ToppingWhereUniqueInput
+  update: Prisma.XOR<Prisma.ToppingUpdateWithoutIngredientInput, Prisma.ToppingUncheckedUpdateWithoutIngredientInput>
+  create: Prisma.XOR<Prisma.ToppingCreateWithoutIngredientInput, Prisma.ToppingUncheckedCreateWithoutIngredientInput>
+}
+
+export type ToppingUpdateWithWhereUniqueWithoutIngredientInput = {
+  where: Prisma.ToppingWhereUniqueInput
+  data: Prisma.XOR<Prisma.ToppingUpdateWithoutIngredientInput, Prisma.ToppingUncheckedUpdateWithoutIngredientInput>
+}
+
+export type ToppingUpdateManyWithWhereWithoutIngredientInput = {
+  where: Prisma.ToppingScalarWhereInput
+  data: Prisma.XOR<Prisma.ToppingUpdateManyMutationInput, Prisma.ToppingUncheckedUpdateManyWithoutIngredientInput>
 }
 
 export type ToppingUpdateWithoutProductsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  ingredient?: Prisma.IngredientUpdateOneWithoutToppingsNestedInput
 }
 
 export type ToppingUncheckedUpdateWithoutProductsInput = {
@@ -440,6 +607,8 @@ export type ToppingUncheckedUpdateWithoutProductsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ingredientId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 export type ToppingUncheckedUpdateManyWithoutProductsInput = {
@@ -447,6 +616,41 @@ export type ToppingUncheckedUpdateManyWithoutProductsInput = {
   name?: Prisma.StringFieldUpdateOperationsInput | string
   price?: Prisma.IntFieldUpdateOperationsInput | number
   isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  ingredientId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+}
+
+export type ToppingCreateManyIngredientInput = {
+  id?: number
+  name: string
+  price: number
+  isActive?: boolean
+  quantityPerServing?: runtime.Decimal | runtime.DecimalJsLike | number | string | null
+}
+
+export type ToppingUpdateWithoutIngredientInput = {
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  price?: Prisma.IntFieldUpdateOperationsInput | number
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  products?: Prisma.ProductUpdateManyWithoutToppingsNestedInput
+}
+
+export type ToppingUncheckedUpdateWithoutIngredientInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  price?: Prisma.IntFieldUpdateOperationsInput | number
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
+  products?: Prisma.ProductUncheckedUpdateManyWithoutToppingsNestedInput
+}
+
+export type ToppingUncheckedUpdateManyWithoutIngredientInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  price?: Prisma.IntFieldUpdateOperationsInput | number
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  quantityPerServing?: Prisma.NullableDecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string | null
 }
 
 
@@ -485,7 +689,10 @@ export type ToppingSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   name?: boolean
   price?: boolean
   isActive?: boolean
+  ingredientId?: boolean
+  quantityPerServing?: boolean
   products?: boolean | Prisma.Topping$productsArgs<ExtArgs>
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
   _count?: boolean | Prisma.ToppingCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["topping"]>
 
@@ -494,6 +701,9 @@ export type ToppingSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   name?: boolean
   price?: boolean
   isActive?: boolean
+  ingredientId?: boolean
+  quantityPerServing?: boolean
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
 }, ExtArgs["result"]["topping"]>
 
 export type ToppingSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -501,6 +711,9 @@ export type ToppingSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   name?: boolean
   price?: boolean
   isActive?: boolean
+  ingredientId?: boolean
+  quantityPerServing?: boolean
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
 }, ExtArgs["result"]["topping"]>
 
 export type ToppingSelectScalar = {
@@ -508,26 +721,36 @@ export type ToppingSelectScalar = {
   name?: boolean
   price?: boolean
   isActive?: boolean
+  ingredientId?: boolean
+  quantityPerServing?: boolean
 }
 
-export type ToppingOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "price" | "isActive", ExtArgs["result"]["topping"]>
+export type ToppingOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "price" | "isActive" | "ingredientId" | "quantityPerServing", ExtArgs["result"]["topping"]>
 export type ToppingInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   products?: boolean | Prisma.Topping$productsArgs<ExtArgs>
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
   _count?: boolean | Prisma.ToppingCountOutputTypeDefaultArgs<ExtArgs>
 }
-export type ToppingIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
-export type ToppingIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
+export type ToppingIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
+}
+export type ToppingIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  ingredient?: boolean | Prisma.Topping$ingredientArgs<ExtArgs>
+}
 
 export type $ToppingPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "Topping"
   objects: {
     products: Prisma.$ProductPayload<ExtArgs>[]
+    ingredient: Prisma.$IngredientPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     name: string
     price: number
     isActive: boolean
+    ingredientId: number | null
+    quantityPerServing: runtime.Decimal | null
   }, ExtArgs["result"]["topping"]>
   composites: {}
 }
@@ -923,6 +1146,7 @@ readonly fields: ToppingFieldRefs;
 export interface Prisma__ToppingClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   products<T extends Prisma.Topping$productsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Topping$productsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProductPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  ingredient<T extends Prisma.Topping$ingredientArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Topping$ingredientArgs<ExtArgs>>): Prisma.Prisma__IngredientClient<runtime.Types.Result.GetResult<Prisma.$IngredientPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -956,6 +1180,8 @@ export interface ToppingFieldRefs {
   readonly name: Prisma.FieldRef<"Topping", 'String'>
   readonly price: Prisma.FieldRef<"Topping", 'Int'>
   readonly isActive: Prisma.FieldRef<"Topping", 'Boolean'>
+  readonly ingredientId: Prisma.FieldRef<"Topping", 'Int'>
+  readonly quantityPerServing: Prisma.FieldRef<"Topping", 'Decimal'>
 }
     
 
@@ -1205,6 +1431,10 @@ export type ToppingCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensi
    */
   data: Prisma.ToppingCreateManyInput | Prisma.ToppingCreateManyInput[]
   skipDuplicates?: boolean
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ToppingIncludeCreateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1275,6 +1505,10 @@ export type ToppingUpdateManyAndReturnArgs<ExtArgs extends runtime.Types.Extensi
    * Limit how many Toppings to update.
    */
   limit?: number
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ToppingIncludeUpdateManyAndReturn<ExtArgs> | null
 }
 
 /**
@@ -1365,6 +1599,25 @@ export type Topping$productsArgs<ExtArgs extends runtime.Types.Extensions.Intern
   take?: number
   skip?: number
   distinct?: Prisma.ProductScalarFieldEnum | Prisma.ProductScalarFieldEnum[]
+}
+
+/**
+ * Topping.ingredient
+ */
+export type Topping$ingredientArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Ingredient
+   */
+  select?: Prisma.IngredientSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Ingredient
+   */
+  omit?: Prisma.IngredientOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.IngredientInclude<ExtArgs> | null
+  where?: Prisma.IngredientWhereInput
 }
 
 /**

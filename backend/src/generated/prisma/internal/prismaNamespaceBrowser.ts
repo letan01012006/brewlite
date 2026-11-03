@@ -56,7 +56,13 @@ export const ModelName = {
   OrderItem: 'OrderItem',
   Payment: 'Payment',
   PromoCode: 'PromoCode',
-  LoyaltyTransaction: 'LoyaltyTransaction'
+  LoyaltyTransaction: 'LoyaltyTransaction',
+  Ingredient: 'Ingredient',
+  ProductRecipe: 'ProductRecipe',
+  ProductRecipeIngredient: 'ProductRecipeIngredient',
+  InventoryReservation: 'InventoryReservation',
+  InventoryReservationItem: 'InventoryReservationItem',
+  InventoryMovement: 'InventoryMovement'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -95,7 +101,9 @@ export const ToppingScalarFieldEnum = {
   id: 'id',
   name: 'name',
   price: 'price',
-  isActive: 'isActive'
+  isActive: 'isActive',
+  ingredientId: 'ingredientId',
+  quantityPerServing: 'quantityPerServing'
 } as const
 
 export type ToppingScalarFieldEnum = (typeof ToppingScalarFieldEnum)[keyof typeof ToppingScalarFieldEnum]
@@ -137,6 +145,7 @@ export const OrderItemScalarFieldEnum = {
   productName: 'productName',
   size: 'size',
   toppings: 'toppings',
+  recipeSnapshot: 'recipeSnapshot',
   unitPrice: 'unitPrice',
   qty: 'qty',
   lineTotal: 'lineTotal',
@@ -194,6 +203,92 @@ export const LoyaltyTransactionScalarFieldEnum = {
 } as const
 
 export type LoyaltyTransactionScalarFieldEnum = (typeof LoyaltyTransactionScalarFieldEnum)[keyof typeof LoyaltyTransactionScalarFieldEnum]
+
+
+export const IngredientScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  name: 'name',
+  unit: 'unit',
+  stockQuantity: 'stockQuantity',
+  reservedQuantity: 'reservedQuantity',
+  version: 'version',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type IngredientScalarFieldEnum = (typeof IngredientScalarFieldEnum)[keyof typeof IngredientScalarFieldEnum]
+
+
+export const ProductRecipeScalarFieldEnum = {
+  id: 'id',
+  productId: 'productId',
+  size: 'size',
+  version: 'version',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ProductRecipeScalarFieldEnum = (typeof ProductRecipeScalarFieldEnum)[keyof typeof ProductRecipeScalarFieldEnum]
+
+
+export const ProductRecipeIngredientScalarFieldEnum = {
+  id: 'id',
+  recipeId: 'recipeId',
+  ingredientId: 'ingredientId',
+  unit: 'unit',
+  quantity: 'quantity'
+} as const
+
+export type ProductRecipeIngredientScalarFieldEnum = (typeof ProductRecipeIngredientScalarFieldEnum)[keyof typeof ProductRecipeIngredientScalarFieldEnum]
+
+
+export const InventoryReservationScalarFieldEnum = {
+  id: 'id',
+  orderId: 'orderId',
+  eventKey: 'eventKey',
+  status: 'status',
+  version: 'version',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  expiresAt: 'expiresAt',
+  consumedAt: 'consumedAt',
+  releasedAt: 'releasedAt',
+  releaseReason: 'releaseReason'
+} as const
+
+export type InventoryReservationScalarFieldEnum = (typeof InventoryReservationScalarFieldEnum)[keyof typeof InventoryReservationScalarFieldEnum]
+
+
+export const InventoryReservationItemScalarFieldEnum = {
+  id: 'id',
+  reservationId: 'reservationId',
+  ingredientId: 'ingredientId',
+  unit: 'unit',
+  quantity: 'quantity'
+} as const
+
+export type InventoryReservationItemScalarFieldEnum = (typeof InventoryReservationItemScalarFieldEnum)[keyof typeof InventoryReservationItemScalarFieldEnum]
+
+
+export const InventoryMovementScalarFieldEnum = {
+  id: 'id',
+  eventKey: 'eventKey',
+  kind: 'kind',
+  ingredientId: 'ingredientId',
+  unit: 'unit',
+  stockDelta: 'stockDelta',
+  reservedDelta: 'reservedDelta',
+  reservationId: 'reservationId',
+  orderId: 'orderId',
+  actorId: 'actorId',
+  reason: 'reason',
+  createdAt: 'createdAt'
+} as const
+
+export type InventoryMovementScalarFieldEnum = (typeof InventoryMovementScalarFieldEnum)[keyof typeof InventoryMovementScalarFieldEnum]
 
 
 export const SortOrder = {
