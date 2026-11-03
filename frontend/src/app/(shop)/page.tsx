@@ -7,6 +7,7 @@ import type { Product } from '@/types';
 import { apiFetch } from '@/lib/api/client';
 import { useAuthStore } from '@/store/auth-store';
 import { ProductCard } from '@/components/products/product-card';
+import { DEFAULT_PRODUCT_IMAGES } from '@/lib/constants/product-images';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -99,14 +100,24 @@ export default function LandingPage() {
 
           {/* Cột ảnh chủ đạo */}
           <div className="lg:col-span-5 flex justify-center">
-            <div className="relative w-72 sm:w-88 aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-amber-900/40 ring-1 ring-amber-500/20 group light:max-w-full light:shadow-cafe-card light:border-cafe-line light:ring-cafe-line ">
+            <div className="relative w-72 sm:w-88 aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-amber-900/40 ring-1 ring-amber-500/20 group light:shadow-cafe-card light:border-cafe-line light:ring-cafe-line ">
+              {/* Both themes share the frame size; only the photo and colors differ. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={DEFAULT_PRODUCT_IMAGES.Cappuccino}
+                alt="Cappuccino với họa tiết latte art"
+                width={600}
+                height={600}
+                fetchPriority="high"
+                className="hidden light:block absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80"
                 alt="Không gian quán cà phê BrewLite"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 light:hidden"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex items-end p-5">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex items-end p-5 light:hidden">
                 <div>
                   <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest block mb-0.5">
                     Không gian mở ấm cúng
@@ -168,7 +179,7 @@ export default function LandingPage() {
       </section>
 
       {/* 3. QUY TRÌNH 3 BƯỚC ĐẶT TRƯỚC, NHẬN TẠI QUẦY & TÍCH ĐIỂM */}
-      <section id="steps" className="py-16 sm:py-24 bg-[#f4ece3] dark:bg-[#14100e] border-y border-[#e6d9cb] dark:border-[#241c17] px-4 transition-colors light:py-12 light:sm:py-16 light:bg-cafe-soft light:border-cafe-line light:rounded-3xl ">
+      <section id="steps" className="py-16 sm:py-24 bg-[#f4ece3] dark:bg-[#14100e] border-y border-[#e6d9cb] dark:border-[#241c17] px-4 transition-colors light:bg-cafe-soft light:border-cafe-line ">
         <div className="max-w-5xl mx-auto text-center space-y-12">
           <div className="space-y-2">
             <span className="inline-block uppercase tracking-widest text-[11px] font-black text-amber-700 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/50 px-3 py-1 rounded-full border border-amber-300/40 dark:border-amber-800/40 mb-1 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-line ">
@@ -184,7 +195,7 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Bước 1 */}
-            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:hover:translate-y-0 light:shadow-cafe-card ">
+            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:shadow-cafe-card ">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white flex items-center justify-center text-xl font-black shadow-md shadow-amber-900/20 light:shadow-cafe-card cafe-step ">
                 1
               </div>
@@ -197,7 +208,7 @@ export default function LandingPage() {
             </div>
 
             {/* Bước 2 */}
-            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:hover:translate-y-0 light:shadow-cafe-card ">
+            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:shadow-cafe-card ">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-700 text-white flex items-center justify-center text-xl font-black shadow-md shadow-blue-900/20 light:shadow-cafe-card cafe-step ">
                 2
               </div>
@@ -210,7 +221,7 @@ export default function LandingPage() {
             </div>
 
             {/* Bước 3 */}
-            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:hover:translate-y-0 light:shadow-cafe-card ">
+            <div className="bg-white/95 dark:bg-[#1a1512] p-7 rounded-3xl border border-stone-200/70 dark:border-[#2a221c] shadow-[0_4px_20px_rgba(40,25,15,0.05)] dark:shadow-none hover:-translate-y-1 transition-all text-left space-y-3.5 light:bg-cafe-surface/95 light:border-cafe-line light:shadow-cafe-card ">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center text-xl font-black shadow-md shadow-emerald-900/20 light:shadow-cafe-card cafe-step ">
                 3
               </div>
@@ -226,7 +237,7 @@ export default function LandingPage() {
       </section>
 
       {/* 4. ĐỊA CHỈ, GIỜ MỞ CỬA & LIÊN HỆ */}
-      <section className="py-16 sm:py-24 px-4 max-w-6xl mx-auto light:py-12 light:sm:py-16">
+      <section className="py-16 sm:py-24 px-4 max-w-6xl mx-auto">
         <div className="bg-gradient-to-br from-[#1c1410] via-[#241a14] to-[#140e0b] text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-amber-900/40 dark:border-[#2a221c] grid grid-cols-1 lg:grid-cols-2 gap-8 items-center light:from-cafe-soft light:via-cafe-page light:to-cafe-soft light:text-cafe-ink light:border-cafe-line light:shadow-cafe-card ">
           <div className="space-y-5">
             <span className="text-xs font-bold uppercase tracking-widest text-amber-400 light:text-cafe-primary">

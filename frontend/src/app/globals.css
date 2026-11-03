@@ -73,17 +73,9 @@ html:not(.dark) .cafe-primary:disabled {
 }
 
 html:not(.dark) .cafe-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
   background: var(--surface);
   color: var(--primary);
-  border: 1px solid var(--surface-border);
-  border-radius: 0.75rem;
+  border-color: var(--surface-border);
   box-shadow: none;
 }
 
@@ -102,14 +94,6 @@ html:not(.dark) .cafe-step {
 html:not(.dark) :is(a, button, input, select, textarea):focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
-}
-
-html:not(.dark) {
-  overflow-wrap: break-word;
-}
-
-html:not(.dark) :is(input, select, textarea) {
-  min-width: 0;
 }
 
 .no-scrollbar {
