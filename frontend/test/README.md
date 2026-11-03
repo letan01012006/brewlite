@@ -21,9 +21,43 @@ Coverage:
   persisted selections, account isolation, guest merging, corrupt/full storage,
   and refreshing prices, toppings and stock without overwriting later edits.
 - Complete catalog pagination and history navigation with stale-response protection.
+- PWA retirement: exact worker URL/root scope matching (including waiting and
+  installing workers), unrelated registrations/caches preserved, denied APIs,
+  repeat cleanup, and account/cart/theme/checkout/cookie preservation without reload.
+- Temporary retirement worker: immediate activation, only BrewLite cache removal,
+  self-unregistration even after cache/claim failures, and no fetch interception.
 
 The page tests use a small hook/element harness to exercise handlers;
 they do not validate visual layout or browser accessibility.
+
+## Browser checks for the website migration
+
+Run all four commands from `frontend`: `npm.cmd run lint`, `npm.cmd test`,
+`npx.cmd tsc --noEmit --incremental false`, `npm.cmd run build`.
+Use `npm`/`npx` on other operating systems. Run the built website with
+`npm.cmd run start -- --port 3000` and the existing backend/database.
+
+Check 1440px, 1024px and about 390px in light and dark mode. Visit home, menu,
+cart, login/register, checkout, orders and barista with the appropriate role.
+Verify header links/cart remain reachable, no bottom navigation/floating cart/
+install banner, no extra bottom padding or covered buttons. Open a product,
+choose size/toppings, use Tab/Shift+Tab, Escape and verify focus returns to its
+trigger. Check search, pagination, promotion, logout and theme/account/cart sync.
+Only use a test account and the current test payment flow for order mutations.
+
+Use both a fresh browser profile and an isolated profile that ran the old PWA.
+Before updating the latter, record its registrations, `brewlite-pwa-*` caches,
+account/cart/theme localStorage, checkout sessionStorage and cookies; keep a tab
+open with a pending checkout. Include a test registration at another scope and
+a cache without the BrewLite prefix. Visit the new website and verify only
+the exact root `/sw.js` registration and BrewLite caches disappear, other app
+data stays intact, the page does not reload and checkout remains recoverable.
+Let the browser update the old worker URL as a separate check of the retirement
+worker; it must not intercept API/navigation or navigate open tabs. Close/reopen
+tabs naturally to release any old controller, rather than force-reloading payment.
+
+The unit tests simulate these browser APIs; they do not prove real browser update
+timing or profile migration. Document any unavailable browser/backend checks.
 
 Checkout recovery is per account in the current tab's sessionStorage. A pending
 order stays fixed until paid or explicitly cancelled. If the POST /orders

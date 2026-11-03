@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { safeRedirect } from "@/lib/safe-redirect";
 import type { User } from "@/types";
 
 interface LoginResponse {
@@ -25,7 +26,7 @@ export default function RegisterPage() {
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/";
+  const redirectPath = safeRedirect(searchParams.get("redirect"));
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -100,16 +101,16 @@ function RegisterForm() {
   };
 
   return (
-    <div className="w-full bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-6 sm:p-8 shadow-2xl space-y-6 animate-fadeIn">
+    <div className="w-full bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-6 sm:p-8 shadow-2xl space-y-6 animate-fadeIn light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
         {/* Header */}
         <div className="text-center space-y-1.5">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-200/60 dark:border-amber-800/50 shadow-sm">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-200/60 dark:border-amber-800/50 shadow-sm light:shadow-cafe-card light:bg-cafe-accent light:text-cafe-primary light:border-cafe-line ">
             ☕
           </div>
-          <h1 className="text-2xl font-extrabold text-stone-900 dark:text-[#f4ede6] tracking-tight">
+          <h1 className="text-2xl font-extrabold text-stone-900 dark:text-[#f4ede6] tracking-tight light:text-cafe-ink ">
             Đăng Ký Tài Khoản
           </h1>
-          <p className="text-xs text-stone-500 dark:text-[#a39589]">
+          <p className="text-xs text-stone-500 dark:text-[#a39589] light:text-cafe-muted ">
             Tạo tài khoản để tham gia chương trình khách hàng thân thiết
             BrewLite
           </p>
@@ -126,7 +127,7 @@ function RegisterForm() {
         {/* Form Đăng ký */}
         <form onSubmit={handleRegister} className="space-y-3.5">
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
               Họ và tên của bạn <span className="text-rose-500">*</span>
             </label>
             <input
@@ -135,12 +136,12 @@ function RegisterForm() {
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Nguyễn Văn A"
               required
-              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54]"
+              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
             />
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
               Địa chỉ Email <span className="text-rose-500">*</span>
             </label>
             <input
@@ -149,16 +150,16 @@ function RegisterForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@brewlite.com"
               required
-              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54]"
+              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9]">
+              <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] light:text-cafe-muted ">
                 Mật khẩu <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[10px] text-stone-400 dark:text-[#8e7e72]">
+              <span className="text-[10px] text-stone-400 dark:text-[#8e7e72] light:text-cafe-muted ">
                 Tối thiểu 8 ký tự, gồm chữ & số
               </span>
             </div>
@@ -169,12 +170,12 @@ function RegisterForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Nhập mật khẩu..."
                 required
-                className="w-full text-sm px-4 py-2.5 pr-10 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54]"
+                className="w-full text-sm px-4 py-2.5 pr-10 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs cursor-pointer"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs cursor-pointer light:text-cafe-muted light:hover:text-cafe-muted "
               >
                 {showPassword ? "Ẩn" : "Hiện"}
               </button>
@@ -182,7 +183,7 @@ function RegisterForm() {
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
               Xác nhận mật khẩu <span className="text-rose-500">*</span>
             </label>
             <input
@@ -191,14 +192,14 @@ function RegisterForm() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Nhập lại mật khẩu trên..."
               required
-              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54]"
+              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-98 mt-2"
+            className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-md shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-98 mt-2 light:shadow-cafe-card cafe-primary "
           >
             {isLoading ? (
               <>
@@ -230,11 +231,11 @@ function RegisterForm() {
         </form>
 
         {/* Chuyển sang Đăng nhập */}
-        <div className="pt-2 text-center text-xs text-stone-500 dark:text-[#a39589] border-t border-[#ede5dc] dark:border-[#2a221c]">
+        <div className="pt-2 text-center text-xs text-stone-500 dark:text-[#a39589] border-t border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-muted light:border-cafe-line ">
           Đã có tài khoản?{" "}
           <Link
             href={`/login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ""}`}
-            className="font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 underline ml-1"
+            className="font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 underline ml-1 light:text-cafe-primary light:hover:text-cafe-primary "
           >
             Đăng nhập ngay
           </Link>

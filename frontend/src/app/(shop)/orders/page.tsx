@@ -158,37 +158,37 @@ function OrdersContent() {
   return (
     <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-200 dark:border-stone-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-stone-200 dark:border-stone-800 light:border-cafe-line ">
         <div>
-          <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1">
-            <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400">
+          <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1 light:text-cafe-muted ">
+            <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
               Trang chủ
             </Link>
             <span>/</span>
-            <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400">
+            <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
               Menu
             </Link>
             <span>/</span>
-            <span className="text-stone-800 dark:text-stone-200 font-medium">Lịch sử đơn hàng</span>
+            <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">Lịch sử đơn hàng</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight light:text-cafe-ink ">
             Lịch Sử Đơn Hàng
           </h1>
         </div>
 
         {user && (
-          <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-3">
+          <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-3 light:text-cafe-primary ">
             <div>
-              <span className="text-stone-400 dark:text-[#7d6e62] block text-[10px]">
+              <span className="text-stone-400 dark:text-[#7d6e62] block text-[10px] light:text-cafe-muted ">
                 Tài khoản:
               </span>
-              <span className="font-bold text-stone-800 dark:text-[#f4ede6]">{user.fullName}</span>
+              <span className="font-bold text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">{user.fullName}</span>
             </div>
             <div className="border-l border-amber-200 dark:border-[#33261f] pl-3">
-              <span className="text-stone-400 dark:text-[#7d6e62] block text-[10px]">
+              <span className="text-stone-400 dark:text-[#7d6e62] block text-[10px] light:text-cafe-muted ">
                 Điểm tích lũy:
               </span>
-              <span className="font-black text-amber-800 dark:text-amber-400">
+              <span className="font-black text-amber-800 dark:text-amber-400 light:text-cafe-primary ">
                 {user.loyaltyPoints} điểm
               </span>
             </div>
@@ -196,18 +196,18 @@ function OrdersContent() {
         )}
       </div>
 
-      <div className="flex justify-between items-center mb-4 text-sm text-stone-600 dark:text-[#9e8f83]">
+      <div className="flex justify-between items-center mb-4 text-sm text-stone-600 dark:text-[#9e8f83] light:text-cafe-muted ">
         <span>{totalOrders} đơn hàng</span>
         <button
           onClick={() => void fetchMyOrders()}
           disabled={isLoading}
-          className="underline hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
+          className="underline hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer light:hover:text-cafe-primary "
         >
           Làm mới trạng thái
         </button>
       </div>
       {isLoadingDetail && (
-        <p role="status" className="p-3 bg-amber-50/70 dark:bg-[#1c1612] text-amber-900 dark:text-amber-200 rounded-xl mb-4 text-xs border border-amber-200/50 dark:border-[#33261f]">
+        <p role="status" className="p-3 bg-amber-50/70 dark:bg-[#1c1612] text-amber-900 dark:text-amber-200 rounded-xl mb-4 text-xs border border-amber-200/50 dark:border-[#33261f] light:text-cafe-primary ">
           Đang tải chi tiết đơn hàng...
         </p>
       )}
@@ -217,10 +217,10 @@ function OrdersContent() {
           {[1, 2, 3].map((n) => (
             <div
               key={n}
-              className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 animate-pulse space-y-3"
+              className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 animate-pulse space-y-3 light:bg-cafe-surface light:border-cafe-line "
             >
-              <div className="h-4 bg-stone-200 dark:bg-[#281f19] rounded w-1/4" />
-              <div className="h-3 bg-stone-200 dark:bg-[#281f19] rounded w-1/2" />
+              <div className="h-4 bg-stone-200 dark:bg-[#281f19] rounded w-1/4 light:bg-cafe-line " />
+              <div className="h-3 bg-stone-200 dark:bg-[#281f19] rounded w-1/2 light:bg-cafe-line " />
             </div>
           ))}
         </div>
@@ -241,18 +241,18 @@ function OrdersContent() {
 
       {/* Empty state */}
       {!isLoading && !errorMsg && orders.length === 0 && (
-        <div className="bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-12 text-center max-w-md mx-auto shadow-sm space-y-4 my-8">
+        <div className="bg-white dark:bg-[#161210] rounded-3xl border border-[#ede5dc] dark:border-[#2a221c] p-12 text-center max-w-md mx-auto shadow-sm space-y-4 my-8 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
           <span className="text-5xl block">☕</span>
-          <h3 className="text-lg font-bold text-stone-900 dark:text-[#f4ede6]">
+          <h3 className="text-lg font-bold text-stone-900 dark:text-[#f4ede6] light:text-cafe-ink ">
             Bạn chưa có đơn hàng nào
           </h3>
-          <p className="text-xs text-stone-500 dark:text-[#a39589]">
+          <p className="text-xs text-stone-500 dark:text-[#a39589] light:text-cafe-muted ">
             Hãy chọn những ly cà phê hoặc thức uống tươi ngon ngay trên menu
             nhé!
           </p>
           <Link
             href="/menu"
-            className="inline-block bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all"
+            className="inline-block bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-sm transition-all light:shadow-cafe-card cafe-primary "
           >
             Xem Menu đặt món
           </Link>
@@ -274,28 +274,28 @@ function OrdersContent() {
             return (
               <div
                 key={order.id}
-                className="bg-white dark:bg-[#181310] rounded-2xl border border-[#ede5dc] dark:border-[#261f1a] p-5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                className="bg-white dark:bg-[#181310] rounded-2xl border border-[#ede5dc] dark:border-[#261f1a] p-5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card light:hover:shadow-cafe-card "
               >
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-3">
-                    <span className="font-extrabold text-stone-900 dark:text-[#f4ede6] font-mono text-base">
+                    <span className="font-extrabold text-stone-900 dark:text-[#f4ede6] font-mono text-base light:text-cafe-ink ">
                       {order.code}
                     </span>
                     <StatusBadge status={order.status} />
                   </div>
-                  <div className="text-xs text-stone-500 dark:text-[#9e8f83] flex items-center gap-2">
+                  <div className="text-xs text-stone-500 dark:text-[#9e8f83] flex items-center gap-2 light:text-cafe-muted ">
                     <span>🕒 {dateStr}</span>
                     <span>•</span>
                     <span>{order.itemCount} ly đồ uống</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#ede5dc] dark:border-[#261f1a]">
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#ede5dc] dark:border-[#261f1a] light:border-cafe-line ">
                   <div className="text-right">
-                    <span className="text-xs text-stone-400 dark:text-[#7d6e62] block">
+                    <span className="text-xs text-stone-400 dark:text-[#7d6e62] block light:text-cafe-muted ">
                       Tổng tiền
                     </span>
-                    <span className="font-black text-amber-900 dark:text-amber-400 font-mono text-base">
+                    <span className="font-black text-amber-900 dark:text-amber-400 font-mono text-base light:text-cafe-primary ">
                       {order.total.toLocaleString("vi-VN")}₫
                     </span>
                   </div>
@@ -303,7 +303,7 @@ function OrdersContent() {
                   <button
                     type="button"
                     onClick={() => handleViewOrderDetail(order.id)}
-                    className="bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                    className="bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer light:text-cafe-primary "
                   >
                     Chi tiết →
                   </button>
@@ -323,27 +323,24 @@ function OrdersContent() {
       />
       {selectedOrder && (
         <Modal onClose={closeDetail} labelledBy="order-detail-title">
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-          <div className="fixed inset-0" onClick={closeDetail} />
-
-          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c]">
+          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c] animate-fadeIn light:bg-cafe-surface light:shadow-cafe-card light:border-cafe-line ">
             {/* Modal Header */}
-            <div className="p-5 bg-stone-50 dark:bg-[#1a1411] border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between">
+            <div className="p-5 bg-stone-50 dark:bg-[#1a1411] border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between light:bg-cafe-page light:border-cafe-line ">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h2 id="order-detail-title" className="text-lg font-black text-stone-900 dark:text-[#f4ede6] font-mono">
+                  <h2 id="order-detail-title" className="text-lg font-black text-stone-900 dark:text-[#f4ede6] font-mono light:text-cafe-ink ">
                     {selectedOrder.code}
                   </h2>
                   <StatusBadge status={selectedOrder.status} />
                 </div>
-                <span className="text-[11px] text-stone-500 dark:text-[#9e8f83]">
+                <span className="text-[11px] text-stone-500 dark:text-[#9e8f83] light:text-cafe-muted ">
                   Đặt lúc:{" "}
                   {new Date(selectedOrder.createdAt).toLocaleString("vi-VN")}
                 </span>
               </div>
               <button
                 onClick={closeDetail}
-                className="w-8 h-8 rounded-full bg-stone-200 dark:bg-[#281f19] hover:bg-stone-300 dark:hover:bg-[#33261f] text-stone-700 dark:text-[#cfc3b9] flex items-center justify-center text-xs cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-full bg-stone-200 dark:bg-[#281f19] hover:bg-stone-300 dark:hover:bg-[#33261f] text-stone-700 dark:text-[#cfc3b9] flex items-center justify-center text-xs cursor-pointer transition-colors light:bg-cafe-line light:hover:bg-cafe-line light:text-cafe-ink "
               >
                 ✕
               </button>
@@ -353,30 +350,30 @@ function OrdersContent() {
             <div className="p-5 overflow-y-auto space-y-5 flex-1">
               {/* Danh sách món */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-[#9e8f83] mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-[#9e8f83] mb-2 light:text-cafe-muted ">
                   Danh sách món đã đặt
                 </h3>
                 <div className="space-y-2">
                   {selectedOrder.items.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 bg-white dark:bg-[#1a1411] rounded-xl border border-[#ede5dc] dark:border-[#2a221c] text-xs space-y-1"
+                      className="p-3 bg-white dark:bg-[#1a1411] rounded-xl border border-[#ede5dc] dark:border-[#2a221c] text-xs space-y-1 light:bg-cafe-surface light:border-cafe-line "
                     >
-                      <div className="flex justify-between font-semibold text-stone-900 dark:text-[#f4ede6]">
+                      <div className="flex justify-between font-semibold text-stone-900 dark:text-[#f4ede6] light:text-cafe-ink ">
                         <span>
                           {item.qty}x {item.productName} ({item.size})
                         </span>
-                        <span className="font-mono text-amber-900 dark:text-amber-400">
+                        <span className="font-mono text-amber-900 dark:text-amber-400 light:text-cafe-primary ">
                           {item.lineTotal.toLocaleString("vi-VN")}₫
                         </span>
                       </div>
                       {item.toppings && item.toppings.length > 0 && (
-                        <div className="text-[11px] text-stone-500 dark:text-[#9e8f83]">
+                        <div className="text-[11px] text-stone-500 dark:text-[#9e8f83] light:text-cafe-muted ">
                           Topping: {item.toppings.map((t) => t.name).join(", ")}
                         </div>
                       )}
                       {item.note && (
-                        <div className="text-[11px] text-amber-800 dark:text-amber-300">
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 light:text-cafe-primary ">
                           Ghi chú: {item.note}
                         </div>
                       )}
@@ -386,10 +383,10 @@ function OrdersContent() {
               </div>
 
               {/* Tóm tắt thanh toán */}
-              <div className="bg-white dark:bg-[#1a1411] rounded-xl p-3.5 border border-[#ede5dc] dark:border-[#2a221c] space-y-1.5 text-xs text-stone-600 dark:text-[#9e8f83]">
+              <div className="bg-white dark:bg-[#1a1411] rounded-xl p-3.5 border border-[#ede5dc] dark:border-[#2a221c] space-y-1.5 text-xs text-stone-600 dark:text-[#9e8f83] light:bg-cafe-surface light:border-cafe-line light:text-cafe-muted ">
                 <div className="flex justify-between">
                   <span>Tiền hàng:</span>
-                  <span className="font-mono text-stone-800 dark:text-[#f4ede6]">
+                  <span className="font-mono text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                     {selectedOrder.subtotal.toLocaleString("vi-VN")}₫
                   </span>
                 </div>
@@ -401,13 +398,13 @@ function OrdersContent() {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between text-amber-800 dark:text-amber-400 font-medium">
+                <div className="flex justify-between text-amber-800 dark:text-amber-400 font-medium light:text-cafe-primary ">
                   <span>Điểm thưởng nhận được:</span>
                   <span>+{selectedOrder.pointsEarned} điểm</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-[#ede5dc] dark:border-[#2a221c] text-stone-900 dark:text-[#f4ede6] font-black text-sm">
+                <div className="flex justify-between pt-2 border-t border-[#ede5dc] dark:border-[#2a221c] text-stone-900 dark:text-[#f4ede6] font-black text-sm light:border-cafe-line light:text-cafe-ink ">
                   <span>Tổng thanh toán:</span>
-                  <span className="font-mono text-amber-900 dark:text-amber-400">
+                  <span className="font-mono text-amber-900 dark:text-amber-400 light:text-cafe-primary ">
                     {selectedOrder.total.toLocaleString("vi-VN")}₫
                   </span>
                 </div>
@@ -416,22 +413,22 @@ function OrdersContent() {
               {/* Lịch sử giao dịch thanh toán */}
               {selectedOrder.payments && selectedOrder.payments.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-2 light:text-cafe-muted ">
                     Lịch sử giao dịch thanh toán
                   </h3>
                   <div className="space-y-1.5 text-[11px]">
                     {selectedOrder.payments.map((p) => (
                       <div
                         key={p.id}
-                        className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center"
+                        className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center light:bg-cafe-page light:border-cafe-line "
                       >
                         <div>
-                          <span className="font-semibold block text-stone-800 dark:text-stone-200">
+                          <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
                             {p.method === "WALLET"
                               ? "Ví điện tử"
                               : "Thẻ ngân hàng"}
                           </span>
-                          <span className="text-stone-400 dark:text-stone-500 font-mono">
+                          <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
                             {p.providerRef || `GD #${p.id}`}
                           </span>
                         </div>
@@ -455,7 +452,7 @@ function OrdersContent() {
             </div>
 
             {/* Modal Footer: Nút Hủy đơn (chỉ cho phép nếu trạng thái PENDING, PAYMENT_FAILED, hoặc PAID) */}
-            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex justify-between gap-3">
+            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex justify-between gap-3 light:bg-cafe-page light:border-cafe-line ">
               {["PENDING", "PAYMENT_FAILED", "PAID"].includes(
                 selectedOrder.status,
               ) ? (
@@ -468,7 +465,7 @@ function OrdersContent() {
                   {isCancelling ? "Đang hủy..." : "Hủy đơn hàng này"}
                 </button>
               ) : (
-                <span className="text-[11px] text-stone-400 dark:text-stone-500 self-center">
+                <span className="text-[11px] text-stone-400 dark:text-stone-500 self-center light:text-cafe-muted ">
                   (Đơn hàng đang làm hoặc đã xong, không thể hủy)
                 </span>
               )}
@@ -476,13 +473,12 @@ function OrdersContent() {
               <button
                 type="button"
                 onClick={closeDetail}
-                className="bg-stone-800 hover:bg-stone-900 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition-all cursor-pointer ml-auto"
+                className="bg-stone-800 hover:bg-stone-900 text-white font-semibold text-xs px-5 py-2.5 rounded-xl transition-all cursor-pointer ml-auto light:bg-cafe-ink light:hover:bg-cafe-ink "
               >
                 Đóng
               </button>
             </div>
           </div>
-        </div>
         </Modal>
       )}
     </div>

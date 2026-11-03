@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BrewLite frontend
 
-## Getting Started
+Website Next.js 16.4.0 / React 19, ưu tiên trình duyệt máy tính và responsive cơ bản.
+Giữ màu thương hiệu, light/dark mode và các luồng đặt món hiện có. Không còn PWA,
+manifest, cài app, offline page, bottom navigation hoặc giỏ hàng nổi.
 
-First, run the development server:
+## Chạy local
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Khởi động backend ở cổng 4000 và database theo `../README.md`. Trong `frontend`:
+
+```powershell
+npm.cmd ci
+npm.cmd run dev -- --port 3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở <http://localhost:3000>. Nếu chưa cấu hình môi trường, copy `.env.example`
+sang `.env.local` theo README gốc. Không ghi đè cấu hình đang có.
+`/api/:path*` được Next.js chuyển tiếp tới `BACKEND_API_URL`, mặc định
+`http://127.0.0.1:4000/api`. Trình duyệt chỉ gọi frontend cùng origin.
+Không có cấu hình IP LAN hardcode. Trên macOS/Linux dùng `npm`/`npx`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Kiểm tra và chạy production
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```powershell
+npm.cmd run lint
+npm.cmd test
+npx.cmd tsc --noEmit --incremental false
+npm.cmd run build
+npm.cmd run start -- --port 3000
+```
 
-## Learn More
+Dừng dev server trước khi chạy production trên cùng cổng. Font Inter và Geist
+Mono vẫn dùng `next/font/google`; build cần truy cập nguồn font hoặc cache hợp lệ.
+Hướng dẫn test và giới hạn môi trường nằm trong `test/README.md`.
 
-To learn more about Next.js, take a look at the following resources:
+## Chuyển đổi từ PWA
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`LegacyPwaCleanup` chạy khi root layout mount, không có UI. Nó chỉ unregister
+registration có script URL `/sw.js` cùng origin, scope `/`, không chứa worker
+khác; chỉ xóa Cache Storage `brewlite-pwa-*`. Không xóa localStorage,
+sessionStorage, cookie hoặc reload trang. Mỗi API cleanup được xử lý độc lập
+khi trình duyệt từ chối truy cập; lần mở trang sau sẽ thử lại.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`public/sw.js` tạm giữ ở URL cũ với `Cache-Control: no-cache, no-store,
+must-revalidate` để registration cũ nhận bản vô hiệu hóa qua update check của
+trình duyệt. Worker dùng `skipWaiting`, dọn cache BrewLite, `clients.claim` rồi
+tự unregister, không có fetch handler và không điều hướng tab. Component không
+đăng ký worker này. Worker cũ đang điều khiển tab có thể tồn tại tới lần điều
+hướng/đóng tab tự nhiên nếu component unregister trước; không ép reload checkout.
 
-## Deploy on Vercel
+Chỉ xóa `public/sw.js` cùng header tương ứng khi đã xác nhận profile cũ được
+chuyển đổi hoặc quyết định kết thúc thời gian hỗ trợ profile lâu không quay lại.
+Không có mốc thời gian tự động đảm bảo mọi trình duyệt đã cập nhật. Component
+cleanup có thể giữ lâu hơn để dọn registration/cache còn sót.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Website cần mạng cho trang/API và thanh toán. Khôi phục checkout, chống thanh
+toán lặp và xử lý lỗi mạng vẫn thuộc luồng web và được giữ nguyên.

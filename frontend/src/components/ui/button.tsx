@@ -20,11 +20,11 @@ export function Button({
 
   const variants = {
     primary:
-      'bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20',
-    secondary: 'bg-stone-100 hover:bg-stone-200 text-stone-800',
+      'bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 light:shadow-cafe-card cafe-primary ',
+    secondary: 'bg-stone-100 hover:bg-stone-200 text-stone-800 light:bg-cafe-soft light:hover:bg-cafe-line light:text-cafe-ink ',
     outline:
-      'border border-stone-300 hover:bg-stone-50 text-stone-700 hover:border-stone-400',
-    danger: 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/20',
+      'border border-stone-300 hover:bg-stone-50 text-stone-700 hover:border-stone-400 light:border-cafe-line light:hover:bg-cafe-page light:text-cafe-ink light:hover:border-cafe-line ',
+    danger: 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/20 light:shadow-cafe-card ',
   };
 
   const sizes = {

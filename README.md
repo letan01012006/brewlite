@@ -144,55 +144,66 @@ volume database, vì vậy không dùng lệnh đó để dừng dự án hằng
 - **Không kết nối được database:** kiểm tra Docker Desktop, `docker compose ps`
   và `DATABASE_URL` trong `backend/.env`.
 
-## Dùng trên điện thoại cùng Wi-Fi
+## Website trên trình duyệt
 
-Giữ backend chạy ở cổng 4000. Frontend gọi `/api` trên cùng địa chỉ đang mở;
-Next.js chuyển tiếp sang backend. Điện thoại chỉ cần truy cập cổng frontend,
-không cần mở riêng cổng 4000 trong Windows Firewall.
+BrewLite ưu tiên trình duyệt máy tính, giữ giao diện responsive khi thu nhỏ cửa sổ.
+Điều hướng chính và giỏ hàng nằm ở header; không còn thanh điều hướng đáy,
+giỏ hàng nổi, manifest, banner cài ứng dụng hoặc chế độ PWA.
 
-Nếu frontend đang chạy, dừng bằng `Ctrl+C`. Trong thư mục `frontend`, chạy:
+Frontend gọi `/api` cùng origin; Next.js chuyển tiếp đến `BACKEND_API_URL`
+(mặc định `http://127.0.0.1:4000/api`). Đây là địa chỉ server Next.js truy cập.
+Giữ backend và database chạy để dùng đăng nhập, menu, giỏ hàng và thanh toán.
+Không cần IP LAN hardcode để chạy local. Khi đổi đích backend, khởi động lại
+server hoặc build lại production. `NEXT_PUBLIC_API_URL` không được sử dụng.
 
-```powershell
-npm.cmd run dev -- --hostname 0.0.0.0 --port 3000
-```
-
-Mở `http://<IPv4-Wi-Fi-của-máy-tính>:3000` trên điện thoại cùng mạng.
-Dùng `ipconfig` để xem IPv4 hiện tại. Có thể thử `/api/products?limit=1`
-ngay trên địa chỉ frontend để kiểm tra kết nối API.
-Nếu IP Wi-Fi thay đổi, cập nhật `allowedDevOrigins` trong `frontend/next.config.ts`
-bằng IP mới (không có `http://` hay cổng) rồi khởi động lại frontend dev.
-Thiết lập này cho phép tài nguyên dev/HMR từ điện thoại, không thay thế backend.
-Nếu không mở được cả trang, kiểm tra Wi-Fi và quyền inbound cổng frontend
-trên mạng Private; không tắt toàn bộ firewall.
-
-`frontend/.env.local` có thể đặt `BACKEND_API_URL=http://127.0.0.1:4000/api`.
-Đây là địa chỉ **server Next.js truy cập**, không phải IP điện thoại.
-Biến cũ `NEXT_PUBLIC_API_URL` không còn được sử dụng. Khi đổi đích backend,
-khởi động lại dev server hoặc build lại bản production.
-
-## Kiểm tra tốc độ và PWA
-
-Để đo tốc độ, giữ backend và database chạy, dừng frontend dev ở cổng 3000
-và chạy trong `frontend`:
+Để kiểm tra bản production, dừng frontend dev ở cổng 3000 rồi chạy trong `frontend`:
 
 ```powershell
 npm.cmd run build
-npm.cmd run start -- --hostname 0.0.0.0 --port 3000
+npm.cmd run start -- --port 3000
 ```
 
-Chế độ dev biên dịch trang khi truy cập nên không phản ánh tốc độ production.
-PWA/offline cần HTTPS được thiết bị tin cậy (hoặc localhost trên máy đang chạy).
-HTTP qua IP LAN vẫn dùng được chức năng đặt món online nhưng không có service worker.
-`?pwa=1` chỉ cho phép thử service worker trong dev trên secure context, không thay thế HTTPS.
-Để thử PWA trên điện thoại, dùng HTTPS hợp lệ cho frontend; `/api` vẫn đi qua
-frontend nên trình duyệt không gọi backend HTTP trực tiếp.
+Mở <http://localhost:3000>. Chế độ dev biên dịch khi truy cập nên không phản ánh
+tốc độ production. Website cần mạng để tải trang/API, tạo đơn và thanh toán.
+Request quá 15 giây báo lỗi; checkout chưa rõ kết quả vẫn giữ phiên để đối soát,
+không tự gửi lại thanh toán. Các kiểm tra mất mạng của API/auth/cart/checkout
+vẫn được giữ lại.
 
-Sau khi cài bản HTTPS: mở app online một lần, chờ service worker sẵn sàng,
-tắt mạng rồi tải lại để kiểm tra trang offline và bật mạng để thử kết nối lại.
-Ứng dụng không tạo đơn hay thanh toán offline. Request quá 15 giây sẽ báo lỗi;
-giao dịch chưa rõ kết quả giữ phiên để đối soát, không tự gửi lại thanh toán.
+### Trình duyệt từng chạy PWA
 
-Kiểm tra chất lượng frontend: `npm.cmd run lint`, `npm.cmd test`, `npm.cmd run build`.
+Website không đăng ký service worker mới. Cleanup trong root layout chỉ gỡ worker
+có script URL chính xác `/sw.js` cùng origin và scope `/`; bỏ qua registration
+có worker khác đang active/waiting/installing. Chỉ cache có tiền tố `brewlite-pwa-`
+bị xóa. Không sửa localStorage, sessionStorage, cookie, tài khoản, giỏ hàng, theme
+hoặc phiên checkout và không tự reload/chuyển trang.
+
+Tạm giữ `frontend/public/sw.js` tại URL cũ với header không cache. Trình duyệt còn
+registration cũ có thể lấy bản worker vô hiệu hóa này khi kiểm tra cập nhật:
+worker kích hoạt ngay, dọn đúng cache BrewLite, nhận quyền điều khiển tab rồi tự
+gỡ đăng ký. Worker không xử lý fetch, precache hoặc điều hướng tab. Nếu cleanup
+trên trang gỡ registration trước, worker đang điều khiển tab có thể còn sống đến
+lần điều hướng/đóng tab tự nhiên; không ép tải lại giữa lúc checkout.
+
+Giữ `/sw.js` trong giai đoạn chuyển đổi để cả trình duyệt lâu không truy cập có
+cơ hội cập nhật. Chỉ xóa file và header `/sw.js` khi đã xác nhận các profile cũ
+được chuyển đổi hoặc chấp nhận kết thúc hỗ trợ chúng; không có thời hạn tự động
+đảm bảo mọi profile đã quay lại. Có thể giữ component cleanup lâu hơn để dọn
+cache còn sót. Xem `frontend/test/README.md` để kiểm tra profile cũ và dữ liệu giữ lại.
+
+### Kiểm tra frontend
+
+Chạy trong `frontend`:
+
+```powershell
+npm.cmd run lint
+npm.cmd test
+npx.cmd tsc --noEmit --incremental false
+npm.cmd run build
+```
+
+Kiểm tra giao diện light/dark ở 1440px, 1024px và khoảng 390px; thử điều hướng,
+modal bằng bàn phím/Escape, giỏ hàng và checkout. Test tự động không thay thế
+kiểm tra giao diện và các luồng với backend thật.
 
 ## Quy ước
 
