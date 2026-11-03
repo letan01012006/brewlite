@@ -12,6 +12,8 @@ import { configureApp } from '../src/configure-app.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { MockPaymentService } from '../src/payments/mock-payment.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { seedDemoCatalog } from '../prisma/demo-catalog.js';
+import { DEMO_PRODUCT_TOPPINGS } from '../prisma/demo-product-toppings.js';
 
 // Opt in explicitly. Every run creates and removes only its own isolated schema.
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -37,6 +39,9 @@ describe.skipIf(!databaseUrl)(
     let customerToken: string;
     let otherToken: string;
     let baristaToken: string;
+    let legacyProductId: number;
+    let legacyUserId: number;
+    let legacyOrderId: number;
 
     beforeAll(async () => {
       admin = new PrismaClient({
@@ -64,6 +69,28 @@ describe.skipIf(!databaseUrl)(
         await readdir(migrations, { withFileTypes: true })
       ).sort((a, b) => a.name.localeCompare(b.name))) {
         if (!entry.isDirectory()) continue;
+        if (entry.name === '20261103153000_product_toppings') {
+          // Simulate an upgrade: real rows exist before the relation migration.
+          const product = await db.product.create({ data: {
+            id: 901, name: 'Cà phê sữa', price: 37000, stock: 23, version: 9,
+            category: 'Cà phê', imageUrl: '/legacy.jpg',
+          } });
+          legacyProductId = product.id;
+          await db.topping.createMany({ data: [
+            { id: 501, name: 'Kem cheese', price: 7777 },
+            { id: 702, name: 'Thạch', price: 4321 },
+          ] });
+          const user = await db.user.create({ data: {
+            email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
+          } });
+          legacyUserId = user.id;
+          const order = await db.order.create({ data: {
+            userId: user.id, subtotal: 50000, total: 50000,
+            items: { create: { productId: product.id, productName: product.name, size: 'S', qty: 1,
+              unitPrice: 50000, lineTotal: 50000, toppings: [{ id: 501, name: 'Old snapshot', price: 13000 }] } },
+          } });
+          legacyOrderId = order.id;
+        }
         const sql = await readFile(
           resolve(migrations, entry.name, 'migration.sql'),
           'utf8',
@@ -227,7 +254,7 @@ describe.skipIf(!databaseUrl)(
       return Promise.all(running);
     }
 
-    it.each(['/products', '/toppings'])(
+    it.each(['/products', '/products/toppings', '/toppings'])(
       '%s creation requires BARISTA, while its menu stays public',
       async (path) => {
         const body = {
@@ -953,6 +980,129 @@ describe.skipIf(!databaseUrl)(
         (await db.product.findUniqueOrThrow({ where: { id: product.id } }))
           .stock,
       ).toBe(10);
+    });
+
+    it('backfills legacy demo rows once and repeated seeds preserve manager edits, IDs, stock and history', async () => {
+      const old = await db.product.findUniqueOrThrow({ where: { id: legacyProductId }, include: { toppings: true } });
+      expect(old).toMatchObject({ id: legacyProductId, stock: 23, version: 9, price: 37000 });
+      expect(old.toppings.map((t) => t.id).sort((a, b) => a - b)).toEqual([501, 702]);
+      await seedDemoCatalog(db);
+      for (const [name, allowed] of Object.entries(DEMO_PRODUCT_TOPPINGS)) {
+        const product = await db.product.findUniqueOrThrow({ where: { name }, include: { toppings: true } });
+        expect(product.toppings.map((t) => t.name).sort()).toEqual([...allowed].sort());
+      }
+      await db.product.update({ where: { id: legacyProductId }, data: { toppings: { set: [] } } });
+      await seedDemoCatalog(db);
+      await seedDemoCatalog(db);
+      const updated = await db.product.findUniqueOrThrow({ where: { id: legacyProductId }, include: { toppings: true } });
+      expect(updated).toMatchObject({ price: 37000, stock: 23, version: 9, toppings: [] });
+      expect(await db.product.count({ where: { name: 'Cà phê sữa' } })).toBe(1);
+      expect(await db.topping.findUniqueOrThrow({ where: { id: 501 } })).toMatchObject({ name: 'Kem cheese', price: 7777 });
+      expect(await db.user.findUniqueOrThrow({ where: { id: legacyUserId } })).toMatchObject({ loyaltyPoints: 123, passwordHash: 'unchanged' });
+      const history = await db.order.findUniqueOrThrow({ where: { id: legacyOrderId }, include: { items: true } });
+      expect(history).toMatchObject({ total: 50000, subtotal: 50000 });
+      expect(history.items[0].toppings).toEqual([{ id: 501, name: 'Old snapshot', price: 13000 }]);
+    });
+
+    async function toppingFixture() {
+      const [a, b, c] = await Promise.all([createProduct(), createProduct(), createProduct()]);
+      const [x, y, inactive] = await Promise.all([
+        db.topping.create({ data: { name: `X-${randomUUID()}`, price: 5000 } }),
+        db.topping.create({ data: { name: `Y-${randomUUID()}`, price: 7000 } }),
+        db.topping.create({ data: { name: `Inactive-${randomUUID()}`, price: 3000, isActive: false } }),
+      ]);
+      await db.product.update({ where: { id: a.id }, data: { toppings: { connect: [{ id: x.id }, { id: inactive.id }] } } });
+      await db.product.update({ where: { id: b.id }, data: { toppings: { connect: { id: y.id } } } });
+      return { a, b, c, x, y, inactive };
+    }
+
+    it('returns only the linked active toppings in public product detail and paginated/search/category lists', async () => {
+      const { a, b, c, x, y } = await toppingFixture();
+      for (const [p, ids] of [[a, [x.id]], [b, [y.id]], [c, []]] as const) {
+        const detail = await request(app.getHttpServer()).get(`/api/products/${p.id}`).expect(200);
+        expect(detail.body.toppings.map((t: { id: number }) => t.id)).toEqual(ids);
+        expect(detail.body.sizes).toEqual([{ size: 'S', surcharge: 0 }, { size: 'M', surcharge: 5000 }, { size: 'L', surcharge: 10000 }]);
+        expect(detail.body).not.toHaveProperty('version');
+        expect(detail.body).not.toHaveProperty('isActive');
+        const list = await request(app.getHttpServer()).get(`/api/products?search=${p.name}&category=Coffee&limit=1&page=1`).expect(200);
+        expect(list.body.meta).toMatchObject({ total: 1, page: 1, limit: 1 });
+        expect(list.body.data[0].toppings).toEqual(detail.body.toppings);
+        expect(list.body.data[0]).not.toHaveProperty('version');
+      }
+      await db.product.update({ where: { id: a.id }, data: { isActive: false } });
+      await request(app.getHttpServer()).get(`/api/products/${a.id}`).expect(404);
+    });
+
+    it('prices A + X, rejects A + Y in orders and promotions with no side effects, and accepts C without toppings', async () => {
+      const { a, c, x, y, inactive } = await toppingFixture();
+      const promo = await db.promoCode.create({ data: { code: randomUUID().toUpperCase(), type: 'FIXED', value: 1000,
+        usedCount: 2, startsAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01') } });
+      const validItem = { productId: a.id, size: 'M', quantity: 2, toppingIds: [x.id] };
+      const preview = await post('/promotions/validate', customerToken, { code: promo.code, items: [validItem] }).expect(200);
+      expect(preview.body.subtotal).toBe(90000);
+      const created = await post('/orders', customerToken, { items: [validItem] }).expect(201);
+      expect(created.body).toMatchObject({ subtotal: 90000, total: 90000 });
+      expect(created.body.items[0]).toMatchObject({ unitPrice: 45000, lineTotal: 90000, toppings: [{ id: x.id, name: x.name, price: 5000 }] });
+      const empty = await post('/orders', customerToken, { items: [{ productId: c.id, size: 'S', quantity: 1 }] }).expect(201);
+      expect(empty.body.items[0].toppings).toEqual([]);
+      const before = await db.product.findMany({ where: { id: { in: [a.id, c.id] } } });
+      const count = await db.order.count({ where: { userId } });
+      for (const ids of [[y.id], [inactive.id], [2147483647], [x.id, x.id], [x.id, y.id, inactive.id, 2147483647]]) {
+        const bad = { ...validItem, toppingIds: ids };
+        await post('/orders', customerToken, { items: [{ productId: c.id, size: 'S', quantity: 1 }, bad], promoCode: promo.code }).expect(400);
+        await post('/promotions/validate', customerToken, { code: promo.code, items: [bad] }).expect(400);
+      }
+      expect(await db.order.count({ where: { userId } })).toBe(count);
+      expect(await db.product.findMany({ where: { id: { in: [a.id, c.id] } } })).toEqual(before);
+      expect((await db.promoCode.findUniqueOrThrow({ where: { id: promo.id } })).usedCount).toBe(2);
+      expect((await db.user.findUniqueOrThrow({ where: { id: userId } })).loyaltyPoints).toBe(500);
+      // Existing orders keep names, prices and total even after catalog changes.
+      await db.topping.update({ where: { id: x.id }, data: { name: `Renamed-${randomUUID()}`, price: 1, isActive: false } });
+      await db.product.update({ where: { id: a.id }, data: { toppings: { set: [] }, price: 1 } });
+      const charge = vi.spyOn(gateway, 'charge');
+      await pay(created.body.id).expect(201);
+      expect(charge).toHaveBeenCalledWith(expect.objectContaining({ amount: 90000 }));
+      const history = await db.order.findUniqueOrThrow({ where: { id: created.body.id }, include: { items: true } });
+      expect(history.total).toBe(90000);
+      expect(history.items[0].toppings).toEqual([{ id: x.id, name: x.name, price: 5000 }]);
+    });
+
+    it('requires BARISTA for atomic assignment, accepts more than 3 configured toppings, and [] clears all', async () => {
+      const { a, x, y, inactive } = await toppingFixture();
+      const patch = (body: object, token?: string) => {
+        const call = request(app.getHttpServer()).patch(`/api/products/${a.id}/toppings`).send(body);
+        return token ? call.auth(token, { type: 'bearer' }) : call;
+      };
+      await patch({ toppingIds: [y.id] }).expect(401);
+      await patch({ toppingIds: [y.id] }, customerToken).expect(403);
+      const original = await db.product.findUniqueOrThrow({ where: { id: a.id }, include: { toppings: { orderBy: { id: 'asc' } } } });
+      await patch({}, baristaToken).expect(400);
+      await patch({ toppingIds: null }, baristaToken).expect(400);
+      for (const ids of [[x.id, 2147483647], [x.id, inactive.id], [x.id, x.id], [-1], [2147483648], [1.5], ['1']]) {
+        await patch({ toppingIds: ids }, baristaToken).expect(400);
+        const name = randomUUID();
+        await post('/products', baristaToken, { name, category: 'Coffee', price: 10000, toppingIds: ids }).expect(400);
+        expect(await db.product.findUnique({ where: { name } })).toBeNull();
+      }
+      expect(await db.product.findUniqueOrThrow({ where: { id: a.id }, include: { toppings: { orderBy: { id: 'asc' } } } })).toEqual(original);
+      const extra = await Promise.all([1, 2].map(() => db.topping.create({ data: { name: randomUUID(), price: 0 } })));
+      const ids = [x.id, y.id, ...extra.map((t) => t.id)];
+      const assigned = await patch({ toppingIds: ids }, baristaToken).expect(200);
+      expect(assigned.body.toppings.map((t: { id: number }) => t.id).sort((a: number, b: number) => a - b)).toEqual([...ids].sort((a, b) => a - b));
+      const created = await post('/products', baristaToken, { name: randomUUID(), category: 'Coffee', price: 10000, toppingIds: ids }).expect(201);
+      expect(created.body.toppings).toHaveLength(4);
+      const noToppings = await post('/products', baristaToken, { name: randomUUID(), category: 'Coffee', price: 10000 }).expect(201);
+      expect(noToppings.body.toppings).toEqual([]);
+      expect((await patch({ toppingIds: [] }, baristaToken).expect(200)).body.toppings).toEqual([]);
+    });
+
+    it.each(['/products/toppings', '/toppings'])('%s validates names/integer prices and handles duplicate names as 409', async (path) => {
+      for (const body of [{ name: '  ', price: 0 }, { name: randomUUID(), price: -1 }, { name: randomUUID(), price: 1.5 }, { name: randomUUID(), price: 2147483648 }])
+        await post(path, baristaToken, body).expect(400);
+      const name = randomUUID();
+      await post(path, baristaToken, { name: ` ${name} `, price: 0 }).expect(201);
+      const duplicate = await post(path, baristaToken, { name, price: 0 }).expect(409);
+      expect(duplicate.body.code).toBe('TOPPING_ALREADY_EXISTS');
     });
 
     it('accepts only one of two simultaneous barista status changes', async () => {

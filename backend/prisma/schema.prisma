@@ -66,6 +66,7 @@ model Product {
   createdAt   DateTime @default(now())
 
   orderItems OrderItem[]
+  toppings   Topping[]
 
   @@index([category])
 }
@@ -79,6 +80,7 @@ model Topping {
   name     String  @unique
   price    Int
   isActive Boolean @default(true)
+  products Product[]
 }
 
 // =========================

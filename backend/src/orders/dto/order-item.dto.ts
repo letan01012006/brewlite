@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsInt,
@@ -17,11 +18,20 @@ export class OrderItemDto {
   @Min(1, { message: 'Mã món không hợp lệ' })
   productId: number;
 
-  @ApiProperty({ description: 'Kích cỡ món nước', enum: ['S', 'M', 'L'], example: 'M' })
+  @ApiProperty({
+    description: 'Kích cỡ món nước',
+    enum: ['S', 'M', 'L'],
+    example: 'M',
+  })
   @IsIn(['S', 'M', 'L'], { message: 'Size đồ uống chỉ có thể là S, M hoặc L' })
   size: 'S' | 'M' | 'L';
 
-  @ApiProperty({ description: 'Số lượng mua (1 - 20 phần)', example: 1, minimum: 1, maximum: 20 })
+  @ApiProperty({
+    description: 'Số lượng mua (1 - 20 phần)',
+    example: 1,
+    minimum: 1,
+    maximum: 20,
+  })
   @IsInt({ message: 'Số lượng phải là số nguyên' })
   @Min(1, { message: 'Số lượng tối thiểu là 1' })
   @Max(20, { message: 'Số lượng tối đa cho mỗi dòng là 20' })
@@ -35,6 +45,9 @@ export class OrderItemDto {
   @IsArray({ message: 'Danh sách topping phải là một mảng' })
   @IsInt({ each: true, message: 'ID topping phải là số nguyên' })
   @ArrayMaxSize(3, { message: 'Mỗi ly chỉ được chọn tối đa 3 topping' })
+  @ArrayUnique({ message: 'ID topping không được trùng' })
+  @Min(1, { each: true, message: 'ID topping phải là số nguyên dương' })
+  @Max(2147483647, { each: true })
   @IsOptional()
   toppingIds?: number[];
 

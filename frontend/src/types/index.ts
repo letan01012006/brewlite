@@ -27,10 +27,14 @@ export interface Product {
   inStock?: boolean;
   imageUrl?: string | null;
   description?: string | null;
-  availableSizes?: Size[];
-  activeToppings?: Topping[];
+  // Optional for catalog rows / carts persisted before the detail API existed.
   sizes?: Array<{ size: Size; surcharge: number }>;
   toppings?: Topping[];
+}
+
+export interface ProductDetail extends Product {
+  sizes: Array<{ size: Size; surcharge: number }>;
+  toppings: Topping[];
 }
 
 export interface CartItem {

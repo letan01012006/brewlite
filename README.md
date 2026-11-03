@@ -48,6 +48,7 @@ Sau đó chạy trong cùng terminal:
 
 ```powershell
 npx.cmd prisma generate
+npx.cmd prisma migrate status
 npx.cmd prisma migrate deploy
 npx.cmd prisma db seed
 npm.cmd run start:dev
@@ -116,12 +117,22 @@ chạy trong `backend` khi database đang hoạt động:
 
 ```powershell
 npx.cmd prisma generate
+npx.cmd prisma migrate status
 npx.cmd prisma migrate deploy
 ```
 
 Nếu `.env.example` có biến mới, bổ sung vào file môi trường đang dùng;
 không copy đè làm mất cấu hình riêng. Chỉ seed lại khi cần bổ sung dữ liệu demo.
 Khởi động lại server sau khi cập nhật.
+
+### Product và topping
+
+Topping thuộc `ProductsModule`, vẫn là model riêng và liên kết nhiều–nhiều với
+Product. Chi tiết nâng cấp dữ liệu cũ, seed an toàn và API xem
+[backend/README.md](backend/README.md#product-và-topping).
+Trước khi áp dụng migration, kiểm tra `migrate status`: chỉ tiếp tục khi không
+có migration lỗi/lệch lịch sử. Với database mới, các migration chưa áp dụng là
+bình thường. Không dùng reset hoặc xóa volume để xử lý lỗi migration.
 
 ### Dừng dự án
 

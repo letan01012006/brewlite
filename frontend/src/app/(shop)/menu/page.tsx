@@ -9,7 +9,7 @@ import React, {
   Suspense,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { Product, Topping } from '@/types';
+import type { Product, ProductDetail } from '@/types';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { ProductCard } from '@/components/products/product-card';
 import { ProductModal } from '@/components/products/product-modal';
@@ -25,7 +25,6 @@ function MenuContent() {
   const user = useAuthStore((state) => state.user);
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [toppings, setToppings] = useState<Topping[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,11 +33,16 @@ function MenuContent() {
   const [page, setPage] = useState(1);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductDetail | null>(null);
+  const [detailLoadingId, setDetailLoadingId] = useState<number | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailController = useRef<AbortController | null>(null);
+  const detailRequestId = useRef(0);
+  const lastDetailId = useRef<number | null>(null);
   const userId = user?.id;
   const consumedProduct = useRef<string | null>(null);
 
-  // Tải danh sách món và toppings từ Backend API
+  // Catalog pagination is independent of the latest product-detail request.
   const fetchData = useCallback(async () => {
     const id = ++requestId.current;
     controller.current?.abort();
@@ -47,18 +51,11 @@ function MenuContent() {
     setIsLoading(true);
     setError(null);
     try {
-      const [productsRes, toppingsRes] = await Promise.all([
-        allProducts<Product>(request.signal),
-        apiFetch<Topping[]>('/toppings', {
-          signal: request.signal,
-          auth: false,
-        }),
-      ]);
+      const productsRes = await allProducts<Product>(request.signal);
 
       if (id !== requestId.current) return;
       setProducts(productsRes);
       setPage(1);
-      setToppings(toppingsRes || []);
     } catch (err) {
       if (request.signal.aborted || id !== requestId.current) return;
       if (err instanceof ApiError) {
@@ -81,27 +78,55 @@ function MenuContent() {
     };
   }, [fetchData]);
 
-  // Tự động mở modal cho món vừa chọn sau khi đăng nhập thành công
+  const loadProduct = useCallback(async (productId: number) => {
+    const id = ++detailRequestId.current;
+    detailController.current?.abort();
+    const request = new AbortController();
+    detailController.current = request;
+    lastDetailId.current = productId;
+    setSelectedProduct(null);
+    setDetailError(null);
+    setDetailLoadingId(productId);
+    try {
+      if (!Number.isSafeInteger(productId) || productId < 1) throw new Error('Mã món không hợp lệ.');
+      const product = await apiFetch<ProductDetail>(`/products/${productId}`, { auth: false, signal: request.signal });
+      if (id !== detailRequestId.current || request.signal.aborted) return;
+      if (product.id !== productId || !Array.isArray(product.toppings) || !Array.isArray(product.sizes) || !product.sizes.length)
+        throw new Error('Thông tin tùy chọn món chưa đầy đủ. Vui lòng thử lại.');
+      setSelectedProduct(product);
+    } catch (error) {
+      if (id !== detailRequestId.current || request.signal.aborted) return;
+      setDetailError(error instanceof ApiError && error.statusCode === 404
+        ? 'Món này không còn tồn tại hoặc đã ngừng bán. Vui lòng chọn món khác.'
+        : error instanceof Error ? error.message : 'Không thể tải tùy chọn món. Vui lòng thử lại.');
+    } finally {
+      if (id === detailRequestId.current && !request.signal.aborted) setDetailLoadingId(null);
+    }
+  }, []);
+
+  useEffect(() => () => {
+    detailController.current?.abort();
+    ++detailRequestId.current;
+  }, [userId]);
+
+  // Clicks and post-login intents both fetch the same fresh detail endpoint.
   useEffect(() => {
     if (!openProductId) {
       consumedProduct.current = null;
       return;
     }
     const intent = `${userId}:${openProductId}`;
-    if (products.length > 0 && userId && consumedProduct.current !== intent) {
-      const target = products.find((p) => p.id === Number(openProductId));
-      if (target) {
-        const timer = setTimeout(() => {
-          consumedProduct.current = intent;
-          setSelectedProduct(target);
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete('openProduct');
-          router.replace(`/menu${params.size ? `?${params}` : ''}`, { scroll: false });
-        }, 0);
-        return () => clearTimeout(timer);
-      }
+    if (userId && consumedProduct.current !== intent) {
+      const timer = setTimeout(() => {
+        consumedProduct.current = intent;
+        void loadProduct(Number(openProductId));
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete('openProduct');
+        router.replace(`/menu${params.size ? `?${params}` : ''}`, { scroll: false });
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [openProductId, products, userId, router, searchParams]);
+  }, [openProductId, userId, router, searchParams, loadProduct]);
 
   // Chặn đăng nhập khi bấm Đặt món và lưu lại redirect kèm ID món vừa chọn
   const handleSelectProduct = (product: Product) => {
@@ -110,7 +135,7 @@ function MenuContent() {
       router.push(`/login?redirect=${encodeURIComponent(targetUrl)}`);
       return;
     }
-    setSelectedProduct(product);
+    void loadProduct(product.id);
   };
 
   // Danh sách danh mục độc nhất
@@ -276,9 +301,21 @@ function MenuContent() {
       )}
 
       {/* Modal Tùy chỉnh Size & Topping khi chọn món */}
+      {detailLoadingId !== null && (
+        <p role="status" className="py-3 text-sm text-stone-600 dark:text-stone-300 light:text-cafe-muted">
+          Đang tải tùy chọn món…
+        </p>
+      )}
+      {detailError && (
+        <div role="alert" className="my-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+          <p>{detailError}</p>
+          <button type="button" className="min-h-11 font-semibold underline" onClick={() => {
+            if (lastDetailId.current !== null) void loadProduct(lastDetailId.current);
+          }}>Thử tải lại</button>
+        </div>
+      )}
       <ProductModal
         product={selectedProduct}
-        toppings={toppings}
         isOpen={selectedProduct !== null}
         onClose={() => setSelectedProduct(null)}
       />

@@ -21,6 +21,13 @@ Coverage:
   persisted selections, account isolation, guest merging, corrupt/full storage,
   and refreshing prices, toppings and stock without overwriting later edits.
 - Complete catalog pagination and history navigation with stale-response protection.
+- Product detail loading for direct selection and post-login openProduct intents,
+  abort/request-ID protection against a late response, missing/inactive products,
+  and detail retry. Modal options and size surcharges come from the product API.
+- Product-specific cart refresh removes disallowed/inactive toppings, updates
+  prices and promotions, preserves valid choices and other storage, and persists
+  the need for review. Removing a free topping still requires a second checkout
+  confirmation before creating an order, even when the total stays the same.
 - PWA retirement: exact worker URL/root scope matching (including waiting and
   installing workers), unrelated registrations/caches preserved, denied APIs,
   repeat cleanup, and account/cart/theme/checkout/cookie preservation without reload.

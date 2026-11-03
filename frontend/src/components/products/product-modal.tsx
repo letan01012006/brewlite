@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import type { Product, Size, Topping } from "@/types";
+import type { ProductDetail, Size, Topping } from "@/types";
 import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
 import { unitPrice as calculateUnitPrice } from "@/lib/cart-rules";
@@ -10,8 +10,7 @@ import { getProductImageUrl } from "@/lib/constants/product-images";
 import { Modal } from '@/components/ui/modal';
 
 interface ProductModalProps {
-  product: Product | null;
-  toppings: Topping[];
+  product: ProductDetail | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -29,13 +28,15 @@ export function ProductModal(props: ProductModalProps) {
 
 function ProductSelection({
   product,
-  toppings,
   onClose,
-}: Omit<ProductModalProps, "product"> & { product: Product }) {
+}: Omit<ProductModalProps, "product"> & { product: ProductDetail }) {
+  const toppings = product.toppings;
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
-  const [selectedSize, setSelectedSize] = useState<Size>("M");
+  const [selectedSize, setSelectedSize] = useState<Size>(
+    product.sizes.find((entry) => entry.size === "M")?.size ?? product.sizes[0]?.size ?? "S",
+  );
   const [selectedToppings, setSelectedToppings] = useState<Topping[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState<string>("");
@@ -169,13 +170,7 @@ function ProductSelection({
               1. Chọn kích cỡ (Size) <span className="text-rose-500">*</span>
             </label>
             <div className="grid grid-cols-3 gap-2.5">
-              {(
-                [
-                  { size: "S", label: "Size S (Nhỏ)", upcharge: 0 },
-                  { size: "M", label: "Size M (Vừa)", upcharge: 5000 },
-                  { size: "L", label: "Size L (Lớn)", upcharge: 10000 },
-                ] as const
-              ).map((item) => {
+              {product.sizes.map((item) => {
                 const isCurrent = selectedSize === item.size;
                 return (
                   <button
@@ -190,8 +185,8 @@ function ProductSelection({
                   >
                     <div className="text-sm font-bold">{item.size}</div>
                     <div className="text-xs text-stone-500 dark:text-[#9e8f83] mt-0.5 light:text-cafe-muted ">
-                      {item.upcharge > 0
-                        ? `+${item.upcharge.toLocaleString("vi-VN")}₫`
+                      {item.surcharge > 0
+                        ? `+${item.surcharge.toLocaleString("vi-VN")}₫`
                         : "Tiêu chuẩn"}
                     </div>
                   </button>
@@ -291,7 +286,7 @@ function ProductSelection({
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={isAdded || !isHydrated || available < quantity}
+            disabled={isAdded || !isHydrated || available < quantity || product.sizes.length === 0}
             className={`flex-1 min-w-[170px] h-12 px-3 rounded-2xl font-bold text-sm text-white shadow-lg transition-all flex items-center justify-between cursor-pointer active:scale-95  light:shadow-cafe-card ${
               isAdded
                 ? "bg-emerald-600 shadow-emerald-600/20"
