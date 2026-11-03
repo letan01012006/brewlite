@@ -2,7 +2,6 @@
 
 import { AuthGate } from "@/components/auth/auth-gate";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { StatusBadge } from "@/components/ui/badge";
@@ -28,8 +27,7 @@ export default function BaristaKitchenPage() {
 }
 
 function BaristaContent() {
-  const router = useRouter();
-  const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
+  const token = useAuthStore((state) => state.token);
 
   const [orders, setOrders] = useState<BaristaOrder[]>([]);
   const [selectedTab, setSelectedTab] = useState<"ACTIVE" | "ALL">("ACTIVE");
@@ -46,16 +44,6 @@ function BaristaContent() {
     requestId.current += 1;
     requestController.current?.abort();
   }, []);
-
-  useEffect(() => {
-    initAuth();
-  }, [initAuth]);
-
-  useEffect(() => {
-    if (isLoadingAuth) return;
-    if (!token) router.replace("/login?redirect=/barista");
-    else if (user?.role !== "BARISTA") router.replace("/");
-  }, [isLoadingAuth, token, user?.role, router]);
 
   const fetchBaristaOrders = useCallback(
     async (force = false) => {
@@ -107,7 +95,6 @@ function BaristaContent() {
   );
 
   useEffect(() => {
-    if (!token || user?.role !== "BARISTA") return;
     refreshCurrentView.current = () => fetchBaristaOrders(true);
     const initial = setTimeout(() => void fetchBaristaOrders(), 0);
     const interval = setInterval(() => void fetchBaristaOrders(), 8000);
@@ -117,7 +104,7 @@ function BaristaContent() {
       refreshCurrentView.current = null;
       cancelRequests();
     };
-  }, [token, user?.role, fetchBaristaOrders, cancelRequests]);
+  }, [fetchBaristaOrders, cancelRequests]);
 
   const switchTab = (tab: "ACTIVE" | "ALL") => {
     if (tab === selectedTab) return;
@@ -181,9 +168,6 @@ function BaristaContent() {
   const paidOrders = orders.filter((o) => o.status === "PAID");
   const preparingOrders = orders.filter((o) => o.status === "PREPARING");
   const readyOrders = orders.filter((o) => o.status === "READY");
-
-  if (isLoadingAuth || !token || user?.role !== "BARISTA")
-    return <p className="p-8 text-center">Đang kiểm tra quyền truy cập...</p>;
 
   return (
     <div className="min-h-screen bg-stone-100/60 dark:bg-stone-950 pb-16">

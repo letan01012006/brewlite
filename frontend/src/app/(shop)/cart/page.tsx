@@ -79,7 +79,7 @@ export default function CartPage() {
     return <p className="p-8 text-center">Đang khôi phục giỏ hàng...</p>;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
+    <div className="w-full py-8 sm:py-12">
       {notice && (
         <p
           role="status"

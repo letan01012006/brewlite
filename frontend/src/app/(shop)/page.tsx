@@ -43,7 +43,7 @@ export default function LandingPage() {
   return (
     <div className="pb-8 dark:bg-stone-950 dark:text-stone-100 transition-colors">
       {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#18120e] via-[#221812] to-[#140e0b] text-white py-8 sm:py-14 px-4 sm:px-6 rounded-3xl border border-[#2e2019]/60 dark:border-stone-850 shadow-xl mt-1 mb-8">
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#18120e] via-[#221812] to-[#140e0b] text-white py-8 sm:py-14 px-4 sm:px-6 rounded-3xl border border-[#2e2019]/60 dark:border-stone-800 shadow-xl mt-1 mb-8">
         {/* Glow hiệu ứng tinh tế */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-amber-500/10 blur-[120px] pointer-events-none rounded-full" />
 

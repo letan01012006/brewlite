@@ -35,7 +35,7 @@ export function AppHeader() {
   const firstName = user?.fullName ? user.fullName.trim().split(' ').slice(-1)[0] : null;
 
   return (
-    <header className="sticky top-0 z-40 w-full h-[var(--app-header-height)] backdrop-blur-md bg-[#1c1410]/95 dark:bg-[#0c0a09]/95 border-b border-[#2e2019]/60 dark:border-stone-850 text-stone-100 shadow-sm transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full h-[var(--app-header-height)] backdrop-blur-md bg-[#1c1410]/95 dark:bg-[#0c0a09]/95 border-b border-[#2e2019]/60 dark:border-stone-800 text-stone-100 shadow-sm transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full grid grid-cols-[auto_1fr] grid-rows-[4rem_1fr] md:flex items-center justify-between gap-x-4">
         {/* Left: Logo & Brand */}
         <Link href="/" className="flex items-center gap-2 group shrink-0">
@@ -87,10 +87,10 @@ export function AppHeader() {
         </nav>
 
         {/* Greeting and loyalty points */}
-        <div className="hidden lg:flex lg:flex-initial items-center justify-center md:justify-end min-w-0">
+        <div className="hidden md:flex md:flex-initial items-center justify-end min-w-0">
           {user ? (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
-              <span className="text-stone-300 truncate max-w-[90px] sm:max-w-[150px]">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs min-w-0">
+              <span className="text-stone-300 truncate max-w-[90px] lg:max-w-[150px]">
                 {firstName ? `Chào, ${firstName}` : 'Thành viên'}
               </span>
               <span className="text-amber-400 font-bold shrink-0">
@@ -146,7 +146,9 @@ export function AppHeader() {
           {/* User Profile or Logout */}
           {user ? (
             <button
-              onClick={() => logout()}
+              onClick={() => {
+                if (window.confirm('Bạn có chắc muốn đăng xuất?')) logout();
+              }}
               title="Đăng xuất"
               aria-label="Đăng xuất"
               className="p-1.5 text-stone-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors text-xs"

@@ -179,7 +179,7 @@ function MenuContent() {
         </div>
 
         {/* Bộ lọc Danh mục cuộn ngang */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           {categories.map((cat) => {
             const isActive = selectedCategory === cat;
             return (

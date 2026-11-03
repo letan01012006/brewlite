@@ -103,12 +103,6 @@ function ProductSelection({
 
   return (
     <Modal onClose={onClose} labelledBy="modal-product-title">
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
-    >
-      {/* Click outside to close */}
-      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
-
       <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c] animate-in zoom-in-95 duration-200 transition-colors">
 
         {/* Header với ảnh hoặc icon */}
@@ -311,7 +305,6 @@ function ProductSelection({
           </button>
         </div>
       </div>
-    </div>
     </Modal>
   );
 }

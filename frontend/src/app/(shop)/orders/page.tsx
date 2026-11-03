@@ -323,10 +323,7 @@ function OrdersContent() {
       />
       {selectedOrder && (
         <Modal onClose={closeDetail} labelledBy="order-detail-title">
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-          <div className="fixed inset-0" onClick={closeDetail} />
-
-          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c]">
+          <div className="relative z-10 w-full max-w-lg bg-[#fdfbf9] dark:bg-[#161210] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-[#ede5dc] dark:border-[#2a221c] animate-fadeIn">
             {/* Modal Header */}
             <div className="p-5 bg-stone-50 dark:bg-[#1a1411] border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between">
               <div>
@@ -482,7 +479,6 @@ function OrdersContent() {
               </button>
             </div>
           </div>
-        </div>
         </Modal>
       )}
     </div>

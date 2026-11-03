@@ -62,7 +62,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
         </div>
 
         {/* Tên & mô tả */}
-        <h3 className="font-bold text-stone-900 dark:text-stone-100 text-xs sm:text-sm group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
+        <h3 className="font-bold text-stone-900 dark:text-stone-100 text-xs sm:text-sm md:text-base group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
           {product.name}
         </h3>
         <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 line-clamp-1 leading-snug">
@@ -71,12 +71,12 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
       </div>
 
       {/* Giá tiền & Nút chọn */}
-      <div className="mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-850 flex items-center justify-between gap-1">
+      <div className="mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-1">
         <div>
           <span className="text-[9px] text-stone-400 uppercase tracking-wider font-semibold block leading-none">
             Giá từ
           </span>
-          <span className="text-xs sm:text-sm font-black text-amber-950 dark:text-amber-400 font-mono mt-0.5 block">
+          <span className="text-xs sm:text-sm md:text-base font-black text-amber-950 dark:text-amber-400 font-mono mt-0.5 block">
             {product.price.toLocaleString('vi-VN')}₫
           </span>
         </div>
@@ -85,7 +85,7 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
           onClick={() => onSelect(product)}
           disabled={isOutOfStock}
           aria-label={`Đặt món ${product.name}`}
-          className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:from-stone-300 disabled:to-stone-300 dark:disabled:from-stone-800 dark:disabled:to-stone-800 text-white text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed shrink-0"
+          className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:from-stone-300 disabled:to-stone-300 dark:disabled:from-stone-800 dark:disabled:to-stone-800 text-white text-[11px] sm:text-xs md:text-sm font-bold px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed shrink-0"
         >
           {isOutOfStock ? 'Hết hàng' : '+ Đặt'}
         </button>
