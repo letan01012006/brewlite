@@ -1,3 +1,5 @@
+import { InventoryService } from '../inventory/inventory.service.js';
+import { inventoryTransaction } from '../inventory/transaction.js';
 import {
   ConflictException,
   ForbiddenException,
@@ -5,8 +7,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { randomInt } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   PricingService,
@@ -21,41 +21,24 @@ import {
   type OrderStatus,
 } from './dto/update-order-status.dto.js';
 
-class StockRetryError extends Error {}
-const MAX_STOCK_ATTEMPTS = 10;
-
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
+    private readonly inventory: InventoryService,
   ) {}
 
   /**
    * Tạo đơn hàng mới từ giỏ hàng (Task 6 & Task 10)
    * POST /api/orders
    * - Tính giá chính xác trên server qua PricingService
-   * - Kiểm tra tồn kho & trừ kho (reserve stock)
+   * - Kiểm tra nguyên liệu và lưu snapshot, chưa giữ/trừ kho ở PENDING
    * - Kiểm tra và áp dụng mã khuyến mãi (nếu có)
    * - Toàn bộ chạy trong 1 Transaction an toàn
    */
   async create(userId: number, dto: CreateOrderDto) {
-    for (let attempt = 0; attempt < MAX_STOCK_ATTEMPTS; attempt++) {
-      try {
-        return await this.createAttempt(userId, dto);
-      } catch (error) {
-        if (!(error instanceof StockRetryError)) throw error;
-        if (attempt === MAX_STOCK_ATTEMPTS - 1) {
-          throw new ConflictException({
-            code: 'STOCK_CONFLICT',
-            message: 'Tồn kho đang được cập nhật đồng thời, vui lòng thử lại',
-          });
-        }
-        // Retry only after the entire failed transaction has rolled back.
-        await delay(randomInt(10, 51));
-      }
-    }
-    throw new Error('Unreachable stock retry state');
+    return this.createAttempt(userId, dto);
   }
 
   private async createAttempt(userId: number, dto: CreateOrderDto) {
@@ -68,217 +51,156 @@ export class OrdersService {
     }));
 
     // Chạy toàn bộ luồng tạo đơn trong Transaction
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Tính giá server-side (không tin giá client)
-      const pricingResult = await this.pricingService.calculate(
-        pricingInput,
-        tx,
-      );
-      const subtotal = pricingResult.subtotal;
-
-      // 2. Tính tổng số lượng cần cho từng sản phẩm (gộp dòng cùng productId)
-      const qtyByProduct = new Map<number, number>();
-      for (const item of dto.items) {
-        qtyByProduct.set(
-          item.productId,
-          (qtyByProduct.get(item.productId) ?? 0) + item.quantity,
+    return inventoryTransaction(
+      this.prisma,
+      async (tx) => {
+        // 1. Tính giá server-side (không tin giá client)
+        const pricingResult = await this.pricingService.calculate(
+          pricingInput,
+          tx,
         );
-      }
+        const subtotal = pricingResult.subtotal;
 
-      // Sắp xếp Product ID tăng dần để chống deadlock khi có nhiều request đồng thời
-      const sortedProductIds = [...qtyByProduct.keys()].sort((a, b) => a - b);
+        const snapshots = await this.inventory.snapshots(pricingInput, tx);
+        await this.inventory.assertAvailable(
+          tx,
+          snapshots,
+          dto.items.map((item) => item.quantity),
+        );
 
-      // 3. Kiểm tra tồn kho và trừ kho (Giữ hàng ngay khi tạo đơn - Task 10)
-      for (const pId of sortedProductIds) {
-        const neededQty = qtyByProduct.get(pId)!;
-        const current = await tx.product.findUnique({
-          where: { id: pId },
-        });
+        // 4. Xử lý khuyến mãi nếu có mã promoCode
+        let discountAmount = 0;
+        let appliedPromoCode: string | null = null;
 
-        if (!current || !current.isActive) {
-          throw new NotFoundException({
-            code: 'PRODUCT_NOT_FOUND',
-            message: `Không tìm thấy sản phẩm #${pId}`,
-            details: [{ productId: pId }],
+        if (dto.promoCode?.trim()) {
+          const code = dto.promoCode.trim().toUpperCase();
+          const promo = await tx.promoCode.findUnique({
+            where: { code },
           });
-        }
 
-        if (current.stock < neededQty) {
-          throw new ConflictException({
-            code: 'OUT_OF_STOCK',
-            message: `Sản phẩm '${current.name}' chỉ còn ${current.stock} phần`,
-            details: [
-              {
-                productId: pId,
-                available: current.stock,
-                requested: neededQty,
-              },
-            ],
-          });
-        }
+          const now = new Date();
 
-        // Trừ tồn kho và tăng version cho optimistic locking
-        const reserved = await tx.product.updateMany({
-          where: {
-            id: pId,
-            isActive: true,
-            version: current.version,
-            stock: { gte: neededQty },
-          },
-          data: {
-            stock: { decrement: neededQty },
-            version: { increment: 1 },
-          },
-        });
-        if (reserved.count === 0) {
-          const latest = await tx.product.findUnique({ where: { id: pId } });
-          if (!latest || !latest.isActive) {
-            throw new NotFoundException({
-              code: 'PRODUCT_NOT_FOUND',
-              message: `Không tìm thấy sản phẩm #${pId}`,
+          if (!promo || !promo.isActive) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_NOT_FOUND',
+              message: `Mã khuyến mãi '${code}' không tồn tại hoặc đã ngừng hoạt động`,
             });
           }
-          if (latest.stock < neededQty) {
-            throw new ConflictException({
-              code: 'OUT_OF_STOCK',
-              message: `Sản phẩm '${latest.name}' chỉ còn ${latest.stock} phần`,
-              details: [
-                {
-                  productId: pId,
-                  available: latest.stock,
-                  requested: neededQty,
-                },
+
+          if (now < promo.startsAt) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_NOT_STARTED',
+              message: 'Mã khuyến mãi chưa đến thời gian áp dụng',
+            });
+          }
+
+          if (now > promo.expiresAt) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_EXPIRED',
+              message: 'Mã khuyến mãi đã hết hạn sử dụng',
+            });
+          }
+
+          if (
+            promo.usageLimit !== null &&
+            promo.usedCount >= promo.usageLimit
+          ) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_USAGE_EXCEEDED',
+              message: 'Mã khuyến mãi đã hết lượt sử dụng',
+            });
+          }
+
+          if (subtotal < promo.minOrderValue) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_MIN_ORDER_NOT_MET',
+              message: `Đơn hàng tối thiểu phải từ ${promo.minOrderValue.toLocaleString('vi-VN')}đ để sử dụng mã này`,
+            });
+          }
+
+          // Tính tiền giảm (PERCENT hoặc FIXED)
+          if (promo.type === 'PERCENT') {
+            const rawDiscount = Math.floor((subtotal * promo.value) / 100);
+            discountAmount = Math.min(
+              rawDiscount,
+              promo.maxDiscount ?? Infinity,
+            );
+          } else {
+            discountAmount = Math.min(promo.value, subtotal);
+          }
+
+          appliedPromoCode = promo.code;
+
+          // Tăng số lượt đã sử dụng của mã
+          const claimed = await tx.promoCode.updateMany({
+            where: {
+              id: promo.id,
+              OR: [
+                { usageLimit: null },
+                { usedCount: { lt: tx.promoCode.fields.usageLimit } },
               ],
+            },
+            data: {
+              usedCount: { increment: 1 },
+            },
+          });
+          if (claimed.count === 0) {
+            throw new UnprocessableEntityException({
+              code: 'PROMO_USAGE_EXCEEDED',
+              message: 'Mã khuyến mãi đã hết lượt sử dụng',
             });
           }
-          throw new StockRetryError();
-        }
-      }
-
-      // 4. Xử lý khuyến mãi nếu có mã promoCode
-      let discountAmount = 0;
-      let appliedPromoCode: string | null = null;
-
-      if (dto.promoCode?.trim()) {
-        const code = dto.promoCode.trim().toUpperCase();
-        const promo = await tx.promoCode.findUnique({
-          where: { code },
-        });
-
-        const now = new Date();
-
-        if (!promo || !promo.isActive) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_NOT_FOUND',
-            message: `Mã khuyến mãi '${code}' không tồn tại hoặc đã ngừng hoạt động`,
-          });
         }
 
-        if (now < promo.startsAt) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_NOT_STARTED',
-            message: 'Mã khuyến mãi chưa đến thời gian áp dụng',
-          });
-        }
+        const total = Math.max(0, subtotal - discountAmount);
 
-        if (now > promo.expiresAt) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_EXPIRED',
-            message: 'Mã khuyến mãi đã hết hạn sử dụng',
-          });
-        }
-
-        if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_USAGE_EXCEEDED',
-            message: 'Mã khuyến mãi đã hết lượt sử dụng',
-          });
-        }
-
-        if (subtotal < promo.minOrderValue) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_MIN_ORDER_NOT_MET',
-            message: `Đơn hàng tối thiểu phải từ ${promo.minOrderValue.toLocaleString('vi-VN')}đ để sử dụng mã này`,
-          });
-        }
-
-        // Tính tiền giảm (PERCENT hoặc FIXED)
-        if (promo.type === 'PERCENT') {
-          const rawDiscount = Math.floor((subtotal * promo.value) / 100);
-          discountAmount = Math.min(rawDiscount, promo.maxDiscount ?? Infinity);
-        } else {
-          discountAmount = Math.min(promo.value, subtotal);
-        }
-
-        appliedPromoCode = promo.code;
-
-        // Tăng số lượt đã sử dụng của mã
-        const claimed = await tx.promoCode.updateMany({
-          where: {
-            id: promo.id,
-            OR: [
-              { usageLimit: null },
-              { usedCount: { lt: tx.promoCode.fields.usageLimit } },
-            ],
-          },
+        // 5. Tạo đơn hàng Order ở trạng thái PENDING
+        const order = await tx.order.create({
           data: {
-            usedCount: { increment: 1 },
+            userId,
+            status: 'PENDING',
+            subtotal,
+            discountAmount,
+            total,
+            promoCode: appliedPromoCode,
+            pointsEarned: 0,
           },
         });
-        if (claimed.count === 0) {
-          throw new UnprocessableEntityException({
-            code: 'PROMO_USAGE_EXCEEDED',
-            message: 'Mã khuyến mãi đã hết lượt sử dụng',
-          });
-        }
-      }
 
-      const total = Math.max(0, subtotal - discountAmount);
+        // 6. Tạo các dòng OrderItem kèm snapshot tên, toppings, giá lúc đặt
+        const createdItems = await Promise.all(
+          pricingResult.lines.map((line, index) =>
+            tx.orderItem.create({
+              data: {
+                orderId: order.id,
+                productId: line.productId,
+                productName: line.productName,
+                size: line.size,
+                toppings: line.toppings,
+                recipeSnapshot: snapshots[index],
+                unitPrice: line.unitPrice,
+                qty: line.qty,
+                lineTotal: line.lineTotal,
+                note: line.note,
+              },
+            }),
+          ),
+        );
 
-      // 5. Tạo đơn hàng Order ở trạng thái PENDING
-      const order = await tx.order.create({
-        data: {
-          userId,
-          status: 'PENDING',
-          subtotal,
-          discountAmount,
-          total,
-          promoCode: appliedPromoCode,
-          pointsEarned: 0,
-        },
-      });
-
-      // 6. Tạo các dòng OrderItem kèm snapshot tên, toppings, giá lúc đặt
-      const createdItems = await Promise.all(
-        pricingResult.lines.map((line) =>
-          tx.orderItem.create({
-            data: {
-              orderId: order.id,
-              productId: line.productId,
-              productName: line.productName,
-              size: line.size,
-              toppings: line.toppings,
-              unitPrice: line.unitPrice,
-              qty: line.qty,
-              lineTotal: line.lineTotal,
-              note: line.note,
-            },
-          }),
-        ),
-      );
-
-      return {
-        id: order.id,
-        code: `#${order.id}`,
-        status: order.status,
-        items: createdItems,
-        subtotal: order.subtotal,
-        discountAmount: order.discountAmount,
-        total: order.total,
-        promoCode: order.promoCode,
-        createdAt: order.createdAt,
-      };
-    });
+        return {
+          id: order.id,
+          code: `#${order.id}`,
+          status: order.status,
+          items: createdItems,
+          subtotal: order.subtotal,
+          discountAmount: order.discountAmount,
+          total: order.total,
+          promoCode: order.promoCode,
+          createdAt: order.createdAt,
+        };
+      },
+      true,
+    );
   }
 
   /**
@@ -445,7 +367,7 @@ export class OrdersService {
    * - Nếu đã thanh toán: hoàn tiền mock và thu hồi điểm thưởng
    */
   async cancelOrder(orderId: number, userId: number, role: string) {
-    return this.prisma.$transaction(async (tx) => {
+    return inventoryTransaction(this.prisma, async (tx) => {
       await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -488,7 +410,10 @@ export class OrdersService {
 
       // 1. Gộp và khóa sản phẩm cùng thứ tự với luồng tạo đơn để tránh deadlock.
       const qtyByProduct = new Map<number, number>();
-      for (const item of order.items) {
+      await this.inventory.finish(tx, orderId, false);
+      for (const item of order.items.filter(
+        (item) => item.recipeSnapshot === null,
+      )) {
         qtyByProduct.set(
           item.productId,
           (qtyByProduct.get(item.productId) ?? 0) + item.qty,
@@ -578,7 +503,7 @@ export class OrdersService {
    * Chỉ cho phép đổi sang: PREPARING -> READY -> COMPLETED
    */
   async updateStatus(orderId: number, newStatus: BaristaAllowedStatus) {
-    return this.prisma.$transaction(async (tx) => {
+    return inventoryTransaction(this.prisma, async (tx) => {
       await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -593,6 +518,8 @@ export class OrdersService {
 
       // Kiểm tra State Machine xem có nhảy cóc sai trạng thái không
       assertTransition(order.status as OrderStatus, newStatus);
+      if (newStatus === 'PREPARING')
+        await this.inventory.finish(tx, orderId, true);
 
       const updatedOrder = await tx.order.update({
         where: { id: orderId },

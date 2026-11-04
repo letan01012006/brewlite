@@ -1,3 +1,4 @@
+import { InventoryService } from '../inventory/inventory.service.js';
 import {
   BadRequestException,
   ConflictException,
@@ -31,7 +32,10 @@ const publicProductSelect = {
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventory: InventoryService,
+  ) {}
 
   /**
    * Lấy danh sách sản phẩm (Task 2)
@@ -71,10 +75,10 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    const data = products.map((p) => ({
-      ...p,
-      inStock: p.stock > 0,
-    }));
+    const availability = await this.inventory.productAvailabilities(
+      products.map((p) => p.id),
+    );
+    const data = products.map((p) => ({ ...p, ...availability.get(p.id)! }));
 
     const totalPages = Math.ceil(total / limit) || 1;
 
@@ -117,7 +121,7 @@ export class ProductsService {
 
     return {
       ...product,
-      inStock: product.stock > 0,
+      ...(await this.inventory.productAvailability(product.id)),
       sizes,
     };
   }
