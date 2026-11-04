@@ -21,7 +21,7 @@ export default function CartPage() {
     isValidatingPromo,
     promoError,
     validatePromo,
-    updateQuantityChecked,
+    updateQuantity,
     removeItem,
     clearCart,
     setPromo,
@@ -55,7 +55,7 @@ export default function CartPage() {
     setPromo(null, 0);
     setInputCode("");
   };
-  const handleUpdateQty = updateQuantityChecked;
+  const handleUpdateQty = updateQuantity;
   const handleRemoveItem = removeItem;
 
   // Chuyển sang trang checkout

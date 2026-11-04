@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ProductDetail, Size, Topping } from "@/types";
 import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
-import { unitPrice as calculateUnitPrice, makeItem } from "@/lib/cart-rules";
-import { checkInventory } from '@/lib/api/inventory';
+import { unitPrice as calculateUnitPrice } from "@/lib/cart-rules";
 import { getProductImageUrl } from "@/lib/constants/product-images";
 import { Modal } from '@/components/ui/modal';
 
@@ -43,35 +42,14 @@ function ProductSelection({
   const [note, setNote] = useState<string>("");
   const [isAdded, setIsAdded] = useState<boolean>(false);
 
-  const { addItemChecked, items, cartError, isHydrated } = useCartStore();
-  const legacyAvailable = Math.max(
+  const { addItem, items, cartError, isHydrated } = useCartStore();
+  const available = Math.max(
     0,
     product.stock -
       items
         .filter((item) => item.product.id === product.id)
         .reduce((sum, item) => sum + item.quantity, 0),
   );
-  const selectionKey = JSON.stringify({ productId: product.id, selectedSize, toppingIds: selectedToppings.map(t => t.id), note, items });
-  const [inventory, setInventory] = useState<{ key: string; max: number; reason: string | null } | null>(null);
-  const ingredientMode = product.inventoryMode === 'INGREDIENT';
-  const checking = ingredientMode && inventory?.key !== selectionKey;
-  const available = ingredientMode ? (checking ? 0 : inventory?.max ?? 0) : legacyAvailable;
-  useEffect(() => {
-    if (!ingredientMode) return;
-    const controller = new AbortController();
-    const selection = makeItem(product, selectedSize, selectedToppings, 1, note);
-    const existingQuantity = items.find(item => item.id === selection.id)?.quantity ?? 0;
-    selection.quantity = Math.min(20, existingQuantity + 1);
-    selection.lineTotal = selection.quantity * selection.unitPrice;
-    const candidate = [...items.filter(item => item.id !== selection.id), selection];
-    checkInventory(candidate, controller.signal).then(result => {
-      if (!controller.signal.aborted) setInventory({ key: selectionKey, max: Math.max(0, (result.lines.at(-1)?.maxQuantity ?? 0) - existingQuantity),
-        reason: result.available ? null : 'Không đủ nguyên liệu; hãy đổi size/topping hoặc giảm số lượng trong giỏ.' });
-    }).catch(error => {
-      if (!controller.signal.aborted) setInventory({ key: selectionKey, max: 0, reason: error instanceof Error ? error.message : 'Không kiểm tra được nguyên liệu.' });
-    });
-    return () => controller.abort();
-  }, [ingredientMode, items, product, selectedSize, selectedToppings, note, selectionKey]);
   const adding = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -99,7 +77,7 @@ function ProductSelection({
   const unitPrice = calculateUnitPrice(product, selectedSize, selectedToppings);
   const totalPrice = unitPrice * quantity;
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = () => {
     if (!user) {
       router.push(
         `/login?redirect=${encodeURIComponent(`/menu?openProduct=${product.id}`)}`,
@@ -107,8 +85,7 @@ function ProductSelection({
       return;
     }
     if (adding.current) return;
-    adding.current = true;
-    const added = await addItemChecked({
+    const added = addItem({
       product,
       size: selectedSize,
       selectedToppings,
@@ -116,7 +93,7 @@ function ProductSelection({
       note: note.trim() || undefined,
     });
 
-    if (!added) { adding.current = false; return; }
+    if (!added) return;
     adding.current = true;
     setIsAdded(true);
     timer.current = setTimeout(() => {
@@ -173,9 +150,8 @@ function ProductSelection({
         )}
         {available < quantity && (
           <p className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 text-sm light:text-cafe-primary ">
-            {ingredientMode
-              ? checking ? 'Đang kiểm tra nguyên liệu…' : inventory?.reason ?? `Lựa chọn này còn tối đa ${available} ly sau khi tính giỏ hàng.`
-              : `Không đủ tồn kho để thêm số lượng này. Trong giỏ đã có ${product.stock - available} ly.`}
+            Không đủ tồn kho để thêm số lượng này. Trong giỏ đã có{" "}
+            {product.stock - available} ly.
           </p>
         )}
         {/* Nội dung tùy chỉnh */}

@@ -13,7 +13,6 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { MockPaymentService } from '../src/payments/mock-payment.service.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { seedDemoCatalog } from '../prisma/demo-catalog.js';
-import { PricingService } from '../src/common/pricing/pricing.service.js';
 import { DEMO_PRODUCT_TOPPINGS } from '../prisma/demo-product-toppings.js';
 
 // Opt in explicitly. Every run creates and removes only its own isolated schema.
@@ -45,9 +44,6 @@ describe.skipIf(!databaseUrl)(
     let legacyOrderId: number;
 
     beforeAll(async () => {
-      const source = new URL(process.env.DATABASE_URL!);
-      const target = new URL(databaseUrl!);
-      if (source.hostname === target.hostname && (source.port || '5432') === (target.port || '5432') && source.pathname === target.pathname) throw new Error('Use a dedicated test database.');
       admin = new PrismaClient({
         adapter: new PrismaPg({ connectionString: databaseUrl }),
       });
@@ -154,8 +150,7 @@ describe.skipIf(!databaseUrl)(
       return token ? call.auth(token, { type: 'bearer' }) : call;
     }
 
-    async function createProduct(stock = 10, price = 35000) {
-      const ingredient = await db.ingredient.create({ data: { code: randomUUID(), name: randomUUID(), unit: 'GRAM', stockQuantity: stock } });
+    function createProduct(stock = 10, price = 35000) {
       return db.product.create({
         data: {
           name: randomUUID(),
@@ -163,7 +158,6 @@ describe.skipIf(!databaseUrl)(
           price,
           stock,
           imageUrl: '/test.jpg',
-          recipes: { create: (['S', 'M', 'L'] as const).map(size => ({ size, isActive: true, ingredients: { create: { ingredientId: ingredient.id, unit: 'GRAM', quantity: 1 } } })) },
         },
       });
     }
@@ -214,15 +208,13 @@ describe.skipIf(!databaseUrl)(
     async function queuedRace(
       orderId: number,
       operations: Array<() => PromiseLike<Response>>,
-      target: 'Order' | 'Product' | 'Ingredient' | 'PromoCode' | 'PaymentTable' = 'Order',
+      target: 'Order' | 'Product' | 'PromoCode' | 'PaymentTable' = 'Order',
     ) {
       const locked = deferred();
       const release = deferred();
       const blocker = db.$transaction(
         async (tx) => {
-          if (target === 'Ingredient') {
-            await tx.$queryRaw`SELECT "id" FROM "Ingredient" WHERE "id" = ${orderId} FOR UPDATE`;
-          } else if (target === 'Product') {
+          if (target === 'Product') {
             await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" = ${orderId} FOR UPDATE`;
           } else if (target === 'PromoCode') {
             await tx.$queryRaw`SELECT "id" FROM "PromoCode" WHERE "id" = ${orderId} FOR UPDATE`;
@@ -424,7 +416,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.product.findUniqueOrThrow({ where: { id: product.id } }))
             .stock,
-        ).toBe(10);
+        ).toBe(9);
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
@@ -528,7 +520,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.product.findUniqueOrThrow({ where: { id: product.id } }))
             .stock,
-        ).toBe(10);
+        ).toBe(cancelFirst ? 10 : 9);
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
@@ -552,21 +544,56 @@ describe.skipIf(!databaseUrl)(
       ).toBe(535);
     });
 
-    it.each([5, 10])('admits only %i of ten simultaneous payments while PENDING holds no stock', async stock => {
-      const product = await createProduct(stock);
-      const recipe = await db.productRecipe.findUniqueOrThrow({ where: { productId_size: { productId: product.id, size: 'S' } }, include: { ingredients: true } });
-      const ingredientId = recipe.ingredients[0].ingredientId;
-      const pending = await Promise.all(Array.from({ length: 10 }, () => post('/orders', customerToken, { items: [{ productId: product.id, size: 'S', quantity: 1 }] }).expect(201)));
-      expect((await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).reservedQuantity.toString()).toBe('0');
-      const results = await queuedRace(ingredientId, pending.map(row => () => pay(row.body.id)), 'Ingredient');
-      expect(results.filter(r => r.status === 201)).toHaveLength(stock);
-      expect(results.filter(r => r.status === 402)).toHaveLength(10-stock);
-      const saved = await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
-      expect(saved.stockQuantity.toString()).toBe(String(stock));
-      expect(saved.reservedQuantity.toString()).toBe(String(stock));
-      expect(await db.inventoryReservation.count({ where: { items: { some: { ingredientId } } } })).toBe(stock);
-      expect((await db.product.findUniqueOrThrow({ where: { id: product.id } })).stock).toBe(stock);
-    }, 20000);
+    it.each([5, 10])(
+      'handles 10 simultaneous orders against stock %i',
+      async (stock) => {
+        const product = await createProduct(stock);
+        const users = await Promise.all(
+          Array.from({ length: 10 }, () =>
+            db.user.create({
+              data: {
+                email: `${randomUUID()}@test.example`,
+                fullName: 'Stock Test',
+                passwordHash: 'unused',
+              },
+            }),
+          ),
+        );
+        const tokens = users.map((user) =>
+          app
+            .get(JwtService)
+            .sign({ sub: user.id, email: user.email, role: user.role }),
+        );
+        const results = await queuedRace(
+          product.id,
+          tokens.map(
+            (token) => () =>
+              post('/orders', token, {
+                items: [{ productId: product.id, size: 'S', quantity: 1 }],
+              }),
+          ),
+          'Product',
+        );
+        expect(results.filter((r) => r.status === 201)).toHaveLength(stock);
+        const failures = results.filter((r) => r.status !== 201);
+        expect(failures).toHaveLength(10 - stock);
+        for (const failure of failures) {
+          expect(failure.status).toBe(409);
+          expect(failure.body.code).toBe('OUT_OF_STOCK');
+        }
+        const saved = await db.product.findUniqueOrThrow({
+          where: { id: product.id },
+        });
+        expect(saved.stock).toBe(0);
+        expect(saved.version).toBe(stock);
+        expect(
+          await db.order.count({
+            where: { items: { some: { productId: product.id } } },
+          }),
+        ).toBe(stock);
+      },
+      15000,
+    );
 
     it('rolls back the entire basket when its second product is out of stock', async () => {
       const first = await createProduct(10);
@@ -577,7 +604,7 @@ describe.skipIf(!databaseUrl)(
           { productId: second.id, size: 'S', quantity: 1 },
         ],
       }).expect(409);
-      expect(result.body.code).toBe('INSUFFICIENT_INGREDIENTS');
+      expect(result.body.code).toBe('OUT_OF_STOCK');
       expect(
         await db.product.findUniqueOrThrow({ where: { id: first.id } }),
       ).toMatchObject({ stock: 10, version: 0 });
@@ -587,19 +614,62 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    it('freezes a consistent basket price when the catalog changes during creation', async () => {
-      const first = await createProduct(); const second = await createProduct();
-      const pricing = app.get(PricingService); const original = pricing.calculate.bind(pricing);
-      vi.spyOn(pricing, 'calculate').mockImplementationOnce(async (...args) => {
-        const result = await original(...args);
-        await db.product.update({ where: { id: second.id }, data: { price: 36000, version: { increment: 1 } } });
-        return result;
-      });
-      const response = await post('/orders', customerToken, { items: [{ productId: first.id, size: 'S', quantity: 1 }, { productId: second.id, size: 'S', quantity: 1 }] }).expect(201);
-      expect(response.body.total).toBe(70000);
-      expect(response.body.items.every((i: { recipeSnapshot: unknown }) => i.recipeSnapshot !== null)).toBe(true);
-      expect(await db.product.findUniqueOrThrow({ where: { id: second.id } })).toMatchObject({ stock: 10, version: 1, price: 36000 });
+    it('rolls back and reprices the whole basket after a version conflict on its second product', async () => {
+      const first = await createProduct();
+      const second = await createProduct();
+      const locked = deferred();
+      const release = deferred();
+      const blocker = db.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" = ${second.id} FOR UPDATE`;
+          locked.resolve();
+          await release.promise;
+          await tx.product.update({
+            where: { id: second.id },
+            data: { price: 36000, version: { increment: 1 } },
+          });
+        },
+        { timeout: 15000 },
+      );
+      let pending: Promise<Response> | undefined;
+      try {
+        await Promise.race([locked.promise, blocker]);
+        pending = post('/orders', customerToken, {
+          items: [
+            { productId: first.id, size: 'S', quantity: 1 },
+            { productId: second.id, size: 'S', quantity: 1 },
+          ],
+        }).then((response) => response);
+        await expect
+          .poll(
+            async () => {
+              const [row] = await admin.$queryRaw<Array<{ count: number }>>`
+            SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE application_name = ${schema} AND wait_event_type = 'Lock'
+          `;
+              return row.count;
+            },
+            { timeout: 5000, interval: 20 },
+          )
+          .toBe(1);
+      } finally {
+        release.resolve();
+        await blocker;
+        await pending;
+      }
+      const response = await pending!;
+      expect(response.status).toBe(201);
+      expect(response.body.total).toBe(71000);
+      expect(
+        await db.product.findUniqueOrThrow({ where: { id: first.id } }),
+      ).toMatchObject({ stock: 9, version: 1 });
+      expect(
+        await db.product.findUniqueOrThrow({ where: { id: second.id } }),
+      ).toMatchObject({ stock: 9, version: 2 });
       expect(await db.order.count({ where: { userId } })).toBe(1);
+      expect(
+        await db.orderItem.count({ where: { orderId: response.body.id } }),
+      ).toBe(2);
     });
 
     it('reserves the last promotion use once and rolls back the losing basket', async () => {
@@ -634,7 +704,7 @@ describe.skipIf(!databaseUrl)(
       expect(
         (await db.product.findUniqueOrThrow({ where: { id: products[0].id } }))
           .stock,
-      ).toBe(10);
+      ).toBe(9);
       expect(
         await db.product.findUniqueOrThrow({ where: { id: products[1].id } }),
       ).toMatchObject({ stock: 10, version: 0 });
@@ -936,11 +1006,9 @@ describe.skipIf(!databaseUrl)(
 
     async function toppingFixture() {
       const [a, b, c] = await Promise.all([createProduct(), createProduct(), createProduct()]);
-      const toppingIngredient = await db.ingredient.create({ data: { code: randomUUID(), name: randomUUID(), unit: 'GRAM', stockQuantity: 100 } });
-      const mapping = { ingredientId: toppingIngredient.id, quantityPerServing: 1 };
       const [x, y, inactive] = await Promise.all([
-        db.topping.create({ data: { name: `X-${randomUUID()}`, price: 5000, ...mapping } }),
-        db.topping.create({ data: { name: `Y-${randomUUID()}`, price: 7000, ...mapping } }),
+        db.topping.create({ data: { name: `X-${randomUUID()}`, price: 5000 } }),
+        db.topping.create({ data: { name: `Y-${randomUUID()}`, price: 7000 } }),
         db.topping.create({ data: { name: `Inactive-${randomUUID()}`, price: 3000, isActive: false } }),
       ]);
       await db.product.update({ where: { id: a.id }, data: { toppings: { connect: [{ id: x.id }, { id: inactive.id }] } } });

@@ -35,12 +35,12 @@ export class OrdersController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Tạo đơn PENDING, kiểm tra nguyên liệu và lưu công thức; chưa giữ kho' })
+  @ApiOperation({ summary: 'Tạo đơn hàng mới (ở trạng thái PENDING) và giữ tồn kho' })
   @ApiResponse({ status: 201, description: 'Tạo đơn hàng thành công, trả về thông tin đơn hàng' })
   @ApiResponse({ status: 400, description: 'Dữ liệu giỏ hàng không hợp lệ' })
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
   @ApiResponse({ status: 404, description: 'Sản phẩm hoặc topping không tồn tại' })
-  @ApiResponse({ status: 409, description: 'Thiếu nguyên liệu hoặc công thức chưa sẵn sàng' })
+  @ApiResponse({ status: 409, description: 'Hết hàng trong kho (OUT_OF_STOCK)' })
   @ApiResponse({ status: 422, description: 'Mã khuyến mãi không hợp lệ hoặc không đủ điều kiện' })
   async create(
     @CurrentUser('id') userId: number,

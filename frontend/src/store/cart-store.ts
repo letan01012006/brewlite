@@ -4,7 +4,6 @@ import type { ValidatePromotionResult } from "@/types";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { orderItems } from "@/lib/order-payload";
 import { makeItem, basketError, restoreItems, cartReviewKey } from "@/lib/cart-rules";
-import { checkInventory, shortageMessage } from '@/lib/api/inventory';
 
 interface AddItemInput {
   product: Product;
@@ -34,8 +33,6 @@ interface CartState {
   validatePromo: (code: string) => Promise<void>;
 
   addItem: (input: AddItemInput) => boolean;
-  addItemChecked: (input: AddItemInput) => Promise<boolean>;
-  updateQuantityChecked: (itemId: string, quantity: number) => Promise<boolean>;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => boolean;
   setPromo: (code: string | null, discount: number) => void;
@@ -193,7 +190,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         }
         const quantity = Math.min(
           item.quantity,
-          product.inventoryMode === 'INGREDIENT' ? 20 : remaining.get(product.id) ?? 0,
+          remaining.get(product.id) ?? 0,
         );
         if (!quantity) {
           changes.push(`${product.name}: đã hết hàng`);
@@ -230,27 +227,21 @@ export const useCartStore = create<CartState>((set, get) => ({
           duplicate.lineTotal = duplicate.quantity * duplicate.unitPrice;
         } else refreshed.push(updated);
       }
-      let inventoryError: string | null = null;
-      if (refreshed.some(item => item.product.inventoryMode === 'INGREDIENT')) {
-        inventoryError = shortageMessage(await checkInventory(refreshed));
-        if (get().items !== items || get().ownerId !== ownerId) return false;
-      }
       const changed = cartReviewKey(items) !== cartReviewKey(refreshed);
       set({
         items: refreshed,
-        cartError: inventoryError,
         requiresReview: get().requiresReview || changed,
         notice: changed
           ? `${changes.join('; ') || 'Thông tin món/topping trong giỏ đã được cập nhật'}. Vui lòng kiểm tra lại trước khi tạo đơn.`
           : get().notice,
       });
       if (get().promoCode) await get().validatePromo(get().promoCode!);
-      return !inventoryError && get().items === refreshed && get().ownerId === ownerId;
-    } catch (error) {
+      return get().items === refreshed && get().ownerId === ownerId;
+    } catch {
       if (get().items === items && get().ownerId === ownerId)
         set({
           cartError:
-            error instanceof Error ? error.message : "Chưa kiểm tra được giá và tồn kho. Vui lòng thử lại trước khi thanh toán.",
+            "Chưa kiểm tra được giá và tồn kho. Vui lòng thử lại trước khi thanh toán.",
         });
       return false;
     } finally {
@@ -306,42 +297,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
-  addItemChecked: async (input) => {
-    const { items, ownerId } = get();
-    if (input.product.inventoryMode !== 'INGREDIENT' && !items.some(i => i.product.inventoryMode === 'INGREDIENT')) return get().addItem(input);
-    try {
-      const item = makeItem(input.product, input.size, input.selectedToppings, input.quantity, input.note);
-      const existing = items.find(i => i.id === item.id);
-      item.quantity += existing?.quantity ?? 0;
-      item.lineTotal = item.quantity * item.unitPrice;
-      const candidate = [...items.filter(i => i.id !== item.id), item];
-      const invalid = basketError(candidate);
-      if (invalid) throw new Error(invalid);
-      const message = shortageMessage(await checkInventory(candidate));
-      if (get().items !== items || get().ownerId !== ownerId || !get().isHydrated) return false;
-      if (message) throw new Error(message);
-      return get().addItem(input);
-    } catch (error) {
-      if (get().items === items && get().ownerId === ownerId) set({ cartError: error instanceof Error ? error.message : 'Không kiểm tra được nguyên liệu.' });
-      return false;
-    }
-  },
-  updateQuantityChecked: async (itemId, quantity) => {
-    const { items, ownerId } = get();
-    if (quantity === 0 || !items.some(i => i.product.inventoryMode === 'INGREDIENT')) return get().updateQuantity(itemId, quantity);
-    try {
-      const candidate = items.map(i => i.id === itemId ? { ...i, quantity, lineTotal: i.unitPrice * quantity } : i);
-      const invalid = basketError(candidate);
-      if (invalid) throw new Error(invalid);
-      const message = shortageMessage(await checkInventory(candidate));
-      if (get().items !== items || get().ownerId !== ownerId || !get().isHydrated) return false;
-      if (message) throw new Error(message);
-      return get().updateQuantity(itemId, quantity);
-    } catch (error) {
-      if (get().items === items && get().ownerId === ownerId) set({ cartError: error instanceof Error ? error.message : 'Không kiểm tra được nguyên liệu.' });
-      return false;
-    }
-  },
   addItem: ({ product, size, selectedToppings, quantity, note }) => {
     try {
       if (!get().isHydrated)
