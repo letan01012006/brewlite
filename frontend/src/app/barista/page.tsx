@@ -180,7 +180,7 @@ function BaristaContent() {
           <span>←</span>
           <span>Về trang chủ</span>
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-3"><Link href="/barista/inventory" className="text-xs font-semibold text-stone-300 hover:text-amber-400 transition-colors light:text-cafe-muted ">Nguyên liệu &amp; Kho</Link><ThemeToggle /></div>
       </div>
 
       {/* Barista Header Bar */}

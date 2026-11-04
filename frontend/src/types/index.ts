@@ -24,6 +24,8 @@ export interface Product {
   price: number;
   category: string;
   stock: number;
+  inventoryMode?: 'INGREDIENT';
+  availability?: Array<{ size: Size; maxQuantity: number; reason: string | null }>;
   inStock?: boolean;
   imageUrl?: string | null;
   description?: string | null;
@@ -35,6 +37,12 @@ export interface Product {
 export interface ProductDetail extends Product {
   sizes: Array<{ size: Size; surcharge: number }>;
   toppings: Topping[];
+}
+
+export interface InventoryAvailability {
+  available: boolean;
+  shortages: Array<{ ingredientId: number; unit: string; quantity: string; availableQuantity: string }>;
+  lines: Array<{ index: number; productId: number; size: Size; maxQuantity: number }>;
 }
 
 export interface CartItem {
@@ -118,4 +126,33 @@ export interface ApiPaginationMeta {
 export interface PaginatedResponse<T> {
   data: T[];
   meta: ApiPaginationMeta;
+}
+
+// ===== Nguyên liệu & Kho (barista) =====
+export type IngredientUnit = 'GRAM' | 'MILLILITRE' | 'PIECE';
+export interface Ingredient {
+  id: number;
+  code: string;
+  name: string;
+  unit: IngredientUnit;
+  stockQuantity: string;
+  reservedQuantity: string;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface StockRow extends Ingredient {
+  availableQuantity: string;
+}
+export interface InventoryMovement {
+  id: number;
+  kind: 'RECEIPT' | 'ADJUSTMENT' | 'HOLD' | 'RELEASE' | 'CONSUME';
+  ingredientId: number;
+  unit: IngredientUnit;
+  stockDelta: string;
+  reservedDelta: string;
+  reason: string | null;
+  createdAt: string;
+  ingredient?: { code: string; name: string };
 }
