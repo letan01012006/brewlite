@@ -187,7 +187,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       const changes: string[] = [];
       for (const item of items) {
         const product = products.find((p) => p?.id === item.product.id);
-        if (!product) {
+        if (!product || product.isActive === false) {
           changes.push(`${item.product.name}: đã ngừng bán hoặc không còn tồn tại`);
           continue;
         }

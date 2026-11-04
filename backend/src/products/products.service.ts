@@ -16,7 +16,20 @@ import { Prisma } from '../generated/prisma/client.js';
 
 const toppingsSelect = {
   where: { isActive: true },
-  select: { id: true, name: true, price: true },
+  select: {
+    id: true,
+    name: true,
+    price: true,
+    ingredientId: true,
+    quantityPerServing: true,
+    ingredient: {
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      },
+    },
+  },
   orderBy: { id: 'asc' as const },
 };
 
@@ -27,6 +40,7 @@ const publicProductSelect = {
   imageUrl: true,
   category: true,
   stock: true,
+  isActive: true,
   toppings: toppingsSelect,
 } satisfies Prisma.ProductSelect;
 
@@ -41,17 +55,17 @@ export class ProductsService {
    * Lấy danh sách sản phẩm (Task 2)
    * - Hỗ trợ lọc theo category, tìm kiếm theo tên (không phân biệt hoa thường)
    * - Phân trang (page, limit)
-   * - Chỉ lấy món isActive = true, không trả trường version
-   * - Bổ sung trường tính toán inStock = stock > 0
+   * - Mặc định chỉ lấy món isActive = true (trừ khi includeInactive = true cho quản lý Barista)
+   * - Bổ sung trường tính toán inStock & availability
    */
   async findAll(query: QueryProductDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductWhereInput = {
-      isActive: true,
-    };
+    const where: Prisma.ProductWhereInput = query.includeInactive
+      ? {}
+      : { isActive: true };
 
     if (query.category) {
       where.category = query.category;
@@ -159,6 +173,31 @@ export class ProductsService {
       }
       throw error;
     }
+  }
+
+  async updateStatus(id: number, isActive: boolean) {
+    const existing = await this.prisma.product.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException({
+        code: 'PRODUCT_NOT_FOUND',
+        message: `Không tìm thấy sản phẩm #${id}`,
+      });
+    }
+    const updated = await this.prisma.product.update({
+      where: { id },
+      data: {
+        isActive,
+        version: { increment: 1 },
+      },
+      select: publicProductSelect,
+    });
+    return {
+      ...updated,
+      ...(await this.inventory.productAvailability(updated.id)),
+    };
   }
 
   async updateToppings(id: number, toppingIds: number[]) {

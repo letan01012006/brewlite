@@ -53,18 +53,57 @@ export class InventoryService {
         .toFixed(3),
     }));
   }
-  /** Lịch sử biến động kho (mới nhất trước), có lọc theo nguyên liệu/loại. */
+  /** Lịch sử biến động kho (mới nhất trước), có lọc theo nguyên liệu/loại/thời gian. */
   async movements(query: {
     ingredientId?: number;
-    kind?: 'RECEIPT' | 'ADJUSTMENT' | 'HOLD' | 'RELEASE' | 'CONSUME';
+    kind?:
+      | 'RECEIPT'
+      | 'ADJUSTMENT'
+      | 'ADJUSTMENT_POSITIVE'
+      | 'ADJUSTMENT_NEGATIVE'
+      | 'HOLD'
+      | 'RELEASE'
+      | 'CONSUME';
+    from?: string;
+    to?: string;
     page?: number;
     limit?: number;
   }) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
+    const createdAt: Prisma.DateTimeFilter = {};
+    if (query.from?.trim()) {
+      const fromDate = new Date(
+        /^\d{4}-\d{2}-\d{2}$/.test(query.from.trim())
+          ? `${query.from.trim()}T00:00:00.000`
+          : query.from.trim(),
+      );
+      if (Number.isNaN(fromDate.getTime()))
+        throw new BadRequestException('Ngày bắt đầu không hợp lệ.');
+      createdAt.gte = fromDate;
+    }
+    if (query.to?.trim()) {
+      const toDate = new Date(
+        /^\d{4}-\d{2}-\d{2}$/.test(query.to.trim())
+          ? `${query.to.trim()}T23:59:59.999`
+          : query.to.trim(),
+      );
+      if (Number.isNaN(toDate.getTime()))
+        throw new BadRequestException('Ngày kết thúc không hợp lệ.');
+      createdAt.lte = toDate;
+    }
+    const kindFilter: Prisma.InventoryMovementWhereInput =
+      query.kind === 'ADJUSTMENT_POSITIVE'
+        ? { kind: 'ADJUSTMENT', stockDelta: { gt: 0 } }
+        : query.kind === 'ADJUSTMENT_NEGATIVE'
+          ? { kind: 'ADJUSTMENT', stockDelta: { lt: 0 } }
+          : query.kind
+            ? { kind: query.kind }
+            : {};
     const where: Prisma.InventoryMovementWhereInput = {
       ...(query.ingredientId ? { ingredientId: query.ingredientId } : {}),
-      ...(query.kind ? { kind: query.kind } : {}),
+      ...kindFilter,
+      ...(Object.keys(createdAt).length ? { createdAt } : {}),
     };
     const [data, total] = await Promise.all([
       this.prisma.inventoryMovement.findMany({
@@ -72,7 +111,16 @@ export class InventoryService {
         orderBy: { id: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
-        include: { ingredient: { select: { code: true, name: true } } },
+        include: {
+          ingredient: {
+            select: {
+              code: true,
+              name: true,
+              toppings: { select: { id: true, name: true } },
+            },
+          },
+          actor: { select: { id: true, fullName: true, email: true } },
+        },
       }),
       this.prisma.inventoryMovement.count({ where }),
     ]);
@@ -91,6 +139,15 @@ export class InventoryService {
       throw new BadRequestException(
         'Idempotency-Key bắt buộc, tối đa 200 ký tự.',
       );
+    const reason = dto.reason?.trim() || null;
+    if (kind === 'ADJUSTMENT' && !reason) {
+      throw new BadRequestException('Ghi nhận hao hụt bắt buộc phải có lý do.');
+    }
+    const rawAmount = new Prisma.Decimal(dto.quantity);
+    const expectedDelta =
+      kind === 'ADJUSTMENT' && rawAmount.isPositive()
+        ? rawAmount.negated()
+        : rawAmount;
     const eventKey = `manual:${key.trim()}`;
     return inventoryTransaction(this.prisma, async (tx) => {
       // A transaction-scoped key lock handles concurrent first requests, including different ingredients.
@@ -103,8 +160,8 @@ export class InventoryService {
           previous.actorId !== actorId ||
           previous.kind !== kind ||
           previous.ingredientId !== dto.ingredientId ||
-          !previous.stockDelta.equals(dto.quantity) ||
-          previous.reason !== dto.reason
+          !previous.stockDelta.equals(expectedDelta) ||
+          (previous.reason ?? null) !== reason
         ) {
           throw new ConflictException({
             code: 'IDEMPOTENCY_KEY_REUSED',
@@ -118,7 +175,11 @@ export class InventoryService {
         where: { id: dto.ingredientId },
       });
       if (!row) throw new NotFoundException('Không tìm thấy nguyên liệu.');
-      const delta = quantity(dto.quantity, row.unit, kind === 'ADJUSTMENT');
+      const parsed = quantity(dto.quantity, row.unit, kind === 'ADJUSTMENT');
+      const delta =
+        kind === 'ADJUSTMENT' && parsed.isPositive()
+          ? parsed.negated()
+          : parsed;
       const next = row.stockQuantity.plus(delta);
       if (
         next.lessThan(row.reservedQuantity) ||
@@ -143,7 +204,7 @@ export class InventoryService {
           stockDelta: delta,
           reservedDelta: 0,
           actorId,
-          reason: dto.reason,
+          reason,
         },
       });
     });
@@ -171,16 +232,29 @@ export class InventoryService {
       );
       if (!recipe?.ingredients.length)
         throw this.unconfigured(item.productId, item.size);
+      const pausedIngredient = recipe.ingredients.find(
+        (entry) => !entry.ingredient.isActive,
+      );
+      if (pausedIngredient) {
+        throw new ConflictException({
+          code: 'INGREDIENT_PAUSED',
+          message: `Nguyên liệu "${pausedIngredient.ingredient.name}" đang tạm dừng.`,
+          details: [
+            {
+              productId: item.productId,
+              size: item.size,
+              ingredientId: pausedIngredient.ingredientId,
+              ingredientName: pausedIngredient.ingredient.name,
+            },
+          ],
+        });
+      }
       const ingredients: IngredientAmount[] = recipe.ingredients.map(
-        (entry) => {
-          if (!entry.ingredient.isActive)
-            throw this.unconfigured(item.productId, item.size);
-          return {
-            ingredientId: entry.ingredientId,
-            unit: entry.unit,
-            quantity: entry.quantity.toFixed(3),
-          };
-        },
+        (entry) => ({
+          ingredientId: entry.ingredientId,
+          unit: entry.unit,
+          quantity: entry.quantity.toFixed(3),
+        }),
       );
       const ids = item.toppingIds ?? [];
       if (ids.length > 3 || new Set(ids).size !== ids.length)
@@ -192,8 +266,24 @@ export class InventoryService {
             code: 'TOPPING_NOT_ALLOWED',
             message: 'Topping không thuộc sản phẩm hoặc đã ngừng bán.',
           });
-        if (!topping.ingredient?.isActive || !topping.quantityPerServing)
+        if (!topping.ingredient || !topping.quantityPerServing)
           throw this.unconfigured(item.productId, item.size);
+        if (!topping.ingredient.isActive) {
+          throw new ConflictException({
+            code: 'INGREDIENT_PAUSED',
+            message: `Nguyên liệu cho topping "${topping.name}" đang tạm dừng.`,
+            details: [
+              {
+                productId: item.productId,
+                size: item.size,
+                toppingId: topping.id,
+                toppingName: topping.name,
+                ingredientId: topping.ingredient.id,
+                ingredientName: topping.ingredient.name,
+              },
+            ],
+          });
+        }
         const amount = quantity(
           topping.quantityPerServing.toFixed(3),
           topping.ingredient.unit,
@@ -350,30 +440,48 @@ export class InventoryService {
               const recipe = recipes.find(
                 (r) => r.productId === productId && r.size === size,
               );
-              const configured =
-                recipe?.isActive &&
-                recipe.ingredients.length &&
-                recipe.ingredients.every((i) => i.ingredient.isActive);
-              let maxQuantity = configured ? 20 : 0;
-              if (configured)
-                for (const entry of recipe.ingredients) {
-                  const available = entry.ingredient.stockQuantity.minus(
-                    entry.ingredient.reservedQuantity,
-                  );
-                  maxQuantity = Math.min(
-                    maxQuantity,
+              const configured = Boolean(
+                recipe?.isActive && recipe.ingredients.length,
+              );
+              const hasPausedIngredient =
+                configured &&
+                recipe!.ingredients.some((i) => !i.ingredient.isActive);
+
+              if (!configured) {
+                return {
+                  size,
+                  maxQuantity: 0,
+                  reason: 'RECIPE_UNAVAILABLE' as const,
+                };
+              }
+              if (hasPausedIngredient) {
+                return {
+                  size,
+                  maxQuantity: 0,
+                  reason: 'INGREDIENT_PAUSED' as const,
+                };
+              }
+
+              let maxQuantity = Number.MAX_SAFE_INTEGER;
+              for (const entry of recipe!.ingredients) {
+                const available = entry.ingredient.stockQuantity.minus(
+                  entry.ingredient.reservedQuantity,
+                );
+                maxQuantity = Math.min(
+                  maxQuantity,
+                  Math.max(
+                    0,
                     available.div(entry.quantity).floor().toNumber(),
-                  );
-                }
+                  ),
+                );
+              }
               return {
                 size,
                 maxQuantity,
                 reason:
                   maxQuantity > 0
                     ? null
-                    : configured
-                      ? 'INSUFFICIENT_INGREDIENTS'
-                      : 'RECIPE_UNAVAILABLE',
+                    : ('INSUFFICIENT_INGREDIENTS' as const),
               };
             });
             return [

@@ -403,7 +403,38 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
     expect(row.reservedQuantity.toString()).toBe('10');
   });
   it('lists movement history filtered by ingredient and kind, barista only', async () => {
-    const { ingredient } = await catalog('5');
+    const autoIng = await f
+      .api('post', '/inventory/ingredients', f.barista.token)
+      .send({ name: `Auto Code ${randomUUID()}`, unit: 'GRAM' })
+      .expect(201);
+    expect(autoIng.body.code).toMatch(/^AUTO_CODE_/);
+    expect(autoIng.body.stockQuantity).toBe('0');
+    await f
+      .api('post', '/inventory/receipts', f.barista.token)
+      .set('Idempotency-Key', randomUUID())
+      .send({ ingredientId: autoIng.body.id, quantity: '500' })
+      .expect(201);
+    await f
+      .api('post', '/inventory/adjustments', f.barista.token)
+      .set('Idempotency-Key', randomUUID())
+      .send({ ingredientId: autoIng.body.id, quantity: '50' })
+      .expect(400);
+    const wastage = await f
+      .api('post', '/inventory/adjustments', f.barista.token)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        ingredientId: autoIng.body.id,
+        quantity: '50',
+        reason: 'Hao hụt ca tối',
+      })
+      .expect(201);
+    expect(wastage.body.stockDelta).toBe('-50');
+    const { ingredient, product: p500 } = await catalog('500');
+    const detail500 = await f.api('get', `/products/${p500.id}`).expect(200);
+    expect(
+      detail500.body.availability.find((a: { size: string }) => a.size === 'S')
+        .maxQuantity,
+    ).toBe(50);
     for (const [path, quantity] of [
       ['/inventory/receipts', '3'],
       ['/inventory/adjustments', '-1'],
@@ -436,6 +467,83 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
       .expect(200);
     expect(receipts.body.data).toHaveLength(1);
     expect(receipts.body.meta.limit).toBe(1);
+    await f.db.inventoryMovement.create({
+      data: {
+        eventKey: `legacy-pos-adj:${randomUUID()}`,
+        kind: 'ADJUSTMENT',
+        ingredientId: ingredient.id,
+        unit: 'GRAM',
+        stockDelta: 50,
+        reservedDelta: 0,
+        actorId: f.barista.id,
+        reason: 'thêm',
+      },
+    });
+    const posAdj = await f
+      .api(
+        'get',
+        `/inventory/movements?ingredientId=${ingredient.id}&kind=ADJUSTMENT_POSITIVE`,
+        f.barista.token,
+      )
+      .expect(200);
+    expect(posAdj.body.meta.total).toBe(1);
+    expect(posAdj.body.data[0].stockDelta).toBe('50');
+    const negAdj = await f
+      .api(
+        'get',
+        `/inventory/movements?ingredientId=${ingredient.id}&kind=ADJUSTMENT_NEGATIVE`,
+        f.barista.token,
+      )
+      .expect(200);
+    expect(negAdj.body.meta.total).toBe(1);
+    expect(negAdj.body.data[0].stockDelta).toBe('-1');
+
+    // Toggle product selling status (Đang bán / Tạm dừng) independently of availability & existing orders
+    const existingOrderId = await order(p500.id, 1, 'S');
+    const paused = await f
+      .api('patch', `/products/${p500.id}/status`, f.barista.token)
+      .send({ isActive: false })
+      .expect(200);
+    expect(paused.body.isActive).toBe(false);
+    expect(
+      paused.body.availability.find((a: { size: string }) => a.size === 'S')
+        .maxQuantity,
+    ).toBeGreaterThan(0);
+
+    const publicCatalog = await f.api('get', '/products?limit=50').expect(200);
+    expect(
+      publicCatalog.body.data.some((p: { id: number }) => p.id === p500.id),
+    ).toBe(false);
+    const baristaCatalog = await f
+      .api('get', '/products?limit=50&includeInactive=true')
+      .expect(200);
+    expect(
+      baristaCatalog.body.data.find((p: { id: number }) => p.id === p500.id)
+        ?.isActive,
+    ).toBe(false);
+
+    await f.api('get', `/products/${p500.id}`).expect(404);
+    await f
+      .api('post', '/inventory/availability')
+      .send({ items: [{ productId: p500.id, size: 'S', quantity: 1 }] })
+      .expect(404);
+    await f
+      .api('post', '/orders', f.customer.token)
+      .send({ items: [{ productId: p500.id, size: 'S', quantity: 1 }] })
+      .expect(404);
+
+    // Existing order created before pause is unaffected
+    await pay(existingOrderId).expect(201);
+    await status(existingOrderId).expect(200);
+
+    // Reopen selling
+    const reopened = await f
+      .api('patch', `/products/${p500.id}/status`, f.barista.token)
+      .send({ isActive: true })
+      .expect(200);
+    expect(reopened.body.isActive).toBe(true);
+    await f.api('get', `/products/${p500.id}`).expect(200);
+
     await f
       .api('get', '/inventory/movements?kind=BOGUS', f.barista.token)
       .expect(400);
@@ -527,5 +635,208 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
       release();
     }
     expect((await paying).status).toBe(201);
+  });
+  it('31 ingredient pause/reactivate lifecycle: per-size impact, toppings, order block, stock preservation, and paid order fulfillment', async () => {
+    // 1. Setup ingredients: Coffee (main), Ice (secondary), ToppingJelly (topping only)
+    const coffee = await f.db.ingredient.create({
+      data: {
+        code: randomUUID(),
+        name: 'Coffee ' + randomUUID(),
+        unit: 'GRAM',
+        stockQuantity: '1000',
+      },
+    });
+    const ice = await f.db.ingredient.create({
+      data: {
+        code: randomUUID(),
+        name: 'Ice ' + randomUUID(),
+        unit: 'GRAM',
+        stockQuantity: '500',
+      },
+    });
+    const jelly = await f.db.ingredient.create({
+      data: {
+        code: randomUUID(),
+        name: 'Jelly ' + randomUUID(),
+        unit: 'GRAM',
+        stockQuantity: '300',
+      },
+    });
+
+    // Product 1: S uses Coffee only (10g). M uses Coffee (20g) + Ice (30g).
+    const prod1 = await f.db.product.create({
+      data: {
+        name: 'Drink 1 ' + randomUUID(),
+        category: 'Test',
+        price: 20000,
+        stock: 100,
+        imageUrl: '/test1',
+        recipes: {
+          create: [
+            {
+              size: 'S',
+              isActive: true,
+              ingredients: {
+                create: { ingredientId: coffee.id, unit: 'GRAM', quantity: 10 },
+              },
+            },
+            {
+              size: 'M',
+              isActive: true,
+              ingredients: {
+                create: [
+                  { ingredientId: coffee.id, unit: 'GRAM', quantity: 20 },
+                  { ingredientId: ice.id, unit: 'GRAM', quantity: 30 },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    // Product 2: S uses Coffee (15g). (Affected when coffee is paused)
+    const prod2 = await f.db.product.create({
+      data: {
+        name: 'Drink 2 ' + randomUUID(),
+        category: 'Test',
+        price: 25000,
+        stock: 100,
+        imageUrl: '/test2',
+        recipes: {
+          create: [
+            {
+              size: 'S',
+              isActive: true,
+              ingredients: {
+                create: { ingredientId: coffee.id, unit: 'GRAM', quantity: 15 },
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    // Topping linked to jelly ingredient
+    const topping = await f.db.topping.create({
+      data: {
+        name: 'Thạch ' + randomUUID(),
+        price: 5000,
+        ingredientId: jelly.id,
+        quantityPerServing: 20,
+        products: { connect: [{ id: prod1.id }] },
+      },
+    });
+
+    // 2. Pre-create an order for Prod1 Size M before pausing Ice, and pay it (hold inventory)
+    const preOrderId = await order(prod1.id, 1, 'M');
+    await pay(preOrderId).expect(201);
+    const iceBefore = await f.db.ingredient.findUnique({ where: { id: ice.id } });
+    expect(Number(iceBefore?.reservedQuantity)).toBe(30);
+
+    // 3. Pause ICE via Barista API
+    const pauseIceRes = await f
+      .api('patch', `/inventory/ingredients/${ice.id}`, f.barista.token)
+      .send({ isActive: false })
+      .expect(200);
+    expect(pauseIceRes.body.isActive).toBe(false);
+
+    // Stock & reserved quantities must NOT change when toggling status
+    const iceAfterPause = await f.db.ingredient.findUnique({ where: { id: ice.id } });
+    expect(iceAfterPause?.stockQuantity.toString()).toBe('500');
+    expect(Number(iceAfterPause?.reservedQuantity)).toBe(30);
+
+    // 4. Check Product 1 availability:
+    // Size S (uses coffee only) -> still available!
+    // Size M (uses ice) -> INGREDIENT_PAUSED!
+    const avail1 = await f.api('get', `/products/${prod1.id}`).expect(200);
+    const sizeS = avail1.body.availability.find((a: { size: string }) => a.size === 'S');
+    const sizeM = avail1.body.availability.find((a: { size: string }) => a.size === 'M');
+    expect(sizeS.reason).toBeNull();
+    expect(sizeS.maxQuantity).toBeGreaterThan(0);
+    expect(sizeM.reason).toBe('INGREDIENT_PAUSED');
+    expect(sizeM.maxQuantity).toBe(0);
+    // Product 1 still inStock because size S is sellable
+    expect(avail1.body.inStock).toBe(true);
+
+    // Product 2 is completely unaffected by Ice pause
+    const avail2 = await f.api('get', `/products/${prod2.id}`).expect(200);
+    const prod2SizeS = avail2.body.availability.find((a: { size: string }) => a.size === 'S');
+    expect(prod2SizeS.reason).toBeNull();
+    expect(prod2SizeS.maxQuantity).toBeGreaterThan(0);
+
+    // 5. Attempt to create order for Size M directly via backend -> Rejected with 409 INGREDIENT_PAUSED
+    const errOrderM = await f
+      .api('post', '/orders', f.customer.token)
+      .send({ items: [{ productId: prod1.id, quantity: 1, size: 'M' }] })
+      .expect(409);
+    expect(errOrderM.body.code).toBe('INGREDIENT_PAUSED');
+
+    // But order for Size S succeeds!
+    const orderSId = await order(prod1.id, 1, 'S');
+    expect(orderSId).toBeGreaterThan(0);
+
+    // 6. Test Topping ingredient pause:
+    await f
+      .api('patch', `/inventory/ingredients/${jelly.id}`, f.barista.token)
+      .send({ isActive: false })
+      .expect(200);
+
+    // Order with paused topping -> Rejected with 409 INGREDIENT_PAUSED
+    const errToppingOrder = await f
+      .api('post', '/orders', f.customer.token)
+      .send({
+        items: [
+          { productId: prod1.id, quantity: 1, size: 'S', toppingIds: [topping.id] },
+        ],
+      })
+      .expect(409);
+    expect(errToppingOrder.body.code).toBe('INGREDIENT_PAUSED');
+
+    // 7. Verify pre-existing paid order (preOrderId) can be finished/consumed without error!
+    await status(preOrderId, 'PREPARING').expect(200);
+    const iceConsumed = await f.db.ingredient.findUnique({ where: { id: ice.id } });
+    expect(Number(iceConsumed?.reservedQuantity)).toBe(0);
+    expect(Number(iceConsumed?.stockQuantity)).toBe(470); // 500 - 30
+
+    // 8. Multiple products affected when Coffee is paused
+    await f
+      .api('patch', `/inventory/ingredients/${coffee.id}`, f.barista.token)
+      .send({ isActive: false })
+      .expect(200);
+
+    // Now both Prod 1 (all configured sizes S & M) and Prod 2 (size S) have INGREDIENT_PAUSED
+    const p1Avail = await f.api('get', `/products/${prod1.id}`).expect(200);
+    expect(p1Avail.body.inStock).toBe(false);
+    expect(
+      p1Avail.body.availability
+        .filter((a: { size: string }) => a.size === 'S' || a.size === 'M')
+        .every((a: { reason: string }) => a.reason === 'INGREDIENT_PAUSED'),
+    ).toBe(true);
+
+    const p2Avail = await f.api('get', `/products/${prod2.id}`).expect(200);
+    expect(p2Avail.body.inStock).toBe(false);
+    expect(
+      p2Avail.body.availability.find((a: { size: string }) => a.size === 'S').reason,
+    ).toBe('INGREDIENT_PAUSED');
+
+    // 9. Reactivate Coffee and Ice -> availability recalculates based on remaining stock
+    await f
+      .api('patch', `/inventory/ingredients/${coffee.id}`, f.barista.token)
+      .send({ isActive: true })
+      .expect(200);
+    await f
+      .api('patch', `/inventory/ingredients/${ice.id}`, f.barista.token)
+      .send({ isActive: true })
+      .expect(200);
+
+    const restoredAvail = await f.api('get', `/products/${prod1.id}`).expect(200);
+    expect(restoredAvail.body.inStock).toBe(true);
+    expect(
+      restoredAvail.body.availability.find((a: { size: string }) => a.size === 'S').reason,
+    ).toBeNull();
+    expect(
+      restoredAvail.body.availability.find((a: { size: string }) => a.size === 'M').reason,
+    ).toBeNull();
   });
 });

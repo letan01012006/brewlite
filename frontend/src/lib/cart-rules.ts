@@ -33,6 +33,8 @@ export function makeItem(
     product.stock < 0
   )
     throw new Error("Thông tin món không hợp lệ. Vui lòng tải lại menu.");
+  if (product.isActive === false)
+    throw new Error("Món này đang tạm dừng bán.");
   if (!["S", "M", "L"].includes(size))
     throw new Error("Kích cỡ món không hợp lệ.");
   if (product.sizes && !product.sizes.some((entry) => entry.size === size))
@@ -69,6 +71,8 @@ export function basketError(items: CartItem[]): string | null {
   if (items.length > MAX_LINES) return "Một đơn chỉ được tối đa 30 dòng món.";
   const totals = new Map<number, number>();
   for (const item of items) {
+    if (item.product.isActive === false)
+      return `${item.product.name || "Món này"} đang tạm dừng bán.`;
     if (
       !Number.isInteger(item.quantity) ||
       item.quantity < 1 ||

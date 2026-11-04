@@ -11,14 +11,18 @@ import {
 
 export const UNITS = ['GRAM', 'MILLILITRE', 'PIECE'] as const;
 export class CreateIngredientDto {
-  @ApiProperty({ example: 'COFFEE_BEANS' })
+  @ApiPropertyOptional({
+    example: 'COFFEE_BEANS',
+    description: 'Tùy chọn; nếu bỏ trống hệ thống tự sinh mã duy nhất.',
+  })
+  @ValidateIf((_, value) => value !== undefined)
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
   @Matches(/\S/)
   @MaxLength(100)
-  code: string;
+  code?: string;
 
   @ApiProperty({ example: 'Cà phê hạt' })
   @Transform(({ value }: { value: unknown }) =>

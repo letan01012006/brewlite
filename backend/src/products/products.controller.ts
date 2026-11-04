@@ -17,7 +17,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ProductsService } from './products.service.js';
-import { QueryProductDto } from './dto/query-product.dto.js';
+import {
+  QueryProductDto,
+  UpdateProductStatusDto,
+} from './dto/query-product.dto.js';
 import { CreateProductDto } from './dto/create-product.dto.js';
 import { UpdateProductToppingsDto } from './dto/update-product-toppings.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
@@ -53,6 +56,31 @@ export class ProductsController {
     @Body() dto: UpdateProductToppingsDto,
   ) {
     return this.productsService.updateToppings(id, dto.toppingIds);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('BARISTA')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cập nhật trạng thái bán (Đang bán / Tạm dừng) của sản phẩm',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Đã cập nhật trạng thái bán của sản phẩm',
+  })
+  @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
+  @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
+  @ApiResponse({
+    status: 403,
+    description: 'Chỉ BARISTA được cập nhật trạng thái bán',
+  })
+  @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
+  updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateProductStatusDto,
+  ) {
+    return this.productsService.updateStatus(id, dto.isActive);
   }
 
   /**

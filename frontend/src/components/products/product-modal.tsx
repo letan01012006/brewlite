@@ -35,15 +35,32 @@ function ProductSelection({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
-  const [selectedSize, setSelectedSize] = useState<Size>(
-    product.sizes.find((entry) => entry.size === "M")?.size ?? product.sizes[0]?.size ?? "S",
-  );
+  const [selectedSize, setSelectedSize] = useState<Size>(() => {
+    const availableSizes = product.sizes.filter((entry) => {
+      const avail = product.availability?.find((a) => a.size === entry.size);
+      return (
+        !avail ||
+        (avail.maxQuantity > 0 &&
+          avail.reason !== 'INGREDIENT_PAUSED' &&
+          avail.reason !== 'RECIPE_UNAVAILABLE')
+      );
+    });
+    return (
+      availableSizes.find((entry) => entry.size === "M")?.size ??
+      availableSizes[0]?.size ??
+      product.sizes.find((entry) => entry.size === "M")?.size ??
+      product.sizes[0]?.size ??
+      "S"
+    );
+  });
   const [selectedToppings, setSelectedToppings] = useState<Topping[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [note, setNote] = useState<string>("");
   const [isAdded, setIsAdded] = useState<boolean>(false);
 
   const { addItemChecked, items, cartError, isHydrated } = useCartStore();
+  const currentSizeAvail = product.availability?.find((a) => a.size === selectedSize);
+  const isSelectedSizePaused = currentSizeAvail?.reason === 'INGREDIENT_PAUSED';
   const legacyAvailable = Math.max(
     0,
     product.stock -
@@ -84,6 +101,7 @@ function ProductSelection({
   const [modalImgError, setModalImgError] = useState<boolean>(false);
 
   const handleToggleTopping = (topping: Topping) => {
+    if (topping.ingredient && topping.ingredient.isActive === false) return;
     const isSelected = selectedToppings.some((t) => t.id === topping.id);
     if (isSelected) {
       setSelectedToppings(selectedToppings.filter((t) => t.id !== topping.id));
@@ -171,6 +189,11 @@ function ProductSelection({
             {cartError}
           </p>
         )}
+        {isSelectedSizePaused && (
+          <p role="alert" className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 text-sm">
+            Size {selectedSize} có nguyên liệu đang tạm dừng phục vụ. Vui lòng chọn size khác.
+          </p>
+        )}
         {available < quantity && (
           <p className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 text-sm light:text-cafe-primary ">
             {ingredientMode
@@ -196,22 +219,40 @@ function ProductSelection({
             <div className="grid grid-cols-3 gap-2.5">
               {product.sizes.map((item) => {
                 const isCurrent = selectedSize === item.size;
+                const sizeAvail = product.availability?.find((a) => a.size === item.size);
+                const isSizePaused = sizeAvail?.reason === "INGREDIENT_PAUSED";
+                const isUnconfigured = sizeAvail?.reason === "RECIPE_UNAVAILABLE";
+                const isShortage = sizeAvail && sizeAvail.maxQuantity <= 0 && !isSizePaused && !isUnconfigured;
+
                 return (
                   <button
                     key={item.size}
                     type="button"
+                    disabled={isSizePaused}
                     onClick={() => setSelectedSize(item.size)}
-                    className={`py-2.5 px-3 rounded-2xl border text-center transition-all cursor-pointer ${
-                      isCurrent
-                        ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30 shadow-sm light:ring-cafe-primary/30 light:shadow-cafe-card light:bg-cafe-accent light:border-cafe-primary light:text-cafe-primary "
-                        : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 text-stone-700 dark:text-[#d5cbc3] bg-white dark:bg-[#1a1411] light:border-cafe-line light:hover:border-cafe-primary light:text-cafe-ink light:bg-cafe-surface "
+                    className={`py-2.5 px-3 rounded-2xl border text-center transition-all ${
+                      isSizePaused
+                        ? "opacity-60 cursor-not-allowed bg-stone-100 dark:bg-stone-900 border-stone-200 dark:border-stone-800 text-stone-400 dark:text-stone-500"
+                        : isCurrent
+                          ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold ring-2 ring-amber-500/30 shadow-sm cursor-pointer light:ring-cafe-primary/30 light:shadow-cafe-card light:bg-cafe-accent light:border-cafe-primary light:text-cafe-primary "
+                          : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 text-stone-700 dark:text-[#d5cbc3] bg-white dark:bg-[#1a1411] cursor-pointer light:border-cafe-line light:hover:border-cafe-primary light:text-cafe-ink light:bg-cafe-surface "
                     }`}
                   >
-                    <div className="text-sm font-bold">{item.size}</div>
+                    <div className="text-sm font-bold flex items-center justify-center gap-1">
+                      <span>{item.size}</span>
+                    </div>
                     <div className="text-xs text-stone-500 dark:text-[#9e8f83] mt-0.5 light:text-cafe-muted ">
-                      {item.surcharge > 0
-                        ? `+${item.surcharge.toLocaleString("vi-VN")}₫`
-                        : "Tiêu chuẩn"}
+                      {isSizePaused ? (
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold">Tạm dừng NL</span>
+                      ) : isUnconfigured ? (
+                        <span className="text-amber-600 dark:text-amber-400">Chưa có CT</span>
+                      ) : isShortage ? (
+                        <span className="text-stone-400">Hết hàng</span>
+                      ) : item.surcharge > 0 ? (
+                        `+${item.surcharge.toLocaleString("vi-VN")}₫`
+                      ) : (
+                        "Tiêu chuẩn"
+                      )}
                     </div>
                   </button>
                 );
@@ -235,23 +276,36 @@ function ProductSelection({
                   const isChecked = selectedToppings.some(
                     (t) => t.id === topping.id,
                   );
+                  const isToppingPaused = Boolean(
+                    topping.ingredient && topping.ingredient.isActive === false,
+                  );
                   return (
                     <label
                       key={topping.id}
-                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer min-h-[48px] transition-colors ${
-                        isChecked
-                          ? "border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 font-medium light:bg-cafe-accent light:border-cafe-primary light:text-cafe-primary "
-                          : "border-[#ede5dc] dark:border-[#2a221c] hover:bg-stone-50 dark:hover:bg-[#201814] text-stone-700 dark:text-[#d5cbc3] bg-white/70 dark:bg-[#1a1411] light:border-cafe-line light:hover:bg-cafe-page light:text-cafe-ink light:bg-cafe-surface/70 "
+                      className={`flex items-center justify-between p-3 rounded-xl border min-h-[48px] transition-colors ${
+                        isToppingPaused
+                          ? "opacity-50 cursor-not-allowed bg-stone-100 dark:bg-stone-900 border-stone-200 dark:border-stone-800 text-stone-400"
+                          : isChecked
+                            ? "border-amber-500 bg-amber-50/70 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 font-medium cursor-pointer light:bg-cafe-accent light:border-cafe-primary light:text-cafe-primary "
+                            : "border-[#ede5dc] dark:border-[#2a221c] hover:bg-stone-50 dark:hover:bg-[#201814] text-stone-700 dark:text-[#d5cbc3] bg-white/70 dark:bg-[#1a1411] cursor-pointer light:border-cafe-line light:hover:bg-cafe-page light:text-cafe-ink light:bg-cafe-surface/70 "
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => handleToggleTopping(topping)}
-                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300 dark:border-stone-600 accent-amber-600 cursor-pointer light:text-cafe-primary light:focus:ring-cafe-primary light:border-cafe-line light:accent-cafe-primary "
+                          disabled={isToppingPaused}
+                          onChange={() => !isToppingPaused && handleToggleTopping(topping)}
+                          className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300 dark:border-stone-600 accent-amber-600 cursor-pointer disabled:cursor-not-allowed light:text-cafe-primary light:focus:ring-cafe-primary light:border-cafe-line light:accent-cafe-primary "
                         />
-                        <span className="text-sm">{topping.name}</span>
+                        <span className="text-sm">
+                          {topping.name}
+                          {isToppingPaused && (
+                            <span className="ml-1.5 text-xs text-rose-500 dark:text-rose-400 font-semibold">
+                              (Tạm dừng NL)
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <span className="text-xs text-stone-500 dark:text-[#9e8f83] font-mono light:text-cafe-muted ">
                         +{topping.price.toLocaleString("vi-VN")}₫
@@ -310,7 +364,7 @@ function ProductSelection({
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={isAdded || !isHydrated || available < quantity || product.sizes.length === 0}
+            disabled={isAdded || !isHydrated || available < quantity || product.sizes.length === 0 || isSelectedSizePaused}
             className={`flex-1 min-w-[170px] h-12 px-3 rounded-2xl font-bold text-sm text-white shadow-lg transition-all flex items-center justify-between cursor-pointer active:scale-95  light:shadow-cafe-card ${
               isAdded
                 ? "bg-emerald-600 shadow-emerald-600/20"

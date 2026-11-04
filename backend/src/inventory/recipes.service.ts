@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -26,11 +27,31 @@ export class RecipesService {
     return row;
   }
   async create(dto: CreateIngredientDto) {
+    const code = dto.code ?? (await this.generateUniqueCode(dto.name));
     try {
-      return await this.prisma.ingredient.create({ data: dto });
+      return await this.prisma.ingredient.create({
+        data: { code, name: dto.name, unit: dto.unit },
+      });
     } catch (error) {
       this.rethrow(error);
     }
+  }
+  private async generateUniqueCode(name: string): Promise<string> {
+    const slug = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+    const base = slug || 'ING';
+    const existing = await this.prisma.ingredient.findUnique({
+      where: { code: base },
+      select: { id: true },
+    });
+    if (!existing) return base;
+    return `${base}_${randomBytes(3).toString('hex').toUpperCase()}`;
   }
   async update(id: number, dto: UpdateIngredientDto) {
     try {

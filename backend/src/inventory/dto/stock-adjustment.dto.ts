@@ -20,23 +20,30 @@ export class StockAdjustmentDto {
   @ApiProperty() @IsInt() @Min(1) @Max(2147483647) ingredientId: number;
   @ApiProperty({
     example: '100.000',
-    description: 'RECEIPT: lượng tăng; ADJUSTMENT: delta có dấu.',
+    description:
+      'RECEIPT: lượng tăng (> 0); ADJUSTMENT: lượng hao hụt (> 0 hoặc delta âm).',
   })
   @IsString()
   @Matches(/^-?\d{1,15}(\.\d{1,3})?$/)
   quantity: string;
-  @ApiProperty({ example: 'Kiểm kê ca sáng' })
+  @ApiPropertyOptional({
+    example: 'Kiểm kê ca sáng',
+    description:
+      'Tùy chọn khi nhập kho (RECEIPT), bắt buộc khi ghi nhận hao hụt (ADJUSTMENT).',
+  })
+  @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @Matches(/\S/)
   @MaxLength(500)
-  reason: string;
+  reason?: string;
 }
 export const MOVEMENT_KINDS = [
   'RECEIPT',
   'ADJUSTMENT',
+  'ADJUSTMENT_POSITIVE',
+  'ADJUSTMENT_NEGATIVE',
   'HOLD',
   'RELEASE',
   'CONSUME',
@@ -53,6 +60,14 @@ export class MovementQueryDto {
   @IsOptional()
   @IsIn(MOVEMENT_KINDS)
   kind?: (typeof MOVEMENT_KINDS)[number];
+  @ApiPropertyOptional({ description: 'Từ ngày (ISO / YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+  @ApiPropertyOptional({ description: 'Đến ngày (ISO / YYYY-MM-DD)' })
+  @IsOptional()
+  @IsString()
+  to?: string;
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
