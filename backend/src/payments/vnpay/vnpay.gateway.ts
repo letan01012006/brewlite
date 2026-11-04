@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { formatVnpayDate, signParams, sortObject, verifySecureHash } from './vnpay.util';
+import {
+  formatVnpayDate,
+  signParams,
+  sortObject,
+  verifySecureHash,
+} from './vnpay.util.js';
 
 export interface CreateVnpayUrlParams {
   txnRef: string;

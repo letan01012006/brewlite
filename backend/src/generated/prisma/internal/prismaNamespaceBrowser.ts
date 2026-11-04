@@ -62,7 +62,9 @@ export const ModelName = {
   ProductRecipeIngredient: 'ProductRecipeIngredient',
   InventoryReservation: 'InventoryReservation',
   InventoryReservationItem: 'InventoryReservationItem',
-  InventoryMovement: 'InventoryMovement'
+  InventoryMovement: 'InventoryMovement',
+  PaymentRefund: 'PaymentRefund',
+  PaymentWebhookLog: 'PaymentWebhookLog'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -161,8 +163,17 @@ export const PaymentScalarFieldEnum = {
   idempotencyKey: 'idempotencyKey',
   requestHash: 'requestHash',
   amount: 'amount',
+  pointsUsed: 'pointsUsed',
+  pointsAmount: 'pointsAmount',
   method: 'method',
   status: 'status',
+  gatewayTxnRef: 'gatewayTxnRef',
+  gatewayTransactionNo: 'gatewayTransactionNo',
+  gatewayBankCode: 'gatewayBankCode',
+  gatewayResponseCode: 'gatewayResponseCode',
+  gatewayPayDate: 'gatewayPayDate',
+  expiresAt: 'expiresAt',
+  ipnProcessedAt: 'ipnProcessedAt',
   providerRef: 'providerRef',
   failureReason: 'failureReason',
   responseSnapshot: 'responseSnapshot',
@@ -197,7 +208,11 @@ export const LoyaltyTransactionScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   orderId: 'orderId',
+  paymentId: 'paymentId',
+  relatedTransactionId: 'relatedTransactionId',
+  type: 'type',
   points: 'points',
+  pointsAmount: 'pointsAmount',
   reversedAt: 'reversedAt',
   createdAt: 'createdAt'
 } as const
@@ -289,6 +304,39 @@ export const InventoryMovementScalarFieldEnum = {
 } as const
 
 export type InventoryMovementScalarFieldEnum = (typeof InventoryMovementScalarFieldEnum)[keyof typeof InventoryMovementScalarFieldEnum]
+
+
+export const PaymentRefundScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  amount: 'amount',
+  status: 'status',
+  gatewayRefundNo: 'gatewayRefundNo',
+  gatewayResponseCode: 'gatewayResponseCode',
+  failureReason: 'failureReason',
+  confirmedAt: 'confirmedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PaymentRefundScalarFieldEnum = (typeof PaymentRefundScalarFieldEnum)[keyof typeof PaymentRefundScalarFieldEnum]
+
+
+export const PaymentWebhookLogScalarFieldEnum = {
+  id: 'id',
+  paymentId: 'paymentId',
+  gatewayTxnRef: 'gatewayTxnRef',
+  gatewayTransactionNo: 'gatewayTransactionNo',
+  amount: 'amount',
+  responseCode: 'responseCode',
+  signatureValid: 'signatureValid',
+  processed: 'processed',
+  message: 'message',
+  rawPayload: 'rawPayload',
+  createdAt: 'createdAt'
+} as const
+
+export type PaymentWebhookLogScalarFieldEnum = (typeof PaymentWebhookLogScalarFieldEnum)[keyof typeof PaymentWebhookLogScalarFieldEnum]
 
 
 export const SortOrder = {

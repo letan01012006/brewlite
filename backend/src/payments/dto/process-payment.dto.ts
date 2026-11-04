@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-export const PAYMENT_METHODS = ['WALLET', 'CARD'] as const;
+export const PAYMENT_METHODS = ['WALLET', 'CARD', 'VNPAY', 'POINTS'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export class ProcessPaymentDto {
@@ -16,9 +16,19 @@ export class ProcessPaymentDto {
     example: 'WALLET',
   })
   @IsIn(PAYMENT_METHODS, {
-    message: 'Phương thức thanh toán chỉ chấp nhận: WALLET (Ví điện tử) hoặc CARD (Thẻ ngân hàng)',
+    message:
+      'Phương thức thanh toán chỉ chấp nhận: WALLET, CARD, VNPAY hoặc POINTS',
   })
   method: PaymentMethod;
+
+  @ApiPropertyOptional({
+    description: 'Số điểm thưởng sử dụng để giảm giá đơn hàng (bội số của 20)',
+    example: 100,
+  })
+  @IsInt({ message: 'Số điểm sử dụng phải là số nguyên' })
+  @Min(0, { message: 'Số điểm sử dụng không được âm' })
+  @IsOptional()
+  pointsUsed?: number;
 
   @ApiPropertyOptional({
     description: 'Idempotency-Key (nếu không truyền qua Header Idempotency-Key)',
@@ -29,7 +39,8 @@ export class ProcessPaymentDto {
   idempotencyKey?: string;
 
   @ApiPropertyOptional({
-    description: 'Mô phỏng kết quả thanh toán cho việc demo/test (SUCCESS hoặc FAILED)',
+    description:
+      'Mô phỏng kết quả thanh toán cho việc demo/test (SUCCESS hoặc FAILED)',
     enum: ['SUCCESS', 'FAILED'],
     example: 'SUCCESS',
   })

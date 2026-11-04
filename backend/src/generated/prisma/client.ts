@@ -114,3 +114,13 @@ export type InventoryReservationItem = Prisma.InventoryReservationItemModel
  * 
  */
 export type InventoryMovement = Prisma.InventoryMovementModel
+/**
+ * Model PaymentRefund
+ * 
+ */
+export type PaymentRefund = Prisma.PaymentRefundModel
+/**
+ * Model PaymentWebhookLog
+ * 
+ */
+export type PaymentWebhookLog = Prisma.PaymentWebhookLogModel
