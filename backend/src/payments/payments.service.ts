@@ -24,6 +24,7 @@ import {
 import { lockOrder } from '../orders/order-lock.js';
 import {
   calculatePointsDiscount,
+  pointsEarnedFor,
 } from '../promotions/voucher-rules.js';
 
 type OwnedPayment = Prisma.PaymentGetPayload<{
@@ -121,7 +122,8 @@ export class PaymentsService {
           if (requestedPoints % 20 !== 0) {
             throw new BadRequestException({
               code: 'INVALID_POINTS_STEP',
-              message: 'Số điểm sử dụng phải là bội số của 20 (20 điểm = 1.000đ)',
+              message:
+                'Số điểm sử dụng phải là bội số của 20 (20 điểm = 1.000đ)',
             });
           }
 
@@ -138,7 +140,11 @@ export class PaymentsService {
             });
           }
 
-          if (dto.method === 'VNPAY' && realVndAmount > 0 && realVndAmount < 5000) {
+          if (
+            dto.method === 'VNPAY' &&
+            realVndAmount > 0 &&
+            realVndAmount < 5000
+          ) {
             throw new BadRequestException({
               code: 'VNPAY_MIN_AMOUNT_INVALID',
               message:
@@ -233,7 +239,10 @@ export class PaymentsService {
     const { order, payment, validPoints, discountVnd, realVndAmount } = claim;
 
     // NHÁNH 1: Thanh toán 100% bằng điểm thưởng (POINTS) hoặc VNPAY nhưng điểm đã trả hết 100%
-    if (dto.method === 'POINTS' || (dto.method === 'VNPAY' && realVndAmount === 0)) {
+    if (
+      dto.method === 'POINTS' ||
+      (dto.method === 'VNPAY' && realVndAmount === 0)
+    ) {
       const response: Prisma.JsonObject = {
         payment: {
           id: payment.id,
@@ -270,13 +279,18 @@ export class PaymentsService {
         });
       });
 
-      return { isReplayed: false, statusCode: HttpStatus.CREATED, data: response };
+      return {
+        isReplayed: false,
+        statusCode: HttpStatus.CREATED,
+        data: response,
+      };
     }
 
     // NHÁNH 2: Thanh toán qua cổng VNPAY Sandbox (bất đồng bộ, đợi IPN)
     if (dto.method === 'VNPAY') {
       const gatewayTxnRef = `${order.id}_${payment.id}_${Date.now()}`;
-      const expiresAt = payment.expiresAt ?? new Date(Date.now() + VNPAY_EXPIRE_MS);
+      const expiresAt =
+        payment.expiresAt ?? new Date(Date.now() + VNPAY_EXPIRE_MS);
       const paymentUrl = this.vnpayGateway.createPaymentUrl({
         txnRef: gatewayTxnRef,
         amount: realVndAmount,
@@ -315,7 +329,11 @@ export class PaymentsService {
         },
       });
 
-      return { isReplayed: false, statusCode: HttpStatus.CREATED, data: response };
+      return {
+        isReplayed: false,
+        statusCode: HttpStatus.CREATED,
+        data: response,
+      };
     }
 
     // NHÁNH 3: Thanh toán Mock (WALLET / CARD) giữ nguyên cho Test & tương thích cũ
@@ -333,6 +351,7 @@ export class PaymentsService {
       };
     }
 
+    const points = pointsEarnedFor(realVndAmount);
     const statusCode = chargeResult.success
       ? HttpStatus.CREATED
       : HttpStatus.PAYMENT_REQUIRED;
@@ -353,7 +372,7 @@ export class PaymentsService {
             code: `#${order.id}`,
             status: 'PAID',
             total: order.total,
-            pointsEarned: order.pointsEarned,
+            pointsEarned: points,
           },
         }
       : {
@@ -385,8 +404,26 @@ export class PaymentsService {
         where: { id: order.id },
         data: {
           status: chargeResult.success ? 'PAID' : 'PAYMENT_FAILED',
+          ...(chargeResult.success ? { pointsEarned: points } : {}),
         },
       });
+
+      if (chargeResult.success && points > 0) {
+        await tx.user.update({
+          where: { id: userId },
+          data: { loyaltyPoints: { increment: points } },
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId,
+            orderId: order.id,
+            paymentId: payment.id,
+            type: 'EARN',
+            points,
+            pointsAmount: 0,
+          },
+        });
+      }
 
       // Nếu thanh toán thất bại mà có giữ điểm thì hoàn trả điểm ngay
       if (!chargeResult.success && validPoints > 0) {

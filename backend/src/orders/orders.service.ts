@@ -12,6 +12,7 @@ import {
   PricingService,
   type PricingItemInput,
 } from '../common/pricing/pricing.service.js';
+import { pointsEarnedFor } from '../promotions/voucher-rules.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { assertTransition } from './order-state.js';
@@ -438,11 +439,11 @@ export class OrdersService {
   }
 
   /**
-   * Hủy đơn hàng và xử lý hoàn trả toàn diện (Task 10 - Mục 6.11)
+   * Hủy đơn hàng và xử lý hoàn trả toàn diện (Task 10 - Mục 6.11 + VNPAY & Điểm thưởng)
    * POST /api/orders/:id/cancel
    * - Hoàn lại kho cho từng sản phẩm
    * - Hoàn lại lượt dùng mã giảm giá
-   * - Nếu đã thanh toán: hoàn tiền mock và thu hồi điểm thưởng
+   * - Nếu đã thanh toán: hoàn điểm đã dùng, thu hồi điểm (nếu có) và xử lý hoàn tiền
    */
   async cancelOrder(orderId: number, userId: number, role: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -452,7 +453,7 @@ export class OrdersService {
         include: {
           items: true,
           payments: true,
-          loyaltyTransaction: true,
+          loyaltyTransactions: true,
         },
       });
 
@@ -471,11 +472,11 @@ export class OrdersService {
         });
       }
 
-      // Nếu đơn đang có giao dịch thanh toán PROCESSING thì không được hủy
-      const processingPayment = order.payments.find(
+      // Không cho phép hủy nếu đang có giao dịch PROCESSING chưa hết hạn
+      const hasProcessingPayment = order.payments.some(
         (p) => p.status === 'PROCESSING',
       );
-      if (processingPayment) {
+      if (hasProcessingPayment) {
         throw new ConflictException({
           code: 'PAYMENT_IN_PROGRESS',
           message:
@@ -516,10 +517,48 @@ export class OrdersService {
         });
       }
 
-      // 3. Nếu đơn đã PAID: Thu hồi điểm thưởng và ghi nhận hoàn tiền mock
+      // 3. Nếu đơn đã PAID: Xử lý hoàn điểm, thu hồi điểm (dữ liệu cũ/mock) và hoàn tiền
       if (order.status === 'PAID') {
-        // Thu hồi điểm thưởng
-        if (order.pointsEarned > 0) {
+        const successfulPayment = order.payments.find(
+          (p) => p.status === 'SUCCESS',
+        );
+
+        // 3a. Nếu khách có dùng điểm để thanh toán (pointsUsed > 0), hoàn trả lại điểm đúng 1 lần
+        if (successfulPayment && successfulPayment.pointsUsed > 0) {
+          const alreadyRefundedPoints = order.loyaltyTransactions.some(
+            (lt) =>
+              lt.paymentId === successfulPayment.id && lt.type === 'REFUND',
+          );
+          if (!alreadyRefundedPoints) {
+            const redeemTx = order.loyaltyTransactions.find(
+              (lt) =>
+                lt.paymentId === successfulPayment.id && lt.type === 'REDEEM',
+            );
+            await tx.user.update({
+              where: { id: order.userId },
+              data: {
+                loyaltyPoints: { increment: successfulPayment.pointsUsed },
+              },
+            });
+            await tx.loyaltyTransaction.create({
+              data: {
+                userId: order.userId,
+                orderId: order.id,
+                paymentId: successfulPayment.id,
+                relatedTransactionId: redeemTx?.id ?? null,
+                type: 'REFUND',
+                points: successfulPayment.pointsUsed,
+                pointsAmount: successfulPayment.pointsAmount,
+              },
+            });
+          }
+        }
+
+        // 3b. Nếu đơn đã được cộng điểm sớm (luồng Mock hoặc đơn cũ trước khi đổi luật COMPLETED)
+        const earnTx = order.loyaltyTransactions.find(
+          (lt) => lt.type === 'EARN' && lt.reversedAt === null,
+        );
+        if (earnTx && order.pointsEarned > 0) {
           await tx.user.update({
             where: { id: order.userId },
             data: {
@@ -527,30 +566,47 @@ export class OrdersService {
             },
           });
 
-          if (order.loyaltyTransaction) {
-            await tx.loyaltyTransaction.update({
-              where: { id: order.loyaltyTransaction.id },
+          await tx.loyaltyTransaction.update({
+            where: { id: earnTx.id },
+            data: {
+              reversedAt: new Date(),
+            },
+          });
+        }
+
+        // 3c. Xử lý hoàn tiền
+        if (successfulPayment && successfulPayment.amount > 0) {
+          if (successfulPayment.method === 'VNPAY') {
+            // Với VNPAY: tạo yêu cầu hoàn tiền ở trạng thái PROCESSING, chỉ báo đã hoàn khi cổng xác nhận
+            await tx.paymentRefund.create({
               data: {
-                reversedAt: new Date(),
+                paymentId: successfulPayment.id,
+                amount: successfulPayment.amount,
+                status: 'PROCESSING',
+              },
+            });
+          } else {
+            // Với WALLET / CARD (Mock): hoàn tiền đồng bộ ngay
+            const refundRef = `REFUND-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
+            const now = new Date();
+            await tx.payment.update({
+              where: { id: successfulPayment.id },
+              data: {
+                refundedAt: now,
+                refundedAmount: successfulPayment.amount,
+                refundRef,
+              },
+            });
+            await tx.paymentRefund.create({
+              data: {
+                paymentId: successfulPayment.id,
+                amount: successfulPayment.amount,
+                status: 'SUCCESS',
+                gatewayRefundNo: refundRef,
+                confirmedAt: now,
               },
             });
           }
-        }
-
-        // Ghi nhận hoàn tiền mock trên giao dịch thành công
-        const successfulPayment = order.payments.find(
-          (p) => p.status === 'SUCCESS',
-        );
-        if (successfulPayment) {
-          const refundRef = `REFUND-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
-          await tx.payment.update({
-            where: { id: successfulPayment.id },
-            data: {
-              refundedAt: new Date(),
-              refundedAmount: successfulPayment.amount,
-              refundRef,
-            },
-          });
         }
       }
 
@@ -576,12 +632,17 @@ export class OrdersService {
    * Barista cập nhật trạng thái chế biến đơn hàng (Task 10 - Mục 6.13)
    * PATCH /api/orders/:id/status
    * Chỉ cho phép đổi sang: PREPARING -> READY -> COMPLETED
+   * Khi chuyển sang COMPLETED: tích điểm thưởng trên phần tiền thật đã trả (đúng 1 lần).
    */
   async updateStatus(orderId: number, newStatus: BaristaAllowedStatus) {
     return this.prisma.$transaction(async (tx) => {
       await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
         where: { id: orderId },
+        include: {
+          payments: true,
+          loyaltyTransactions: true,
+        },
       });
 
       if (!order) {
@@ -594,10 +655,51 @@ export class OrdersService {
       // Kiểm tra State Machine xem có nhảy cóc sai trạng thái không
       assertTransition(order.status as OrderStatus, newStatus);
 
+      let pointsEarned = order.pointsEarned;
+
+      // Khi đơn chuyển sang COMPLETED: Tích điểm trên phần tiền thật đã trả (nếu chưa được tích trước đó)
+      if (newStatus === 'COMPLETED') {
+        const alreadyEarned = order.loyaltyTransactions.some(
+          (lt) => lt.type === 'EARN',
+        );
+        if (!alreadyEarned) {
+          const successfulPayment = order.payments.find(
+            (p) => p.status === 'SUCCESS',
+          );
+          const realPaidAmount = successfulPayment
+            ? successfulPayment.amount
+            : 0;
+          const calculatedPoints = pointsEarnedFor(realPaidAmount);
+
+          if (calculatedPoints > 0) {
+            pointsEarned = calculatedPoints;
+            await tx.user.update({
+              where: { id: order.userId },
+              data: {
+                loyaltyPoints: { increment: calculatedPoints },
+              },
+            });
+            await tx.loyaltyTransaction.create({
+              data: {
+                userId: order.userId,
+                orderId: order.id,
+                paymentId: successfulPayment?.id ?? null,
+                type: 'EARN',
+                points: calculatedPoints,
+                pointsAmount: 0,
+              },
+            });
+          } else {
+            pointsEarned = 0;
+          }
+        }
+      }
+
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           status: newStatus,
+          pointsEarned,
         },
       });
 
@@ -605,6 +707,7 @@ export class OrdersService {
         id: updatedOrder.id,
         code: `#${updatedOrder.id}`,
         status: updatedOrder.status,
+        pointsEarned: updatedOrder.pointsEarned,
         updatedAt: updatedOrder.updatedAt,
       };
     });

@@ -474,7 +474,7 @@ describe.skipIf(!databaseUrl)(
           .loyaltyPoints,
       ).toBe(500);
       expect(
-        (await db.loyaltyTransaction.findUniqueOrThrow({ where: { orderId } }))
+        (await db.loyaltyTransaction.findFirstOrThrow({ where: { orderId } }))
           .reversedAt,
       ).not.toBeNull();
       const payment = await db.payment.findFirstOrThrow({ where: { orderId } });
