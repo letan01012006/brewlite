@@ -69,8 +69,13 @@ export interface OrderItem {
   note?: string | null;
 }
 
-export type PaymentMethod = "WALLET" | "CARD";
-export type PaymentStatus = "PROCESSING" | "SUCCESS" | "FAILED";
+export type PaymentMethod = "WALLET" | "CARD" | "VNPAY" | "POINTS";
+export type PaymentStatus =
+  | "PROCESSING"
+  | "SUCCESS"
+  | "FAILED"
+  | "EXPIRED"
+  | "CANCELLED";
 
 export interface Payment {
   id: number;
@@ -81,6 +86,12 @@ export interface Payment {
   providerRef?: string | null;
   failureReason?: string | null;
   refundedAt?: string | null;
+  pointsUsed?: number;
+  pointsAmount?: number;
+  gatewayTxnRef?: string | null;
+  refundedAmount?: number;
+  paymentUrl?: string | null;
+  expiresAt?: string | null;
   createdAt: string;
 }
 

@@ -81,17 +81,20 @@ function OrdersContent() {
       listRequest.current?.abort();
     };
   }, [fetchMyOrders]);
+
   useEffect(
     () => () => {
       detailRequest.current?.abort();
     },
     [],
   );
+
   const closeDetail = () => {
     detailRequest.current?.abort();
     setSelectedOrder(null);
     setIsLoadingDetail(false);
   };
+
   const changePage = (next: number) => {
     setOrders([]);
     setIsLoading(true);
@@ -155,6 +158,21 @@ function OrdersContent() {
     }
   };
 
+  // Lưu phiên chuẩn bị thanh toán lại trước khi chuyển hướng
+  const prepareRetryCheckout = (targetOrder: Order) => {
+    if (!user) return;
+    if (typeof window !== "undefined") {
+      window.sessionStorage?.setItem(
+        `brewlite_checkout_v1_${user.id}`,
+        JSON.stringify({
+          cartKey: `recovery_${targetOrder.id}`,
+          phase: "ready",
+          order: targetOrder,
+        }),
+      );
+    }
+  };
+
   return (
     <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb & Header */}
@@ -211,6 +229,7 @@ function OrdersContent() {
           Đang tải chi tiết đơn hàng...
         </p>
       )}
+
       {/* Loading state */}
       {isLoading && (
         <div className="space-y-3">
@@ -247,8 +266,7 @@ function OrdersContent() {
             Bạn chưa có đơn hàng nào
           </h3>
           <p className="text-xs text-stone-500 dark:text-[#a39589] light:text-cafe-muted ">
-            Hãy chọn những ly cà phê hoặc thức uống tươi ngon ngay trên menu
-            nhé!
+            Hãy chọn những ly cà phê hoặc thức uống tươi ngon ngay trên menu nhé!
           </p>
           <Link
             href="/menu"
@@ -417,42 +435,77 @@ function OrdersContent() {
                     Lịch sử giao dịch thanh toán
                   </h3>
                   <div className="space-y-1.5 text-[11px]">
-                    {selectedOrder.payments.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center light:bg-cafe-page light:border-cafe-line "
-                      >
-                        <div>
-                          <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                            {p.method === "WALLET"
+                    {selectedOrder.payments.map((p) => {
+                      const methodLabel =
+                        p.method === "VNPAY"
+                          ? "Cổng VNPAY Sandbox"
+                          : p.method === "POINTS"
+                            ? "Điểm thưởng BrewLite"
+                            : p.method === "WALLET"
                               ? "Ví điện tử"
-                              : "Thẻ ngân hàng"}
-                          </span>
-                          <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
-                            {p.providerRef || `GD #${p.id}`}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`font-bold block ${p.status === "SUCCESS" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
-                          >
-                            {p.status}
-                          </span>
-                          {p.refundedAt && (
-                            <span className="text-rose-500 font-semibold block text-[10px]">
-                              Đã hoàn tiền
+                              : "Thẻ ngân hàng";
+
+                      return (
+                        <div
+                          key={p.id}
+                          className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center light:bg-cafe-page light:border-cafe-line "
+                        >
+                          <div>
+                            <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
+                              {methodLabel}
                             </span>
-                          )}
+                            <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
+                              {p.providerRef || p.gatewayTxnRef || `GD #${p.id}`}
+                            </span>
+                            {p.pointsUsed && p.pointsUsed > 0 ? (
+                              <span className="block text-amber-700 dark:text-amber-400 text-[10px]">
+                                Đã dùng {p.pointsUsed} điểm (-{p.pointsAmount?.toLocaleString("vi-VN")}₫)
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="text-right">
+                            <span
+                              className={`font-bold block ${
+                                p.status === "SUCCESS"
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : p.status === "PROCESSING"
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-rose-600 dark:text-rose-400"
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                            {p.refundedAt ? (
+                              <span className="text-emerald-600 font-semibold block text-[10px]">
+                                Đã hoàn tiền
+                              </span>
+                            ) : selectedOrder.status === "CANCELLED" && p.status === "SUCCESS" ? (
+                              <span className="text-amber-600 font-semibold block text-[10px]">
+                                Đang xử lý hoàn tiền
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Modal Footer: Nút Hủy đơn (chỉ cho phép nếu trạng thái PENDING, PAYMENT_FAILED, hoặc PAID) */}
-            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex justify-between gap-3 light:bg-cafe-page light:border-cafe-line ">
+            {/* Modal Footer: Nút Hủy đơn hoặc Thanh toán lại */}
+            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3 light:bg-cafe-page light:border-cafe-line ">
+              {["PENDING", "PAYMENT_FAILED"].includes(selectedOrder.status) && (
+                <Link
+                  href="/checkout"
+                  onClick={() => prepareRetryCheckout(selectedOrder)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>💳</span>
+                  <span>Thanh toán lại</span>
+                </Link>
+              )}
+
               {["PENDING", "PAYMENT_FAILED", "PAID"].includes(
                 selectedOrder.status,
               ) ? (

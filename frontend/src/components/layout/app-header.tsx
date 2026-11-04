@@ -56,31 +56,28 @@ export function AppHeader() {
         <nav aria-label="Điều hướng chính" className="row-start-2 col-span-2 flex items-center gap-4 lg:gap-8 text-sm font-semibold md:ml-4 md:mr-auto self-stretch md:self-auto">
           <Link
             href="/"
-            className={`transition-colors py-1 ${
-              pathname === '/'
+            className={`transition-colors py-1 ${pathname === '/'
                 ? 'text-amber-400 font-extrabold border-b-2 border-amber-400 light:text-cafe-primary light:border-cafe-primary '
                 : 'text-stone-300 hover:text-white light:text-cafe-muted light:hover:text-cafe-primary '
-            }`}
+              }`}
           >
             Trang chủ
           </Link>
           <Link
             href="/menu"
-            className={`transition-colors py-1 ${
-              pathname.startsWith('/menu')
+            className={`transition-colors py-1 ${pathname.startsWith('/menu')
                 ? 'text-amber-400 font-extrabold border-b-2 border-amber-400 light:text-cafe-primary light:border-cafe-primary '
                 : 'text-stone-300 hover:text-white light:text-cafe-muted light:hover:text-cafe-primary '
-            }`}
+              }`}
           >
             Thực đơn
           </Link>
           <Link
             href="/orders"
-            className={`transition-colors py-1 ${
-              pathname.startsWith('/orders')
+            className={`transition-colors py-1 ${pathname.startsWith('/orders')
                 ? 'text-amber-400 font-extrabold border-b-2 border-amber-400 light:text-cafe-primary light:border-cafe-primary '
                 : 'text-stone-300 hover:text-white light:text-cafe-muted light:hover:text-cafe-primary '
-            }`}
+              }`}
           >
             Đơn hàng
           </Link>
@@ -94,7 +91,7 @@ export function AppHeader() {
                 {firstName ? `Chào, ${firstName}` : 'Thành viên'}
               </span>
               <span className="text-amber-400 font-bold shrink-0 light:text-cafe-primary">
-                ⭐ {user.loyaltyPoints ?? 0}đ
+                ⭐ {user.loyaltyPoints ?? 0} điểm
               </span>
             </div>
           ) : (

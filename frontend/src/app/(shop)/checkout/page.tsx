@@ -42,8 +42,9 @@ function CheckoutContent() {
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("WALLET");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("VNPAY");
   const [mockResult, setMockResult] = useState<"SUCCESS" | "FAILED">("SUCCESS");
+  const [pointsToUse, setPointsToUse] = useState<number>(0);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -55,10 +56,35 @@ function CheckoutContent() {
   const busy = useRef(false);
   const order = session?.order;
   const subtotal = order?.subtotal ?? getSubtotal();
-  const total = order?.total ?? getTotal();
+  const orderTotal = order?.total ?? getTotal();
   const discountAmount = order?.discountAmount ?? cartDiscount;
   const promoCode = order ? order.promoCode : cartPromoCode;
-  const pointsEarned = successOrder?.pointsEarned ?? Math.floor(total / 1000);
+
+  // Tính toán quy đổi điểm: 20 điểm = 1.000đ
+  const userLoyaltyPoints = user?.loyaltyPoints ?? 0;
+  const maxPointsNeededForTotal = Math.ceil(orderTotal / 1000) * 20;
+  const maxUsablePoints = Math.min(
+    Math.floor(userLoyaltyPoints / 20) * 20,
+    maxPointsNeededForTotal,
+  );
+  const effectivePointsToUse = Math.min(pointsToUse, maxUsablePoints);
+  const discountFromPoints = Math.floor(effectivePointsToUse / 20) * 1000;
+  const realAmount = Math.max(0, orderTotal - discountFromPoints);
+
+  // Ngưỡng tối thiểu VNPAY là 5.000đ nếu còn phần tiền
+  const isVnpayThresholdWarning =
+    paymentMethod === "VNPAY" && realAmount > 0 && realAmount < 5000;
+  const safeMaxPointsForVnpay = Math.max(
+    0,
+    Math.floor((orderTotal - 5000) / 1000) * 20,
+  );
+  const canPay100PercentWithPoints =
+    userLoyaltyPoints >= maxPointsNeededForTotal;
+
+  // Điểm tích lũy dự kiến (chỉ tính trên tiền mặt/thật thực trả: 1.000đ = 1 điểm)
+  const pointsEarned =
+    successOrder?.pointsEarned ?? Math.floor(realAmount / 1000);
+
   const displayItems = order
     ? order.items.map((item) => ({
         id: String(item.id),
@@ -84,7 +110,10 @@ function CheckoutContent() {
         if (restored?.paidMethod) setPaymentMethod(restored.paidMethod);
         else if (restored?.attempt) {
           setPaymentMethod(restored.attempt.method);
-          setMockResult(restored.attempt.mockResult);
+          if (restored.attempt.mockResult)
+            setMockResult(restored.attempt.mockResult);
+          if (restored.attempt.pointsUsed)
+            setPointsToUse(restored.attempt.pointsUsed);
         }
       } catch {
         setErrorMsg(
@@ -102,7 +131,7 @@ function CheckoutContent() {
     initAuth();
   }, [initAuth]);
 
-  // Kiểm tra nếu chưa đăng nhập hoặc giỏ hàng trống
+  // Kiểm tra nếu chưa đăng nhập
   useEffect(() => {
     if (!token && typeof window !== "undefined") {
       const stored = localStorage.getItem("brewlite_token");
@@ -117,6 +146,15 @@ function CheckoutContent() {
 
   // Nếu đã đặt hàng thành công, hiển thị màn hình chúc mừng
   if (successOrder) {
+    const methodLabel =
+      paymentMethod === "VNPAY"
+        ? "Cổng VNPay Sandbox"
+        : paymentMethod === "POINTS"
+          ? "Điểm thưởng BrewLite"
+          : paymentMethod === "WALLET"
+            ? "Ví điện tử"
+            : "Thẻ ngân hàng";
+
     return (
       <div className="max-w-xl mx-auto px-4 py-12 text-center animate-fadeIn">
         <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/80 dark:border-stone-800 p-8 sm:p-12 shadow-xl space-y-6 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
@@ -147,13 +185,21 @@ function CheckoutContent() {
             <div className="flex justify-between">
               <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Phương thức:</span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "WALLET" ? "Ví điện tử" : "Thẻ ngân hàng"}
+                {methodLabel}
               </span>
             </div>
+            {effectivePointsToUse > 0 && (
+              <div className="flex justify-between text-amber-700 dark:text-amber-400">
+                <span>Điểm thưởng đã dùng:</span>
+                <span className="font-semibold font-mono">
+                  {effectivePointsToUse} điểm (-{discountFromPoints.toLocaleString("vi-VN")}₫)
+                </span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Tổng thanh toán:</span>
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Tiền thanh toán:</span>
               <span className="font-extrabold text-amber-900 dark:text-amber-400 font-mono text-sm light:text-cafe-primary ">
-                {successOrder.total.toLocaleString("vi-VN")}₫
+                {realAmount.toLocaleString("vi-VN")}₫
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
@@ -248,7 +294,7 @@ function CheckoutContent() {
             `${refreshed.notice || 'Thành phần giỏ hàng đã thay đổi.'} Hãy kiểm tra các món và bấm thanh toán lần nữa để xác nhận.`,
           );
         }
-        if (refreshed.getTotal() !== total)
+        if (refreshed.getTotal() !== orderTotal)
           throw new Error(
             "Giá hoặc khuyến mãi đã thay đổi. Vui lòng kiểm tra tổng tiền và xác nhận lại.",
           );
@@ -265,20 +311,40 @@ function CheckoutContent() {
       setSession(prepared);
       // Creation fixes the server price. Never charge an amount the customer has
       // not seen: a changed total requires a second explicit confirmation.
-      if (prepared.order!.total !== total) {
+      if (prepared.order!.total !== orderTotal) {
         setErrorMsg(
           `Tổng tiền được cập nhật thành ${prepared.order!.total.toLocaleString("vi-VN")}₫. Vui lòng kiểm tra và xác nhận lại, hoặc hủy đơn để sửa giỏ hàng.`,
         );
         return;
       }
       if (useAuthStore.getState().token !== token) return;
-      const paid = await flow.pay(user.id, paymentMethod, mockResult);
+
+      const effectiveMethod: PaymentMethod =
+        realAmount === 0 ? "POINTS" : paymentMethod;
+
+      const paid = await flow.pay(
+        user.id,
+        effectiveMethod,
+        mockResult,
+        effectivePointsToUse,
+      );
+
+      // Nếu là luồng VNPAY và trả về paymentUrl
+      if (paid.paymentUrl) {
+        const latest = useCartStore.getState();
+        if (cartKey(latest.items, latest.promoCode) === paid.cartKey) {
+          clearCart();
+        }
+        window.location.href = paid.paymentUrl;
+        return;
+      }
+
       if (paid.order && useAuthStore.getState().token === token) {
         const latest = useCartStore.getState();
         if (cartKey(latest.items, latest.promoCode) === paid.cartKey)
           clearCart();
         setSuccessOrder(paid.order);
-        setPaymentMethod(paid.paidMethod ?? paymentMethod);
+        setPaymentMethod(paid.paidMethod ?? effectiveMethod);
         // The receipt stays in component state; a later visit can start a new
         // purchase even when the customer leaves through the website header.
         flow.clear(user.id);
@@ -296,6 +362,13 @@ function CheckoutContent() {
       await checkoutFlow(token!).cancel(user.id);
       await useAuthStore.getState().refreshUser();
     });
+  };
+
+  const handleRetryPayment = () => {
+    if (!user) return;
+    checkoutFlow().resetAttempt(user.id);
+    setSession(checkoutFlow().read(user.id));
+    setErrorMsg(null);
   };
 
   return (
@@ -322,7 +395,7 @@ function CheckoutContent() {
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* CỘT TRÁI (7 cols): Chọn Phương Thức Thanh Toán */}
+        {/* CỘT TRÁI (7 cols): Chọn Phương Thức Thanh Toán & Điểm Thưởng */}
         <div className="lg:col-span-7 space-y-4">
           {/* 1. Thông tin khách hàng */}
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
@@ -348,7 +421,129 @@ function CheckoutContent() {
             </div>
           </div>
 
-          {/* 2. Phương thức thanh toán không tiền mặt */}
+          {/* 2. Dùng Điểm Thưởng BrewLite */}
+          {user && userLoyaltyPoints > 0 && (
+            <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
+                  <span>⭐</span>
+                  <span>Dùng Điểm Thưởng BrewLite</span>
+                </h3>
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                  Số dư: {userLoyaltyPoints.toLocaleString("vi-VN")} điểm
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] light:text-cafe-muted ">
+                Quy đổi: mỗi mốc 20 điểm = 1.000₫ giảm trực tiếp vào đơn hàng.
+              </p>
+
+              {/* Quick buttons */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isProcessing || !!session?.attempt}
+                  onClick={() => setPointsToUse(0)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50 ${
+                    effectivePointsToUse === 0
+                      ? "bg-amber-600 text-white border-amber-600 font-bold"
+                      : "bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-400"
+                  }`}
+                >
+                  Không dùng
+                </button>
+                {maxUsablePoints >= 100 && (
+                  <button
+                    type="button"
+                    disabled={isProcessing || !!session?.attempt}
+                    onClick={() => setPointsToUse(100)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50 ${
+                      effectivePointsToUse === 100
+                        ? "bg-amber-600 text-white border-amber-600 font-bold"
+                        : "bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-400"
+                    }`}
+                  >
+                    100 điểm (-5.000₫)
+                  </button>
+                )}
+                {maxUsablePoints >= 200 && (
+                  <button
+                    type="button"
+                    disabled={isProcessing || !!session?.attempt}
+                    onClick={() => setPointsToUse(200)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50 ${
+                      effectivePointsToUse === 200
+                        ? "bg-amber-600 text-white border-amber-600 font-bold"
+                        : "bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-400"
+                    }`}
+                  >
+                    200 điểm (-10.000₫)
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={isProcessing || !!session?.attempt}
+                  onClick={() => setPointsToUse(maxUsablePoints)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50 ${
+                    effectivePointsToUse === maxUsablePoints && maxUsablePoints > 0
+                      ? "bg-amber-600 text-white border-amber-600 font-bold"
+                      : "bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-400"
+                  }`}
+                >
+                  Dùng tối đa ({maxUsablePoints} điểm)
+                </button>
+              </div>
+
+              {/* Slider điều chỉnh */}
+              {maxUsablePoints > 0 && (
+                <div className="pt-2 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-stone-600 dark:text-[#9e8f83]">
+                      Điểm áp dụng:
+                    </span>
+                    <span className="font-bold text-amber-800 dark:text-amber-400 font-mono">
+                      {effectivePointsToUse} điểm (-{discountFromPoints.toLocaleString("vi-VN")}₫)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={maxUsablePoints}
+                    step="20"
+                    value={effectivePointsToUse}
+                    disabled={isProcessing || !!session?.attempt}
+                    onChange={(e) => setPointsToUse(Number(e.target.value))}
+                    className="w-full accent-amber-600 cursor-pointer disabled:opacity-50"
+                  />
+                </div>
+              )}
+
+              {/* Cảnh báo ngưỡng tối thiểu VNPAY */}
+              {isVnpayThresholdWarning && (
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-300 space-y-1 animate-fadeIn">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>Quy định số tiền thanh toán qua VNPAY:</span>
+                  </p>
+                  <p className="text-[11px] leading-relaxed">
+                    Cổng VNPAY yêu cầu giao dịch tối thiểu 5.000₫ (phần tiền còn lại hiện tại:{" "}
+                    <strong>{realAmount.toLocaleString("vi-VN")}₫</strong>).
+                    Vui lòng giảm số điểm dùng để tiền thanh toán ≥ 5.000₫{canPay100PercentWithPoints ? ", hoặc thanh toán 100% bằng điểm thưởng" : ""}.
+                  </p>
+                  {safeMaxPointsForVnpay < effectivePointsToUse && (
+                    <button
+                      type="button"
+                      onClick={() => setPointsToUse(safeMaxPointsForVnpay)}
+                      className="mt-1 text-xs underline font-bold text-amber-800 hover:text-amber-900 dark:text-amber-300 cursor-pointer"
+                    >
+                      → Giảm về mốc tối đa cho VNPAY ({safeMaxPointsForVnpay} điểm)
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 3. Phương thức thanh toán không tiền mặt */}
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
@@ -361,106 +556,169 @@ function CheckoutContent() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Option WALLET */}
+              {/* Option VNPAY Sandbox */}
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "WALLET"
+                  paymentMethod === "VNPAY" && realAmount > 0
                     ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
                     : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
                 }`}
               >
                 <input
                   type="radio"
-                  disabled={isProcessing || !!session?.attempt}
+                  disabled={isProcessing || !!session?.attempt || realAmount === 0}
+                  name="paymentMethod"
+                  value="VNPAY"
+                  checked={paymentMethod === "VNPAY" && realAmount > 0}
+                  onChange={() => setPaymentMethod("VNPAY")}
+                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
+                />
+                <div className="space-y-1">
+                  <div className="font-bold text-sm flex items-center gap-1.5">
+                    <span>🏦</span>
+                    <span>VNPAY Sandbox</span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
+                    Thanh toán quét mã VNPAY-QR, thẻ ATM nội địa & thẻ quốc tế
+                  </p>
+                </div>
+              </label>
+
+              {/* Option Dùng Điểm Thưởng 100% */}
+              {canPay100PercentWithPoints && (
+                <label
+                  className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                    paymentMethod === "POINTS" || realAmount === 0
+                      ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
+                      : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    disabled={isProcessing || !!session?.attempt}
+                    name="paymentMethod"
+                    value="POINTS"
+                    checked={paymentMethod === "POINTS" || realAmount === 0}
+                    onChange={() => {
+                      setPaymentMethod("POINTS");
+                      setPointsToUse(maxPointsNeededForTotal);
+                    }}
+                    className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
+                  />
+                  <div className="space-y-1">
+                    <div className="font-bold text-sm flex items-center gap-1.5">
+                      <span>⭐</span>
+                      <span>100% Điểm Thưởng</span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
+                      Đổi toàn bộ {maxPointsNeededForTotal} điểm, không cần thanh toán tiền
+                    </p>
+                  </div>
+                </label>
+              )}
+
+              {/* Option WALLET Mock (Hỗ trợ kiểm thử) */}
+              <label
+                className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                  paymentMethod === "WALLET" && realAmount > 0
+                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
+                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
+                }`}
+              >
+                <input
+                  type="radio"
+                  disabled={isProcessing || !!session?.attempt || realAmount === 0}
                   name="paymentMethod"
                   value="WALLET"
-                  checked={paymentMethod === "WALLET"}
+                  checked={paymentMethod === "WALLET" && realAmount > 0}
                   onChange={() => setPaymentMethod("WALLET")}
                   className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
                 />
                 <div className="space-y-1">
                   <div className="font-bold text-sm flex items-center gap-1.5">
                     <span>📱</span>
-                    <span>Ví Điện Tử</span>
+                    <span>Ví Điện Tử (Mock)</span>
                   </div>
                   <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    Momo, ZaloPay, VNPay (Quét mã QR siêu nhanh)
+                    Momo, ZaloPay (Mô phỏng thanh toán nhanh)
                   </p>
                 </div>
               </label>
 
-              {/* Option CARD */}
+              {/* Option CARD Mock (Hỗ trợ kiểm thử) */}
               <label
                 className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "CARD"
+                  paymentMethod === "CARD" && realAmount > 0
                     ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
                     : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
                 }`}
               >
                 <input
                   type="radio"
-                  disabled={isProcessing || !!session?.attempt}
+                  disabled={isProcessing || !!session?.attempt || realAmount === 0}
                   name="paymentMethod"
                   value="CARD"
-                  checked={paymentMethod === "CARD"}
+                  checked={paymentMethod === "CARD" && realAmount > 0}
                   onChange={() => setPaymentMethod("CARD")}
                   className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
                 />
                 <div className="space-y-1">
                   <div className="font-bold text-sm flex items-center gap-1.5">
                     <span>💳</span>
-                    <span>Thẻ Ngân Hàng</span>
+                    <span>Thẻ Ngân Hàng (Mock)</span>
                   </div>
                   <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    ATM / Visa / Mastercard / Napas nội địa
+                    ATM / Visa / Mastercard (Mô phỏng thẻ)
                   </p>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* 3. Tùy chọn Demo / Test Cổng thanh toán */}
-          <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 light:text-cafe-primary ">
-                <span>⚙️</span>
-                <span>Chế độ Demo Cổng Thanh Toán</span>
-              </span>
-              <span className="text-[10px] text-stone-500 dark:text-[#8e7e72] light:text-cafe-muted ">
-                Hỗ trợ kiểm thử đề tài
-              </span>
-            </div>
-            <div className="flex gap-4 text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="SUCCESS"
-                  checked={mockResult === "SUCCESS"}
-                  onChange={() => setMockResult("SUCCESS")}
-                  className="accent-emerald-600 cursor-pointer"
-                />
-                <span className="font-medium text-emerald-800 dark:text-emerald-300">
-                  ✓ Giả lập Thành công (201)
+          {/* 4. Tùy chọn Demo / Test Cổng thanh toán (Chỉ hiện khi chọn Mock WALLET / CARD) */}
+          {(paymentMethod === "WALLET" || paymentMethod === "CARD") && (
+            <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 light:text-cafe-primary ">
+                  <span>⚙️</span>
+                  <span>Chế độ Demo Mock Payment</span>
                 </span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="FAILED"
-                  checked={mockResult === "FAILED"}
-                  onChange={() => setMockResult("FAILED")}
-                  className="accent-rose-600 cursor-pointer"
-                />
-                <span className="font-medium text-rose-800 dark:text-rose-300">
-                  ✕ Giả lập Thất bại (402)
+                <span className="text-[10px] text-stone-500 dark:text-[#8e7e72] light:text-cafe-muted ">
+                  Hỗ trợ kiểm thử đề tài
                 </span>
-              </label>
+              </div>
+              <div className="flex gap-4 text-xs">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    disabled={isProcessing || !!session?.attempt}
+                    name="mockResult"
+                    value="SUCCESS"
+                    checked={mockResult === "SUCCESS"}
+                    onChange={() => setMockResult("SUCCESS")}
+                    className="accent-emerald-600 cursor-pointer"
+                  />
+                  <span className="font-medium text-emerald-800 dark:text-emerald-300">
+                    ✓ Giả lập Thành công (201)
+                  </span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    disabled={isProcessing || !!session?.attempt}
+                    name="mockResult"
+                    value="FAILED"
+                    checked={mockResult === "FAILED"}
+                    onChange={() => setMockResult("FAILED")}
+                    className="accent-rose-600 cursor-pointer"
+                  />
+                  <span className="font-medium text-rose-800 dark:text-rose-300">
+                    ✕ Giả lập Thất bại (402)
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           {session && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-sm space-y-3 text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
@@ -470,20 +728,44 @@ function CheckoutContent() {
                     Đang tiếp tục đơn #{order.id}. Món và giá đã được giữ theo
                     đơn này.
                   </p>
-                  {session.attempt && (
-                    <p>
-                      Chưa xác định kết quả giao dịch. Bấm kiểm tra để tiếp tục
-                      an toàn trên cùng đơn.
-                    </p>
+                  {session.phase === "failed" && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-rose-700 dark:text-rose-300 font-semibold">
+                        Giao dịch trước không thành công hoặc đã bị hủy. Điểm thưởng đã được hoàn lại.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRetryPayment}
+                        className="bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm hover:bg-amber-700 cursor-pointer"
+                      >
+                        Thử thanh toán lại đơn #{order.id}
+                      </button>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    disabled={isProcessing}
-                    onClick={handleCancel}
-                    className="underline font-semibold"
-                  >
-                    Hủy / đóng đơn để sửa giỏ hàng
-                  </button>
+                  {session.attempt && session.phase === "paying" && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-stone-600 dark:text-stone-400">
+                        Chưa xác định kết quả giao dịch. Bấm kiểm tra để tiếp tục an toàn trên cùng đơn.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRetryPayment}
+                        className="text-xs underline text-amber-800 dark:text-amber-400 font-semibold cursor-pointer mr-3"
+                      >
+                        Tạo giao dịch mới
+                      </button>
+                    </div>
+                  )}
+                  <div>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={handleCancel}
+                      className="underline font-semibold text-xs text-rose-700 dark:text-rose-400 cursor-pointer"
+                    >
+                      Hủy / đóng đơn để sửa giỏ hàng
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -606,9 +888,17 @@ function CheckoutContent() {
                   </span>
                 </div>
               )}
+              {discountFromPoints > 0 && (
+                <div className="flex justify-between text-amber-700 dark:text-amber-400">
+                  <span>Giảm từ điểm ({effectivePointsToUse} điểm):</span>
+                  <span className="font-mono font-medium">
+                    -{discountFromPoints.toLocaleString("vi-VN")}₫
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
-                <span>⭐ Tích lũy điểm:</span>
-                <span className="font-bold">+{pointsEarned} điểm</span>
+                <span>⭐ Tích lũy điểm (dự kiến):</span>
+                <span className="font-bold font-mono">+{pointsEarned} điểm</span>
               </div>
             </div>
 
@@ -617,7 +907,7 @@ function CheckoutContent() {
                 Tổng thanh toán:
               </span>
               <span className="text-2xl font-black text-amber-900 dark:text-amber-400 font-mono light:text-cafe-primary ">
-                {total.toLocaleString("vi-VN")}₫
+                {realAmount.toLocaleString("vi-VN")}₫
               </span>
             </div>
 
@@ -629,7 +919,8 @@ function CheckoutContent() {
                 isValidatingPromo ||
                 isRefreshing ||
                 !token ||
-                (session !== null && !order)
+                (session !== null && !order) ||
+                isVnpayThresholdWarning
               }
               className="w-full h-12 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-40 text-white font-bold text-sm px-4 rounded-2xl shadow-lg shadow-amber-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-95 light:shadow-cafe-card cafe-primary "
             >
@@ -660,8 +951,10 @@ function CheckoutContent() {
                 <span>
                   {session?.attempt
                     ? "Kiểm tra / tiếp tục giao dịch"
-                    : "Xác Nhận Thanh Toán"}{" "}
-                  ({total.toLocaleString("vi-VN")}₫)
+                    : paymentMethod === "VNPAY" && realAmount > 0
+                      ? "Chuyển tới cổng VNPay"
+                      : "Xác Nhận Thanh Toán"}{" "}
+                  ({realAmount.toLocaleString("vi-VN")}₫)
                 </span>
               )}
             </button>

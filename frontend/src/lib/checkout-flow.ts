@@ -4,8 +4,9 @@ import type { Order, PaymentMethod } from "@/types";
 export interface PaymentAttempt {
   orderId: number;
   method: PaymentMethod;
-  mockResult: "SUCCESS" | "FAILED";
+  mockResult?: "SUCCESS" | "FAILED";
   idempotencyKey: string;
+  pointsUsed?: number;
 }
 
 export interface CheckoutSession {
@@ -14,6 +15,7 @@ export interface CheckoutSession {
   order?: Order;
   attempt?: PaymentAttempt;
   paidMethod?: PaymentMethod;
+  paymentUrl?: string | null;
 }
 
 interface Storage {
@@ -64,6 +66,18 @@ export class CheckoutFlow {
     this.storage.removeItem(this.key(userId));
   }
 
+  resetAttempt(userId: number) {
+    const session = this.read(userId);
+    if (session) {
+      this.save(userId, {
+        ...session,
+        phase: "ready",
+        attempt: undefined,
+        paymentUrl: null,
+      });
+    }
+  }
+
   async prepare(userId: number, cartKey: string, payload: unknown) {
     const existing = this.read(userId);
     if (existing) {
@@ -102,7 +116,8 @@ export class CheckoutFlow {
   async pay(
     userId: number,
     method: PaymentMethod,
-    mockResult: "SUCCESS" | "FAILED",
+    mockResult?: "SUCCESS" | "FAILED",
+    pointsUsed?: number,
   ) {
     let session = this.read(userId);
     if (!session?.order) throw new Error("Chưa có đơn hàng để thanh toán.");
@@ -128,11 +143,12 @@ export class CheckoutFlow {
     ) {
       throw new Error("Giao dịch đang được xử lý. Vui lòng kiểm tra lại sau.");
     }
-    const attempt = session.attempt ?? {
+    const attempt: PaymentAttempt = session.attempt ?? {
       orderId: order.id,
       method,
       mockResult,
       idempotencyKey: paymentKey(),
+      pointsUsed: pointsUsed && pointsUsed > 0 ? pointsUsed : undefined,
     };
     session = this.save(userId, {
       ...session,
@@ -142,9 +158,27 @@ export class CheckoutFlow {
     });
     try {
       const result = await this.api<{
-        payment: { method: PaymentMethod };
+        payment: { method: PaymentMethod; status?: string };
+        paymentUrl?: string | null;
         order: Pick<Order, "id" | "status" | "total" | "pointsEarned">;
-      }>("/payments", { method: "POST", body: JSON.stringify(attempt) });
+      }>("/payments", {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": attempt.idempotencyKey,
+        },
+        body: JSON.stringify(attempt),
+      });
+
+      if (result.paymentUrl) {
+        return this.save(userId, {
+          ...session,
+          order,
+          phase: "paying",
+          paymentUrl: result.paymentUrl,
+          paidMethod: result.payment.method,
+        });
+      }
+
       return this.save(userId, {
         ...session,
         order: { ...order, ...result.order },
