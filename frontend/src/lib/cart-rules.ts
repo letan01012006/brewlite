@@ -79,6 +79,7 @@ export function basketError(items: CartItem[]): string | null {
     totals.set(item.product.id, quantity);
   }
   for (const item of items) {
+    if (item.product.inventoryMode === 'INGREDIENT') continue;
     if (totals.get(item.product.id)! > item.product.stock)
       return `${item.product.name || "Món này"} chỉ còn ${item.product.stock} ly, tính chung mọi size và topping.`;
   }
