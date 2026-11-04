@@ -12,6 +12,35 @@ datasource db {
 // ENUMS
 // =========================
 
+enum PaymentMethod {
+  WALLET
+  CARD
+  VNPAY
+  POINTS
+}
+
+enum PaymentStatus {
+  PROCESSING
+  SUCCESS
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  REFUND
+  ADJUSTMENT
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -20,17 +49,6 @@ enum OrderStatus {
   COMPLETED
   PAYMENT_FAILED
   CANCELLED
-}
-
-enum PaymentMethod {
-  WALLET
-  CARD
-}
-
-enum PaymentStatus {
-  PROCESSING
-  SUCCESS
-  FAILED
 }
 
 enum Size {
@@ -156,7 +174,7 @@ model Order {
 
   items                OrderItem[]
   payments             Payment[]
-  loyaltyTransaction   LoyaltyTransaction?
+  loyaltyTransactions LoyaltyTransaction[]
   inventoryReservation InventoryReservation?
   inventoryMovements   InventoryMovement[]
 
@@ -203,34 +221,39 @@ model OrderItem {
 // =========================
 
 model Payment {
-  id Int @id @default(autoincrement())
+  id                   Int                  @id @default(autoincrement())
+  orderId              Int
+  idempotencyKey       String               @unique
+  requestHash          String
+  amount               Int
+  pointsUsed           Int                  @default(0)
+  pointsAmount         Int                  @default(0)
+  method               PaymentMethod
+  status               PaymentStatus        @default(PROCESSING)
+  gatewayTxnRef        String?              @unique
+  gatewayTransactionNo String?
+  gatewayBankCode      String?
+  gatewayResponseCode  String?
+  gatewayPayDate       DateTime?
+  expiresAt            DateTime?
+  ipnProcessedAt       DateTime?
+  providerRef          String?
+  failureReason        String?
+  responseSnapshot     Json?
+  refundedAt           DateTime?
+  refundedAmount       Int                  @default(0)
+  refundRef            String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
 
-  orderId Int
-
-  idempotencyKey String @unique
-  requestHash    String
-
-  amount Int
-  method PaymentMethod
-  status PaymentStatus @default(PROCESSING)
-
-  providerRef   String?
-  failureReason String?
-
-  responseSnapshot Json?
-
-  // Hoàn tiền mock khi hủy đơn đã PAID (không có bảng Refund riêng).
-  // Giữ nguyên status = SUCCESS và responseSnapshot của lần thanh toán đầu.
-  refundedAt     DateTime?
-  refundedAmount Int       @default(0)
-  refundRef      String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id])
+  order                Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  refunds              PaymentRefund[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  webhookLogs          PaymentWebhookLog[]
 
   @@index([orderId, status])
+  @@index([gatewayTxnRef])
+  @@index([status, expiresAt])
 }
 
 // =========================
@@ -266,22 +289,26 @@ model PromoCode {
 // =========================
 
 model LoyaltyTransaction {
-  id Int @id @default(autoincrement())
+  id                   Int                    @id @default(autoincrement())
+  userId               Int
+  orderId              Int
+  paymentId            Int?
+  relatedTransactionId Int?
+  type                 LoyaltyTransactionType @default(EARN)
+  points               Int
+  pointsAmount         Int                    @default(0)
+  reversedAt           DateTime?
+  createdAt            DateTime               @default(now())
 
-  userId  Int
-  orderId Int @unique
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order                Order                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  payment              Payment?               @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  relatedTransaction   LoyaltyTransaction?    @relation("PointReversal", fields: [relatedTransactionId], references: [id], onDelete: Restrict)
+  childTransactions    LoyaltyTransaction[]   @relation("PointReversal")
 
-  points Int
-
-  // Có giá trị khi điểm đã bị thu hồi (hủy đơn PAID). `points` giữ nguyên số điểm ban đầu.
-  reversedAt DateTime?
-
-  createdAt DateTime @default(now())
-
-  user  User  @relation(fields: [userId], references: [id])
-  order Order @relation(fields: [orderId], references: [id])
-
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([paymentId])
 }
 
 // =========================
@@ -399,4 +426,41 @@ model InventoryMovement {
   @@index([ingredientId, createdAt])
   @@index([orderId, createdAt])
   @@index([actorId])
+}
+
+model PaymentRefund {
+  id                  Int          @id @default(autoincrement())
+  paymentId           Int
+  amount              Int
+  status              RefundStatus @default(PENDING)
+  gatewayRefundNo     String?
+  gatewayResponseCode String?
+  failureReason       String?
+  confirmedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  payment             Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, status])
+  @@index([status, createdAt])
+}
+
+model PaymentWebhookLog {
+  id                   Int      @id @default(autoincrement())
+  paymentId            Int?
+  gatewayTxnRef        String
+  gatewayTransactionNo String?
+  amount               Int
+  responseCode         String?
+  signatureValid       Boolean
+  processed            Boolean  @default(false)
+  message              String?
+  rawPayload           Json
+  createdAt            DateTime @default(now())
+
+  payment              Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([gatewayTxnRef, createdAt])
+  @@index([signatureValid, processed])
 }
