@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import type { JwtPayload } from './interfaces/jwt-payload.interface.js';
+import { WELCOME_POINTS } from '../promotions/voucher-rules.js';
 
 @Injectable()
 export class AuthService {
@@ -42,7 +43,7 @@ export class AuthService {
         passwordHash,
         fullName: dto.fullName.trim(),
         role: 'CUSTOMER',
-        loyaltyPoints: 0,
+        loyaltyPoints: WELCOME_POINTS,
       },
       select: {
         id: true,

@@ -12,6 +12,84 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { configureApp } from '../src/configure-app.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+export function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let inDollarQuote = false;
+  let inSingleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const nextChar = sql[i + 1];
+
+    if (inLineComment) {
+      if (char === '\n') {
+        inLineComment = false;
+      }
+      current += char;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (char === '*' && nextChar === '/') {
+        inBlockComment = false;
+        current += '*/';
+        i++;
+        continue;
+      }
+      current += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote) {
+      if (char === '-' && nextChar === '-') {
+        inLineComment = true;
+        current += '--';
+        i++;
+        continue;
+      }
+      if (char === '/' && nextChar === '*') {
+        inBlockComment = true;
+        current += '/*';
+        i++;
+        continue;
+      }
+    }
+
+    if (!inSingleQuote && char === '$' && nextChar === '$') {
+      inDollarQuote = !inDollarQuote;
+      current += '$$';
+      i++;
+      continue;
+    }
+
+    if (!inDollarQuote && char === "'") {
+      if (nextChar === "'") {
+        current += "''";
+        i++;
+        continue;
+      }
+      inSingleQuote = !inSingleQuote;
+      current += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote && char === ';') {
+      const trimmed = current.trim();
+      if (trimmed) statements.push(trimmed);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+  const trimmed = current.trim();
+  if (trimmed) statements.push(trimmed);
+  return statements;
+}
+
 export async function databaseFixture() {
   const url = process.env.TEST_DATABASE_URL;
   if (!url)
@@ -57,7 +135,7 @@ export async function databaseFixture() {
         resolve('prisma/migrations', entry.name, 'migration.sql'),
         'utf8',
       );
-      for (const statement of sql.split(';').filter((s) => s.trim()))
+      for (const statement of splitSqlStatements(sql))
         await db.$executeRawUnsafe(statement);
     }
     const module = await Test.createTestingModule({ imports: [AppModule] })

@@ -13,6 +13,11 @@ export interface ChargeResult {
   failureReason?: string;
 }
 
+export interface MockRefundResult {
+  success: boolean;
+  refundRef: string;
+}
+
 /**
  * Service giả lập cổng thanh toán không tiền mặt (Momo, VNPay, Stripe)
  * Phục vụ demo và test theo yêu cầu Task 8 & 10
@@ -24,7 +29,8 @@ export class MockPaymentService {
     if (params.mockResult === 'FAILED') {
       return {
         success: false,
-        failureReason: 'GATEWAY_DECLINED: Thẻ ngân hàng bị khóa hoặc số dư ví không đủ để thanh toán',
+        failureReason:
+          'GATEWAY_DECLINED: Thẻ ngân hàng bị khóa hoặc số dư ví không đủ để thanh toán',
       };
     }
 
@@ -36,6 +42,14 @@ export class MockPaymentService {
     return {
       success: true,
       providerRef,
+    };
+  }
+
+  async refund(_amount: number): Promise<MockRefundResult> {
+    const randomHex = Math.random().toString(16).substring(2, 8).toUpperCase();
+    return {
+      success: true,
+      refundRef: `MOCK-REFUND-${randomHex}`,
     };
   }
 }

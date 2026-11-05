@@ -4,16 +4,18 @@ import type { Order, PaymentMethod } from "@/types";
 export interface PaymentAttempt {
   orderId: number;
   method: PaymentMethod;
-  mockResult: "SUCCESS" | "FAILED";
+  mockResult?: "SUCCESS" | "FAILED";
   idempotencyKey: string;
+  bankCode?: string;
 }
 
 export interface CheckoutSession {
   cartKey: string;
-  phase: "creating" | "ready" | "paying" | "failed" | "paid";
+  phase: "creating" | "ready" | "paying" | "redirecting" | "failed" | "paid";
   order?: Order;
   attempt?: PaymentAttempt;
   paidMethod?: PaymentMethod;
+  paymentUrl?: string;
 }
 
 interface Storage {
@@ -102,7 +104,8 @@ export class CheckoutFlow {
   async pay(
     userId: number,
     method: PaymentMethod,
-    mockResult: "SUCCESS" | "FAILED",
+    mockResult?: "SUCCESS" | "FAILED",
+    bankCode?: string,
   ) {
     let session = this.read(userId);
     if (!session?.order) throw new Error("Chưa có đơn hàng để thanh toán.");
@@ -128,10 +131,11 @@ export class CheckoutFlow {
     ) {
       throw new Error("Giao dịch đang được xử lý. Vui lòng kiểm tra lại sau.");
     }
-    const attempt = session.attempt ?? {
+    const attempt: PaymentAttempt = session.attempt ?? {
       orderId: order.id,
       method,
-      mockResult,
+      ...(mockResult ? { mockResult } : {}),
+      ...(bankCode ? { bankCode } : {}),
       idempotencyKey: paymentKey(),
     };
     session = this.save(userId, {
@@ -142,9 +146,28 @@ export class CheckoutFlow {
     });
     try {
       const result = await this.api<{
-        payment: { method: PaymentMethod };
+        payment: {
+          id: number;
+          method: PaymentMethod;
+          status: string;
+          paymentUrl?: string | null;
+        };
         order: Pick<Order, "id" | "status" | "total" | "pointsEarned">;
-      }>("/payments", { method: "POST", body: JSON.stringify(attempt) });
+      }>("/payments", {
+        method: "POST",
+        headers: { "Idempotency-Key": attempt.idempotencyKey },
+        body: JSON.stringify(attempt),
+      });
+
+      if (result.payment.paymentUrl) {
+        return this.save(userId, {
+          ...session,
+          order: { ...order, ...result.order },
+          phase: "redirecting",
+          paymentUrl: result.payment.paymentUrl,
+        });
+      }
+
       return this.save(userId, {
         ...session,
         order: { ...order, ...result.order },

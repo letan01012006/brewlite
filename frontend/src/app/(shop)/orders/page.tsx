@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { StatusBadge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
+import { CheckoutFlow } from "@/lib/checkout-flow";
 import type { Order, PaginatedResponse } from "@/types";
 
 interface OrderSummary {
@@ -300,13 +301,32 @@ function OrdersContent() {
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleViewOrderDetail(order.id)}
-                    className="bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer light:text-cafe-primary "
-                  >
-                    Chi tiết →
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
+                      <Link
+                        href="/checkout"
+                        onClick={async () => {
+                          if (user) {
+                            try {
+                              await new CheckoutFlow(window.sessionStorage).recover(user.id, order.id);
+                            } catch {
+                              // session may already exist
+                            }
+                          }
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm shadow-amber-600/25 inline-flex items-center"
+                      >
+                        Thanh toán tiếp →
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleViewOrderDetail(order.id)}
+                      className="bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer light:text-cafe-primary "
+                    >
+                      Chi tiết →
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -417,58 +437,101 @@ function OrdersContent() {
                     Lịch sử giao dịch thanh toán
                   </h3>
                   <div className="space-y-1.5 text-[11px]">
-                    {selectedOrder.payments.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center light:bg-cafe-page light:border-cafe-line "
-                      >
-                        <div>
-                          <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                            {p.method === "WALLET"
-                              ? "Ví điện tử"
-                              : "Thẻ ngân hàng"}
-                          </span>
-                          <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
-                            {p.providerRef || `GD #${p.id}`}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`font-bold block ${p.status === "SUCCESS" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}
-                          >
-                            {p.status}
-                          </span>
-                          {p.refundedAt && (
-                            <span className="text-rose-500 font-semibold block text-[10px]">
-                              Đã hoàn tiền
+                    {selectedOrder.payments.map((p) => {
+                      const isNeedsRefund = p.status === "NEEDS_REFUND";
+                      const isRefunded =
+                        !!p.refundedAt ||
+                        (typeof p.refundedAmount === "number" &&
+                          p.refundedAmount > 0);
+                      return (
+                        <div
+                          key={p.id}
+                          className="p-2.5 bg-stone-50 dark:bg-stone-800/50 rounded-lg border border-stone-200/50 dark:border-stone-700 flex justify-between items-center light:bg-cafe-page light:border-cafe-line "
+                        >
+                          <div>
+                            <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
+                              {p.method === "VNPAY"
+                                ? "Cổng VNPAY"
+                                : p.method === "WALLET"
+                                  ? "Ví điện tử"
+                                  : "Thẻ ngân hàng"}
                             </span>
-                          )}
+                            <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
+                              {p.providerRef || p.gatewayTxnRef || `GD #${p.id}`}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span
+                              className={`font-bold block ${
+                                p.status === "SUCCESS"
+                                  ? "text-emerald-700 dark:text-emerald-400"
+                                  : isNeedsRefund
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-rose-600 dark:text-rose-400"
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                            {isRefunded ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold block text-[10px]">
+                                Đã hoàn tiền
+                              </span>
+                            ) : isNeedsRefund ? (
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold block text-[10px] animate-pulse">
+                                Đang hoàn tiền
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
 
             {/* Modal Footer: Nút Hủy đơn (chỉ cho phép nếu trạng thái PENDING, PAYMENT_FAILED, hoặc PAID) */}
-            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex justify-between gap-3 light:bg-cafe-page light:border-cafe-line ">
-              {["PENDING", "PAYMENT_FAILED", "PAID"].includes(
-                selectedOrder.status,
-              ) ? (
-                <button
-                  type="button"
-                  onClick={() => handleCancelOrder(selectedOrder.id)}
-                  disabled={isCancelling}
-                  className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {isCancelling ? "Đang hủy..." : "Hủy đơn hàng này"}
-                </button>
-              ) : (
-                <span className="text-[11px] text-stone-400 dark:text-stone-500 self-center light:text-cafe-muted ">
-                  (Đơn hàng đang làm hoặc đã xong, không thể hủy)
-                </span>
-              )}
+            <div className="p-4 bg-stone-50 dark:bg-stone-800/60 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3 light:bg-cafe-page light:border-cafe-line ">
+              <div className="flex items-center gap-2">
+                {["PENDING", "PAYMENT_FAILED"].includes(
+                  selectedOrder.status,
+                ) && (
+                  <Link
+                    href="/checkout"
+                    onClick={async () => {
+                      if (user) {
+                        try {
+                          await new CheckoutFlow(window.sessionStorage).recover(
+                            user.id,
+                            selectedOrder.id,
+                          );
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm shadow-amber-600/25 inline-flex items-center"
+                  >
+                    Thanh toán tiếp →
+                  </Link>
+                )}
+                {["PENDING", "PAYMENT_FAILED", "PAID"].includes(
+                  selectedOrder.status,
+                ) ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCancelOrder(selectedOrder.id)}
+                    disabled={isCancelling}
+                    className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isCancelling ? "Đang hủy..." : "Hủy đơn hàng này"}
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-stone-400 dark:text-stone-500 self-center light:text-cafe-muted ">
+                    (Đơn hàng đang làm hoặc đã xong, không thể hủy)
+                  </span>
+                )}
+              </div>
 
               <button
                 type="button"

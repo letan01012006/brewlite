@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
 import { getProductImageUrl } from "@/lib/constants/product-images";
+import { pointsEarnedFor } from "@/lib/loyalty";
 
 export default function CartPage() {
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function CartPage() {
   const subtotal = getSubtotal();
   const total = getTotal();
   const totalCount = getTotalItemCount();
-  const estimatedPoints = Math.floor(total / 1000);
+  const estimatedPoints = pointsEarnedFor(total);
   const promoSuccessMsg =
     promoCode && !isValidatingPromo
       ? `Đã áp dụng mã ${promoCode} (Giảm ${discountAmount.toLocaleString("vi-VN")}₫)`

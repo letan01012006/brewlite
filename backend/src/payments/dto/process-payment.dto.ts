@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-export const PAYMENT_METHODS = ['WALLET', 'CARD'] as const;
+export const PAYMENT_METHODS = ['WALLET', 'CARD', 'VNPAY', 'POINTS'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export class ProcessPaymentDto {
@@ -11,12 +11,12 @@ export class ProcessPaymentDto {
   orderId: number;
 
   @ApiProperty({
-    description: 'Phương thức thanh toán không tiền mặt',
+    description: 'Phương thức thanh toán (VNPAY, WALLET, CARD)',
     enum: PAYMENT_METHODS,
-    example: 'WALLET',
+    example: 'VNPAY',
   })
   @IsIn(PAYMENT_METHODS, {
-    message: 'Phương thức thanh toán chỉ chấp nhận: WALLET (Ví điện tử) hoặc CARD (Thẻ ngân hàng)',
+    message: 'Phương thức thanh toán chỉ chấp nhận: VNPAY, WALLET hoặc CARD',
   })
   method: PaymentMethod;
 
@@ -38,4 +38,12 @@ export class ProcessPaymentDto {
   })
   @IsOptional()
   mockResult?: 'SUCCESS' | 'FAILED';
+
+  @ApiPropertyOptional({
+    description: 'Mã ngân hàng VNPAY (tùy chọn, ví dụ VNPAYQR, NCB)',
+    example: 'VNPAYQR',
+  })
+  @IsString({ message: 'Mã ngân hàng phải là một chuỗi' })
+  @IsOptional()
+  bankCode?: string;
 }

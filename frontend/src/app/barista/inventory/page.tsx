@@ -70,7 +70,7 @@ const primaryBtnClass =
 const secondaryBtnClass =
   "inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 font-semibold text-xs sm:text-sm py-2.5 px-4 transition-all cursor-pointer light:bg-cafe-surface light:border-cafe-line light:text-cafe-ink";
 
-export function displayQuantity(value: string | number | null | undefined) {
+function displayQuantity(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "0";
   const number = Number(value);
   return Number.isFinite(number)
@@ -88,7 +88,7 @@ function errorText(e: unknown) {
     : "Đã có lỗi xảy ra. Vui lòng thử lại.";
 }
 
-export interface SelectOption<T extends string = string> {
+interface SelectOption<T extends string = string> {
   value: T;
   label: string;
   sublabel?: string;
@@ -98,7 +98,7 @@ export interface SelectOption<T extends string = string> {
 /**
  * Custom accessible dropdown (tránh lỗi nền trắng chữ nhạt của native select trên Windows Chrome dark mode).
  */
-export function CustomSelect<T extends string = string>({
+function CustomSelect<T extends string = string>({
   id,
   label,
   value,
