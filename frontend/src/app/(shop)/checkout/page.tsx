@@ -42,7 +42,7 @@ function CheckoutContent() {
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("WALLET");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("VNPAY");
   const [mockResult, setMockResult] = useState<"SUCCESS" | "FAILED">("SUCCESS");
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -84,7 +84,7 @@ function CheckoutContent() {
         if (restored?.paidMethod) setPaymentMethod(restored.paidMethod);
         else if (restored?.attempt) {
           setPaymentMethod(restored.attempt.method);
-          setMockResult(restored.attempt.mockResult);
+          if (restored.attempt.mockResult) setMockResult(restored.attempt.mockResult);
         }
       } catch {
         setErrorMsg(
@@ -147,7 +147,11 @@ function CheckoutContent() {
             <div className="flex justify-between">
               <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Phương thức:</span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "WALLET" ? "Ví điện tử" : "Thẻ ngân hàng"}
+                {paymentMethod === "VNPAY"
+                  ? "Cổng VNPAY (QR / ATM)"
+                  : paymentMethod === "WALLET"
+                    ? "Ví điện tử"
+                    : "Thẻ ngân hàng"}
               </span>
             </div>
             <div className="flex justify-between">
@@ -157,8 +161,8 @@ function CheckoutContent() {
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
-              <span>⭐ Điểm tích lũy nhận được:</span>
-              <span className="font-bold">+{pointsEarned} điểm</span>
+              <span>⭐ Điểm tích lũy dự kiến:</span>
+              <span className="font-bold">+{pointsEarned} điểm (cộng khi hoàn tất đơn)</span>
             </div>
           </div>
 
@@ -273,6 +277,10 @@ function CheckoutContent() {
       }
       if (useAuthStore.getState().token !== token) return;
       const paid = await flow.pay(user.id, paymentMethod, mockResult);
+      if (paid.paymentUrl && typeof window !== "undefined") {
+        window.location.assign(paid.paymentUrl);
+        return;
+      }
       if (paid.order && useAuthStore.getState().token === token) {
         const latest = useCartStore.getState();
         if (cartKey(latest.items, latest.promoCode) === paid.cartKey)
@@ -348,7 +356,7 @@ function CheckoutContent() {
             </div>
           </div>
 
-          {/* 2. Phương thức thanh toán không tiền mặt */}
+          {/* 2. Phương thức thanh toán không tiền mặt - VNPAY */}
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
@@ -360,104 +368,26 @@ function CheckoutContent() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Option WALLET */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "WALLET"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
-                }`}
-              >
+            <div className="pt-1">
+              <label className="flex items-start gap-3 p-3.5 rounded-2xl border border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary cursor-pointer">
                 <input
                   type="radio"
                   disabled={isProcessing || !!session?.attempt}
                   name="paymentMethod"
-                  value="WALLET"
-                  checked={paymentMethod === "WALLET"}
-                  onChange={() => setPaymentMethod("WALLET")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
+                  value="VNPAY"
+                  checked={true}
+                  readOnly
+                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary"
                 />
                 <div className="space-y-1">
                   <div className="font-bold text-sm flex items-center gap-1.5">
-                    <span>📱</span>
-                    <span>Ví Điện Tử</span>
+                    <span>⚡</span>
+                    <span>Cổng Thanh Toán VNPAY (QR / Ngân Hàng)</span>
                   </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    Momo, ZaloPay, VNPay (Quét mã QR siêu nhanh)
+                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted">
+                    Quét mã VNPAY-QR qua ứng dụng ngân hàng, ví điện tử hoặc thanh toán qua thẻ ATM / Visa / Master nội địa và quốc tế.
                   </p>
                 </div>
-              </label>
-
-              {/* Option CARD */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "CARD"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
-                }`}
-              >
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="paymentMethod"
-                  value="CARD"
-                  checked={paymentMethod === "CARD"}
-                  onChange={() => setPaymentMethod("CARD")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
-                />
-                <div className="space-y-1">
-                  <div className="font-bold text-sm flex items-center gap-1.5">
-                    <span>💳</span>
-                    <span>Thẻ Ngân Hàng</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    ATM / Visa / Mastercard / Napas nội địa
-                  </p>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* 3. Tùy chọn Demo / Test Cổng thanh toán */}
-          <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 light:text-cafe-primary ">
-                <span>⚙️</span>
-                <span>Chế độ Demo Cổng Thanh Toán</span>
-              </span>
-              <span className="text-[10px] text-stone-500 dark:text-[#8e7e72] light:text-cafe-muted ">
-                Hỗ trợ kiểm thử đề tài
-              </span>
-            </div>
-            <div className="flex gap-4 text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="SUCCESS"
-                  checked={mockResult === "SUCCESS"}
-                  onChange={() => setMockResult("SUCCESS")}
-                  className="accent-emerald-600 cursor-pointer"
-                />
-                <span className="font-medium text-emerald-800 dark:text-emerald-300">
-                  ✓ Giả lập Thành công (201)
-                </span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="FAILED"
-                  checked={mockResult === "FAILED"}
-                  onChange={() => setMockResult("FAILED")}
-                  className="accent-rose-600 cursor-pointer"
-                />
-                <span className="font-medium text-rose-800 dark:text-rose-300">
-                  ✕ Giả lập Thất bại (402)
-                </span>
               </label>
             </div>
           </div>
@@ -607,7 +537,7 @@ function CheckoutContent() {
                 </div>
               )}
               <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
-                <span>⭐ Tích lũy điểm:</span>
+                <span>⭐ Tích lũy điểm (khi hoàn tất):</span>
                 <span className="font-bold">+{pointsEarned} điểm</span>
               </div>
             </div>
