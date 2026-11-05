@@ -24,7 +24,9 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
 export const PaymentMethod = {
   WALLET: 'WALLET',
-  CARD: 'CARD'
+  CARD: 'CARD',
+  VNPAY: 'VNPAY',
+  POINTS: 'POINTS'
 } as const
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
@@ -33,10 +35,56 @@ export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod]
 export const PaymentStatus = {
   PROCESSING: 'PROCESSING',
   SUCCESS: 'SUCCESS',
-  FAILED: 'FAILED'
+  FAILED: 'FAILED',
+  EXPIRED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
+  NEEDS_REFUND: 'NEEDS_REFUND'
 } as const
 
 export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus]
+
+
+export const RefundStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SUCCESS: 'SUCCESS',
+  FAILED: 'FAILED'
+} as const
+
+export type RefundStatus = (typeof RefundStatus)[keyof typeof RefundStatus]
+
+
+export const LoyaltyTransactionType = {
+  EARN: 'EARN',
+  REDEEM: 'REDEEM',
+  REFUND: 'REFUND',
+  ADJUSTMENT: 'ADJUSTMENT',
+  REVOKE: 'REVOKE'
+} as const
+
+export type LoyaltyTransactionType = (typeof LoyaltyTransactionType)[keyof typeof LoyaltyTransactionType]
+
+
+export const PaymentEventSource = {
+  CREATE: 'CREATE',
+  IPN: 'IPN',
+  RETURN: 'RETURN',
+  QUERY: 'QUERY',
+  REFUND: 'REFUND'
+} as const
+
+export type PaymentEventSource = (typeof PaymentEventSource)[keyof typeof PaymentEventSource]
+
+
+export const PaymentEventResult = {
+  RECEIVED: 'RECEIVED',
+  ACCEPTED: 'ACCEPTED',
+  REJECTED: 'REJECTED',
+  ERROR: 'ERROR',
+  DUPLICATE: 'DUPLICATE'
+} as const
+
+export type PaymentEventResult = (typeof PaymentEventResult)[keyof typeof PaymentEventResult]
 
 
 export const Size = {

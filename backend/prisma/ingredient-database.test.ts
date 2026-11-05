@@ -50,6 +50,7 @@ let legacy: PrismaClient;
 let oldProductId: number;
 let oldUserId: number;
 let original: Record<string, Array<Record<string, unknown>>>;
+const preservedColumns: Record<string, string[]> = {};
 
 function client(schema: string) {
   return new PrismaClient({
@@ -107,11 +108,21 @@ async function rows(db: PrismaClient) {
     '_ProductToTopping',
     'Ingredient',
   ]) {
+    // Freeze the actual legacy projection before applying later payment migrations.
+    preservedColumns[table] ??= (
+      await db.$queryRawUnsafe<Array<{ column_name: string }>>(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=$1 ORDER BY ordinal_position`,
+        table,
+      )
+    ).map((row) => row.column_name);
+    const projection = preservedColumns[table]
+      .map((name) => `"${name}"`)
+      .join(', ');
     const order = table === '_ProductToTopping' ? '"A", "B"' : '"id"';
     const [row] = await db.$queryRawUnsafe<
       Array<{ data: Array<Record<string, unknown>> | null }>
     >(
-      `SELECT jsonb_agg(to_jsonb(t)) AS data FROM (SELECT * FROM "${table}" ORDER BY ${order}) t`,
+      `SELECT jsonb_agg(to_jsonb(t)) AS data FROM (SELECT ${projection} FROM "${table}" ORDER BY ${order}) t`,
     );
     result[table] = (row.data ?? []).map((entry) => {
       if (table === 'OrderItem') {
@@ -249,26 +260,17 @@ before(
       });
       // Legacy orders leave the nullable recipeSnapshot unset.
       await legacy.$executeRaw`INSERT INTO "OrderItem" ("orderId","productId","productName",size,toppings,"unitPrice",qty,"lineTotal") VALUES (${order.id},${product.id},'Legacy coffee','S',${JSON.stringify([{ id: topping.id, name: 'Old topping snapshot', price: 7000 }])}::jsonb,50000,1,50000)`;
-      await legacy.payment.create({
-        data: {
-          orderId: order.id,
-          idempotencyKey: `old-${status}`,
-          requestHash: 'old-request-hash',
-          amount: 49000,
-          method: 'WALLET',
-          status:
-            status === 'PAID'
-              ? 'SUCCESS'
-              : status === 'PENDING'
-                ? 'PROCESSING'
-                : 'FAILED',
-          responseSnapshot: { old: true, total: 49000 },
-        },
-      });
+      const paymentStatus =
+        status === 'PAID'
+          ? 'SUCCESS'
+          : status === 'PENDING'
+            ? 'PROCESSING'
+            : 'FAILED';
+      // Create the historical shape with SQL; the current client also inserts
+      // new fields with defaults, which do not exist until the upgrade.
+      await legacy.$executeRaw`INSERT INTO "Payment" ("orderId","idempotencyKey","requestHash",amount,method,status,"responseSnapshot","updatedAt") VALUES (${order.id},${`old-${status}`},'old-request-hash',49000,'WALLET',${paymentStatus}::"PaymentStatus",${JSON.stringify({ old: true, total: 49000 })}::jsonb,now())`;
       if (status === 'PAID')
-        await legacy.loyaltyTransaction.create({
-          data: { userId: user.id, orderId: order.id, points: 49 },
-        });
+        await legacy.$executeRaw`INSERT INTO "LoyaltyTransaction" ("userId","orderId",points) VALUES (${user.id},${order.id},49)`;
     }
     original = await rows(legacy);
     assert.match(

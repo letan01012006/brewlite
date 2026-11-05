@@ -25,12 +25,48 @@ enum OrderStatus {
 enum PaymentMethod {
   WALLET
   CARD
+  VNPAY
+  POINTS
 }
 
 enum PaymentStatus {
   PROCESSING
   SUCCESS
   FAILED
+  EXPIRED
+  CANCELLED
+  NEEDS_REFUND
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  REFUND
+  ADJUSTMENT
+  REVOKE
+}
+
+enum PaymentEventSource {
+  CREATE
+  IPN
+  RETURN
+  QUERY
+  REFUND
+}
+
+enum PaymentEventResult {
+  RECEIVED
+  ACCEPTED
+  REJECTED
+  ERROR
+  DUPLICATE
 }
 
 enum Size {
@@ -156,10 +192,12 @@ model Order {
 
   items                OrderItem[]
   payments             Payment[]
-  loyaltyTransaction   LoyaltyTransaction?
+  loyaltyTransactions  LoyaltyTransaction[]
   inventoryReservation InventoryReservation?
   inventoryMovements   InventoryMovement[]
 
+  @@unique([id, userId])
+  @@unique([id, total])
   @@index([userId, createdAt])
   @@index([status])
 }
@@ -219,8 +257,30 @@ model Payment {
 
   responseSnapshot Json?
 
-  // Hoàn tiền mock khi hủy đơn đã PAID (không có bảng Refund riêng).
-  // Giữ nguyên status = SUCCESS và responseSnapshot của lần thanh toán đầu.
+  // Whole-order value in VND; pointsUsed is a positive count, never VND.
+  pointsUsed   Int @default(0)
+  // Legacy monetary snapshot, preserved; new flows use amount, not split tender.
+  pointsAmount Int @default(0)
+
+  gatewayTxnRef            String?   @unique
+  paymentUrl               String?
+  gatewayCreatedAt         DateTime?
+  // Exact vnp_CreateDate sent to VNPAY (Asia/Ho_Chi_Minh), needed for querydr.
+  vnpCreateDate            String?   @db.VarChar(14)
+  expiresAt                DateTime?
+  gatewayBankCode          String?
+  bankTransactionNo        String?
+  cardType                 String?
+  gatewayResponseCode      String?
+  gatewayTransactionStatus String?
+  vnpPayDate               String?   @db.VarChar(14)
+  paidAt                   DateTime? @map("gatewayPayDate")
+  ipnProcessedAt           DateTime?
+  // Legacy column only. New VNPAY writes use providerRef.
+  gatewayTransactionNo     String?
+
+  // Settled refund evidence only. A cancellation/request is not a settlement.
+  // PaymentRefund records the request lifecycle; retain the original response.
   refundedAt     DateTime?
   refundedAmount Int       @default(0)
   refundRef      String?
@@ -228,9 +288,63 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id])
+  order               Order                @relation(fields: [orderId, amount], references: [id, total], onDelete: Restrict, onUpdate: Restrict)
+  events              PaymentWebhookLog[]
+  refunds             PaymentRefund[]
+  loyaltyTransactions LoyaltyTransaction[]
 
+  @@unique([id, orderId])
+  @@unique([id, amount])
+  @@unique([method, providerRef])
   @@index([orderId, status])
+  @@index([status, expiresAt])
+}
+
+// One row per delivery/attempt. Duplicate IPNs are still auditable.
+model PaymentWebhookLog {
+  id                   Int                @id @default(autoincrement())
+  paymentId            Int?
+  source               PaymentEventSource @default(IPN)
+  result               PaymentEventResult @default(RECEIVED)
+  message              String?
+  // Legacy name; only sanitized, allowlisted content may be written.
+  rawPayload           Json
+  gatewayTxnRef        String?
+  gatewayTransactionNo String?
+  amount               Int?
+  responseCode         String?
+  signatureValid       Boolean?
+  processed            Boolean            @default(false)
+  // Correlation only; business deduplication belongs to Payment/loyalty keys.
+  requestId            String?
+  occurredAt           DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  payment              Payment?           @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([paymentId, createdAt])
+  @@index([source, createdAt])
+  @@index([requestId])
+  @@index([gatewayTxnRef, createdAt])
+  @@index([signatureValid, processed])
+}
+
+model PaymentRefund {
+  id                  Int          @id @default(autoincrement())
+  paymentId           Int          @unique
+  // Requested VND amount; Payment.refundedAmount is the settled amount.
+  amount              Int
+  status              RefundStatus @default(PENDING)
+  idempotencyKey      String       @unique
+  gatewayRefundNo     String?
+  gatewayResponseCode String?
+  failureReason       String?
+  confirmedAt         DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  payment             Payment      @relation(fields: [paymentId, amount], references: [id, amount], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([paymentId, status])
+  @@index([status, createdAt])
 }
 
 // =========================
@@ -268,8 +382,14 @@ model PromoCode {
 model LoyaltyTransaction {
   id Int @id @default(autoincrement())
 
-  userId  Int
-  orderId Int @unique
+  userId               Int
+  orderId              Int
+  paymentId            Int?
+  type                 LoyaltyTransactionType @default(EARN)
+  eventKey             String                 @unique
+  // Retained legacy snapshot; never the authoritative points balance.
+  pointsAmount         Int                    @default(0)
+  relatedTransactionId Int?
 
   points Int
 
@@ -278,10 +398,20 @@ model LoyaltyTransaction {
 
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id])
-  order Order @relation(fields: [orderId], references: [id])
+  user               User                 @relation(fields: [userId], references: [id])
+  order              Order                @relation(fields: [orderId, userId], references: [id, userId], onDelete: Restrict, onUpdate: Restrict)
+  payment            Payment?             @relation(fields: [paymentId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Restrict)
+  relatedTransaction LoyaltyTransaction?  @relation("PointReversal", fields: [relatedTransactionId, orderId, userId], references: [id, orderId, userId], onDelete: Restrict, onUpdate: Restrict)
+  childTransactions  LoyaltyTransaction[] @relation("PointReversal")
 
+  @@unique([paymentId, type])
+  @@unique([id, orderId, userId])
   @@index([userId])
+  @@index([userId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([paymentId])
+  @@index([relatedTransactionId, orderId, userId])
+  @@index([orderId])
 }
 
 // =========================

@@ -30,6 +30,9 @@ export type LoyaltyTransactionAvgAggregateOutputType = {
   id: number | null
   userId: number | null
   orderId: number | null
+  paymentId: number | null
+  pointsAmount: number | null
+  relatedTransactionId: number | null
   points: number | null
 }
 
@@ -37,6 +40,9 @@ export type LoyaltyTransactionSumAggregateOutputType = {
   id: number | null
   userId: number | null
   orderId: number | null
+  paymentId: number | null
+  pointsAmount: number | null
+  relatedTransactionId: number | null
   points: number | null
 }
 
@@ -44,6 +50,11 @@ export type LoyaltyTransactionMinAggregateOutputType = {
   id: number | null
   userId: number | null
   orderId: number | null
+  paymentId: number | null
+  type: $Enums.LoyaltyTransactionType | null
+  eventKey: string | null
+  pointsAmount: number | null
+  relatedTransactionId: number | null
   points: number | null
   reversedAt: Date | null
   createdAt: Date | null
@@ -53,6 +64,11 @@ export type LoyaltyTransactionMaxAggregateOutputType = {
   id: number | null
   userId: number | null
   orderId: number | null
+  paymentId: number | null
+  type: $Enums.LoyaltyTransactionType | null
+  eventKey: string | null
+  pointsAmount: number | null
+  relatedTransactionId: number | null
   points: number | null
   reversedAt: Date | null
   createdAt: Date | null
@@ -62,6 +78,11 @@ export type LoyaltyTransactionCountAggregateOutputType = {
   id: number
   userId: number
   orderId: number
+  paymentId: number
+  type: number
+  eventKey: number
+  pointsAmount: number
+  relatedTransactionId: number
   points: number
   reversedAt: number
   createdAt: number
@@ -73,6 +94,9 @@ export type LoyaltyTransactionAvgAggregateInputType = {
   id?: true
   userId?: true
   orderId?: true
+  paymentId?: true
+  pointsAmount?: true
+  relatedTransactionId?: true
   points?: true
 }
 
@@ -80,6 +104,9 @@ export type LoyaltyTransactionSumAggregateInputType = {
   id?: true
   userId?: true
   orderId?: true
+  paymentId?: true
+  pointsAmount?: true
+  relatedTransactionId?: true
   points?: true
 }
 
@@ -87,6 +114,11 @@ export type LoyaltyTransactionMinAggregateInputType = {
   id?: true
   userId?: true
   orderId?: true
+  paymentId?: true
+  type?: true
+  eventKey?: true
+  pointsAmount?: true
+  relatedTransactionId?: true
   points?: true
   reversedAt?: true
   createdAt?: true
@@ -96,6 +128,11 @@ export type LoyaltyTransactionMaxAggregateInputType = {
   id?: true
   userId?: true
   orderId?: true
+  paymentId?: true
+  type?: true
+  eventKey?: true
+  pointsAmount?: true
+  relatedTransactionId?: true
   points?: true
   reversedAt?: true
   createdAt?: true
@@ -105,6 +142,11 @@ export type LoyaltyTransactionCountAggregateInputType = {
   id?: true
   userId?: true
   orderId?: true
+  paymentId?: true
+  type?: true
+  eventKey?: true
+  pointsAmount?: true
+  relatedTransactionId?: true
   points?: true
   reversedAt?: true
   createdAt?: true
@@ -201,6 +243,11 @@ export type LoyaltyTransactionGroupByOutputType = {
   id: number
   userId: number
   orderId: number
+  paymentId: number | null
+  type: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount: number
+  relatedTransactionId: number | null
   points: number
   reversedAt: Date | null
   createdAt: Date
@@ -233,42 +280,73 @@ export type LoyaltyTransactionWhereInput = {
   id?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   userId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   orderId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  paymentId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFilter<"LoyaltyTransaction"> | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFilter<"LoyaltyTransaction"> | string
+  pointsAmount?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  relatedTransactionId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
   points?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   reversedAt?: Prisma.DateTimeNullableFilter<"LoyaltyTransaction"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"LoyaltyTransaction"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
+  payment?: Prisma.XOR<Prisma.PaymentNullableScalarRelationFilter, Prisma.PaymentWhereInput> | null
+  relatedTransaction?: Prisma.XOR<Prisma.LoyaltyTransactionNullableScalarRelationFilter, Prisma.LoyaltyTransactionWhereInput> | null
+  childTransactions?: Prisma.LoyaltyTransactionListRelationFilter
 }
 
 export type LoyaltyTransactionOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  type?: Prisma.SortOrder
+  eventKey?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrderInput | Prisma.SortOrder
   points?: Prisma.SortOrder
   reversedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
   order?: Prisma.OrderOrderByWithRelationInput
+  payment?: Prisma.PaymentOrderByWithRelationInput
+  relatedTransaction?: Prisma.LoyaltyTransactionOrderByWithRelationInput
+  childTransactions?: Prisma.LoyaltyTransactionOrderByRelationAggregateInput
 }
 
 export type LoyaltyTransactionWhereUniqueInput = Prisma.AtLeast<{
   id?: number
-  orderId?: number
+  eventKey?: string
+  paymentId_type?: Prisma.LoyaltyTransactionPaymentIdTypeCompoundUniqueInput
+  id_orderId_userId?: Prisma.LoyaltyTransactionIdOrderIdUserIdCompoundUniqueInput
   AND?: Prisma.LoyaltyTransactionWhereInput | Prisma.LoyaltyTransactionWhereInput[]
   OR?: Prisma.LoyaltyTransactionWhereInput[]
   NOT?: Prisma.LoyaltyTransactionWhereInput | Prisma.LoyaltyTransactionWhereInput[]
   userId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  orderId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  paymentId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFilter<"LoyaltyTransaction"> | $Enums.LoyaltyTransactionType
+  pointsAmount?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  relatedTransactionId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
   points?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   reversedAt?: Prisma.DateTimeNullableFilter<"LoyaltyTransaction"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"LoyaltyTransaction"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
   order?: Prisma.XOR<Prisma.OrderScalarRelationFilter, Prisma.OrderWhereInput>
-}, "id" | "orderId">
+  payment?: Prisma.XOR<Prisma.PaymentNullableScalarRelationFilter, Prisma.PaymentWhereInput> | null
+  relatedTransaction?: Prisma.XOR<Prisma.LoyaltyTransactionNullableScalarRelationFilter, Prisma.LoyaltyTransactionWhereInput> | null
+  childTransactions?: Prisma.LoyaltyTransactionListRelationFilter
+}, "id" | "eventKey" | "paymentId_type" | "id_orderId_userId">
 
 export type LoyaltyTransactionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrderInput | Prisma.SortOrder
+  type?: Prisma.SortOrder
+  eventKey?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrderInput | Prisma.SortOrder
   points?: Prisma.SortOrder
   reversedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -286,55 +364,92 @@ export type LoyaltyTransactionScalarWhereWithAggregatesInput = {
   id?: Prisma.IntWithAggregatesFilter<"LoyaltyTransaction"> | number
   userId?: Prisma.IntWithAggregatesFilter<"LoyaltyTransaction"> | number
   orderId?: Prisma.IntWithAggregatesFilter<"LoyaltyTransaction"> | number
+  paymentId?: Prisma.IntNullableWithAggregatesFilter<"LoyaltyTransaction"> | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeWithAggregatesFilter<"LoyaltyTransaction"> | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringWithAggregatesFilter<"LoyaltyTransaction"> | string
+  pointsAmount?: Prisma.IntWithAggregatesFilter<"LoyaltyTransaction"> | number
+  relatedTransactionId?: Prisma.IntNullableWithAggregatesFilter<"LoyaltyTransaction"> | number | null
   points?: Prisma.IntWithAggregatesFilter<"LoyaltyTransaction"> | number
   reversedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"LoyaltyTransaction"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"LoyaltyTransaction"> | Date | string
 }
 
 export type LoyaltyTransactionCreateInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutLoyaltyTransactionsInput
-  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionInput
+  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionsInput
+  payment?: Prisma.PaymentCreateNestedOneWithoutLoyaltyTransactionsInput
+  relatedTransaction?: Prisma.LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput
+  childTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionUncheckedCreateInput = {
   id?: number
   userId: number
   orderId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionUpdateInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
-  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionNestedInput
+  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  payment?: Prisma.PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput
+  relatedTransaction?: Prisma.LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput
+  childTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput
 }
 
 export type LoyaltyTransactionUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput
 }
 
 export type LoyaltyTransactionCreateManyInput = {
   id?: number
   userId: number
   orderId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
 }
 
 export type LoyaltyTransactionUpdateManyMutationInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -344,6 +459,11 @@ export type LoyaltyTransactionUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -364,10 +484,26 @@ export type LoyaltyTransactionNullableScalarRelationFilter = {
   isNot?: Prisma.LoyaltyTransactionWhereInput | null
 }
 
+export type LoyaltyTransactionPaymentIdTypeCompoundUniqueInput = {
+  paymentId: number
+  type: $Enums.LoyaltyTransactionType
+}
+
+export type LoyaltyTransactionIdOrderIdUserIdCompoundUniqueInput = {
+  id: number
+  orderId: number
+  userId: number
+}
+
 export type LoyaltyTransactionCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrder
+  type?: Prisma.SortOrder
+  eventKey?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrder
   points?: Prisma.SortOrder
   reversedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -377,6 +513,9 @@ export type LoyaltyTransactionAvgOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrder
   points?: Prisma.SortOrder
 }
 
@@ -384,6 +523,11 @@ export type LoyaltyTransactionMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrder
+  type?: Prisma.SortOrder
+  eventKey?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrder
   points?: Prisma.SortOrder
   reversedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -393,6 +537,11 @@ export type LoyaltyTransactionMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrder
+  type?: Prisma.SortOrder
+  eventKey?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrder
   points?: Prisma.SortOrder
   reversedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -402,6 +551,9 @@ export type LoyaltyTransactionSumOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
+  paymentId?: Prisma.SortOrder
+  pointsAmount?: Prisma.SortOrder
+  relatedTransactionId?: Prisma.SortOrder
   points?: Prisma.SortOrder
 }
 
@@ -447,51 +599,177 @@ export type LoyaltyTransactionUncheckedUpdateManyWithoutUserNestedInput = {
   deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
 }
 
-export type LoyaltyTransactionCreateNestedOneWithoutOrderInput = {
-  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
-  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput
+export type LoyaltyTransactionCreateNestedManyWithoutOrderInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput> | Prisma.LoyaltyTransactionCreateWithoutOrderInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyOrderInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+}
+
+export type LoyaltyTransactionUncheckedCreateNestedManyWithoutOrderInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput> | Prisma.LoyaltyTransactionCreateWithoutOrderInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyOrderInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+}
+
+export type LoyaltyTransactionUpdateManyWithoutOrderNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput> | Prisma.LoyaltyTransactionCreateWithoutOrderInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutOrderInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutOrderInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyOrderInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutOrderInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutOrderInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutOrderInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutOrderInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutOrderNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput> | Prisma.LoyaltyTransactionCreateWithoutOrderInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutOrderInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutOrderInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyOrderInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutOrderInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutOrderInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutOrderInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutOrderInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
+}
+
+export type LoyaltyTransactionCreateNestedManyWithoutPaymentInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput> | Prisma.LoyaltyTransactionCreateWithoutPaymentInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyPaymentInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+}
+
+export type LoyaltyTransactionUncheckedCreateNestedManyWithoutPaymentInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput> | Prisma.LoyaltyTransactionCreateWithoutPaymentInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyPaymentInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+}
+
+export type LoyaltyTransactionUpdateManyWithoutPaymentNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput> | Prisma.LoyaltyTransactionCreateWithoutPaymentInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutPaymentInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutPaymentInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyPaymentInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutPaymentInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutPaymentInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutPaymentInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutPaymentInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutPaymentNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput> | Prisma.LoyaltyTransactionCreateWithoutPaymentInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutPaymentInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutPaymentInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutPaymentInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyPaymentInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutPaymentInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutPaymentInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutPaymentInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutPaymentInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
+}
+
+export type LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutChildTransactionsInput>
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutChildTransactionsInput
   connect?: Prisma.LoyaltyTransactionWhereUniqueInput
 }
 
-export type LoyaltyTransactionUncheckedCreateNestedOneWithoutOrderInput = {
-  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
-  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput
-  connect?: Prisma.LoyaltyTransactionWhereUniqueInput
+export type LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput> | Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyRelatedTransactionInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
 }
 
-export type LoyaltyTransactionUpdateOneWithoutOrderNestedInput = {
-  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
-  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput
-  upsert?: Prisma.LoyaltyTransactionUpsertWithoutOrderInput
+export type LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput> | Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyRelatedTransactionInputEnvelope
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+}
+
+export type EnumLoyaltyTransactionTypeFieldUpdateOperationsInput = {
+  set?: $Enums.LoyaltyTransactionType
+}
+
+export type LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutChildTransactionsInput>
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutChildTransactionsInput
+  upsert?: Prisma.LoyaltyTransactionUpsertWithoutChildTransactionsInput
   disconnect?: Prisma.LoyaltyTransactionWhereInput | boolean
   delete?: Prisma.LoyaltyTransactionWhereInput | boolean
   connect?: Prisma.LoyaltyTransactionWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.LoyaltyTransactionUpdateToOneWithWhereWithoutOrderInput, Prisma.LoyaltyTransactionUpdateWithoutOrderInput>, Prisma.LoyaltyTransactionUncheckedUpdateWithoutOrderInput>
+  update?: Prisma.XOR<Prisma.XOR<Prisma.LoyaltyTransactionUpdateToOneWithWhereWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUpdateWithoutChildTransactionsInput>, Prisma.LoyaltyTransactionUncheckedUpdateWithoutChildTransactionsInput>
 }
 
-export type LoyaltyTransactionUncheckedUpdateOneWithoutOrderNestedInput = {
-  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
-  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutOrderInput
-  upsert?: Prisma.LoyaltyTransactionUpsertWithoutOrderInput
-  disconnect?: Prisma.LoyaltyTransactionWhereInput | boolean
-  delete?: Prisma.LoyaltyTransactionWhereInput | boolean
-  connect?: Prisma.LoyaltyTransactionWhereUniqueInput
-  update?: Prisma.XOR<Prisma.XOR<Prisma.LoyaltyTransactionUpdateToOneWithWhereWithoutOrderInput, Prisma.LoyaltyTransactionUpdateWithoutOrderInput>, Prisma.LoyaltyTransactionUncheckedUpdateWithoutOrderInput>
+export type LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput> | Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutRelatedTransactionInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyRelatedTransactionInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutRelatedTransactionInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutRelatedTransactionInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput = {
+  create?: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput> | Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput[] | Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput[]
+  connectOrCreate?: Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput[]
+  upsert?: Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpsertWithWhereUniqueWithoutRelatedTransactionInput[]
+  createMany?: Prisma.LoyaltyTransactionCreateManyRelatedTransactionInputEnvelope
+  set?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  disconnect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  delete?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  connect?: Prisma.LoyaltyTransactionWhereUniqueInput | Prisma.LoyaltyTransactionWhereUniqueInput[]
+  update?: Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpdateWithWhereUniqueWithoutRelatedTransactionInput[]
+  updateMany?: Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutRelatedTransactionInput | Prisma.LoyaltyTransactionUpdateManyWithWhereWithoutRelatedTransactionInput[]
+  deleteMany?: Prisma.LoyaltyTransactionScalarWhereInput | Prisma.LoyaltyTransactionScalarWhereInput[]
 }
 
 export type LoyaltyTransactionCreateWithoutUserInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
-  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionInput
+  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionsInput
+  payment?: Prisma.PaymentCreateNestedOneWithoutLoyaltyTransactionsInput
+  relatedTransaction?: Prisma.LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput
+  childTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionUncheckedCreateWithoutUserInput = {
   id?: number
   orderId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionCreateOrConnectWithoutUserInput = {
@@ -527,24 +805,40 @@ export type LoyaltyTransactionScalarWhereInput = {
   id?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   userId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   orderId?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  paymentId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFilter<"LoyaltyTransaction"> | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFilter<"LoyaltyTransaction"> | string
+  pointsAmount?: Prisma.IntFilter<"LoyaltyTransaction"> | number
+  relatedTransactionId?: Prisma.IntNullableFilter<"LoyaltyTransaction"> | number | null
   points?: Prisma.IntFilter<"LoyaltyTransaction"> | number
   reversedAt?: Prisma.DateTimeNullableFilter<"LoyaltyTransaction"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"LoyaltyTransaction"> | Date | string
 }
 
 export type LoyaltyTransactionCreateWithoutOrderInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutLoyaltyTransactionsInput
+  payment?: Prisma.PaymentCreateNestedOneWithoutLoyaltyTransactionsInput
+  relatedTransaction?: Prisma.LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput
+  childTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionUncheckedCreateWithoutOrderInput = {
   id?: number
-  userId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput
 }
 
 export type LoyaltyTransactionCreateOrConnectWithoutOrderInput = {
@@ -552,119 +846,521 @@ export type LoyaltyTransactionCreateOrConnectWithoutOrderInput = {
   create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
 }
 
-export type LoyaltyTransactionUpsertWithoutOrderInput = {
-  update: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutOrderInput>
-  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
-  where?: Prisma.LoyaltyTransactionWhereInput
+export type LoyaltyTransactionCreateManyOrderInputEnvelope = {
+  data: Prisma.LoyaltyTransactionCreateManyOrderInput | Prisma.LoyaltyTransactionCreateManyOrderInput[]
+  skipDuplicates?: boolean
 }
 
-export type LoyaltyTransactionUpdateToOneWithWhereWithoutOrderInput = {
-  where?: Prisma.LoyaltyTransactionWhereInput
+export type LoyaltyTransactionUpsertWithWhereUniqueWithoutOrderInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  update: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutOrderInput>
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutOrderInput>
+}
+
+export type LoyaltyTransactionUpdateWithWhereUniqueWithoutOrderInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
   data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutOrderInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutOrderInput>
 }
 
-export type LoyaltyTransactionUpdateWithoutOrderInput = {
+export type LoyaltyTransactionUpdateManyWithWhereWithoutOrderInput = {
+  where: Prisma.LoyaltyTransactionScalarWhereInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateManyMutationInput, Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutOrderInput>
+}
+
+export type LoyaltyTransactionCreateWithoutPaymentInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutLoyaltyTransactionsInput
+  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionsInput
+  relatedTransaction?: Prisma.LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput
+  childTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput
+}
+
+export type LoyaltyTransactionUncheckedCreateWithoutPaymentInput = {
+  id?: number
+  userId: number
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput
+}
+
+export type LoyaltyTransactionCreateOrConnectWithoutPaymentInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput>
+}
+
+export type LoyaltyTransactionCreateManyPaymentInputEnvelope = {
+  data: Prisma.LoyaltyTransactionCreateManyPaymentInput | Prisma.LoyaltyTransactionCreateManyPaymentInput[]
+  skipDuplicates?: boolean
+}
+
+export type LoyaltyTransactionUpsertWithWhereUniqueWithoutPaymentInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  update: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutPaymentInput>
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutPaymentInput>
+}
+
+export type LoyaltyTransactionUpdateWithWhereUniqueWithoutPaymentInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutPaymentInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutPaymentInput>
+}
+
+export type LoyaltyTransactionUpdateManyWithWhereWithoutPaymentInput = {
+  where: Prisma.LoyaltyTransactionScalarWhereInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateManyMutationInput, Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutPaymentInput>
+}
+
+export type LoyaltyTransactionCreateWithoutChildTransactionsInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutLoyaltyTransactionsInput
+  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionsInput
+  payment?: Prisma.PaymentCreateNestedOneWithoutLoyaltyTransactionsInput
+  relatedTransaction?: Prisma.LoyaltyTransactionCreateNestedOneWithoutChildTransactionsInput
+}
+
+export type LoyaltyTransactionUncheckedCreateWithoutChildTransactionsInput = {
+  id?: number
+  userId: number
+  orderId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+}
+
+export type LoyaltyTransactionCreateOrConnectWithoutChildTransactionsInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutChildTransactionsInput>
+}
+
+export type LoyaltyTransactionCreateWithoutRelatedTransactionInput = {
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+  user: Prisma.UserCreateNestedOneWithoutLoyaltyTransactionsInput
+  order: Prisma.OrderCreateNestedOneWithoutLoyaltyTransactionsInput
+  payment?: Prisma.PaymentCreateNestedOneWithoutLoyaltyTransactionsInput
+  childTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutRelatedTransactionInput
+}
+
+export type LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput = {
+  id?: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutRelatedTransactionInput
+}
+
+export type LoyaltyTransactionCreateOrConnectWithoutRelatedTransactionInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput>
+}
+
+export type LoyaltyTransactionCreateManyRelatedTransactionInputEnvelope = {
+  data: Prisma.LoyaltyTransactionCreateManyRelatedTransactionInput | Prisma.LoyaltyTransactionCreateManyRelatedTransactionInput[]
+  skipDuplicates?: boolean
+}
+
+export type LoyaltyTransactionUpsertWithoutChildTransactionsInput = {
+  update: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutChildTransactionsInput>
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutChildTransactionsInput>
+  where?: Prisma.LoyaltyTransactionWhereInput
+}
+
+export type LoyaltyTransactionUpdateToOneWithWhereWithoutChildTransactionsInput = {
+  where?: Prisma.LoyaltyTransactionWhereInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutChildTransactionsInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutChildTransactionsInput>
+}
+
+export type LoyaltyTransactionUpdateWithoutChildTransactionsInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  payment?: Prisma.PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput
+  relatedTransaction?: Prisma.LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput
 }
 
-export type LoyaltyTransactionUncheckedUpdateWithoutOrderInput = {
+export type LoyaltyTransactionUncheckedUpdateWithoutChildTransactionsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
+  orderId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type LoyaltyTransactionUpsertWithWhereUniqueWithoutRelatedTransactionInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  update: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutRelatedTransactionInput>
+  create: Prisma.XOR<Prisma.LoyaltyTransactionCreateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedCreateWithoutRelatedTransactionInput>
+}
+
+export type LoyaltyTransactionUpdateWithWhereUniqueWithoutRelatedTransactionInput = {
+  where: Prisma.LoyaltyTransactionWhereUniqueInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateWithoutRelatedTransactionInput, Prisma.LoyaltyTransactionUncheckedUpdateWithoutRelatedTransactionInput>
+}
+
+export type LoyaltyTransactionUpdateManyWithWhereWithoutRelatedTransactionInput = {
+  where: Prisma.LoyaltyTransactionScalarWhereInput
+  data: Prisma.XOR<Prisma.LoyaltyTransactionUpdateManyMutationInput, Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionInput>
 }
 
 export type LoyaltyTransactionCreateManyUserInput = {
   id?: number
   orderId: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
   points: number
   reversedAt?: Date | string | null
   createdAt?: Date | string
 }
 
 export type LoyaltyTransactionUpdateWithoutUserInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
-  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionNestedInput
+  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  payment?: Prisma.PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput
+  relatedTransaction?: Prisma.LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput
+  childTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput
 }
 
 export type LoyaltyTransactionUncheckedUpdateWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput
 }
 
 export type LoyaltyTransactionUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   points?: Prisma.IntFieldUpdateOperationsInput | number
   reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
+export type LoyaltyTransactionCreateManyOrderInput = {
+  id?: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+}
+
+export type LoyaltyTransactionUpdateWithoutOrderInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  payment?: Prisma.PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput
+  relatedTransaction?: Prisma.LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput
+  childTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateWithoutOrderInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutOrderInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type LoyaltyTransactionCreateManyPaymentInput = {
+  id?: number
+  userId: number
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  relatedTransactionId?: number | null
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+}
+
+export type LoyaltyTransactionUpdateWithoutPaymentInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  relatedTransaction?: Prisma.LoyaltyTransactionUpdateOneWithoutChildTransactionsNestedInput
+  childTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateWithoutPaymentInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  userId?: Prisma.IntFieldUpdateOperationsInput | number
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutPaymentInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  userId?: Prisma.IntFieldUpdateOperationsInput | number
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  relatedTransactionId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type LoyaltyTransactionCreateManyRelatedTransactionInput = {
+  id?: number
+  paymentId?: number | null
+  type?: $Enums.LoyaltyTransactionType
+  eventKey: string
+  pointsAmount?: number
+  points: number
+  reversedAt?: Date | string | null
+  createdAt?: Date | string
+}
+
+export type LoyaltyTransactionUpdateWithoutRelatedTransactionInput = {
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  user?: Prisma.UserUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  order?: Prisma.OrderUpdateOneRequiredWithoutLoyaltyTransactionsNestedInput
+  payment?: Prisma.PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput
+  childTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateWithoutRelatedTransactionInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  childTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionNestedInput
+}
+
+export type LoyaltyTransactionUncheckedUpdateManyWithoutRelatedTransactionInput = {
+  id?: Prisma.IntFieldUpdateOperationsInput | number
+  paymentId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  type?: Prisma.EnumLoyaltyTransactionTypeFieldUpdateOperationsInput | $Enums.LoyaltyTransactionType
+  eventKey?: Prisma.StringFieldUpdateOperationsInput | string
+  pointsAmount?: Prisma.IntFieldUpdateOperationsInput | number
+  points?: Prisma.IntFieldUpdateOperationsInput | number
+  reversedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+
+/**
+ * Count Type LoyaltyTransactionCountOutputType
+ */
+
+export type LoyaltyTransactionCountOutputType = {
+  childTransactions: number
+}
+
+export type LoyaltyTransactionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  childTransactions?: boolean | LoyaltyTransactionCountOutputTypeCountChildTransactionsArgs
+}
+
+/**
+ * LoyaltyTransactionCountOutputType without action
+ */
+export type LoyaltyTransactionCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the LoyaltyTransactionCountOutputType
+   */
+  select?: Prisma.LoyaltyTransactionCountOutputTypeSelect<ExtArgs> | null
+}
+
+/**
+ * LoyaltyTransactionCountOutputType without action
+ */
+export type LoyaltyTransactionCountOutputTypeCountChildTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.LoyaltyTransactionWhereInput
+}
 
 
 export type LoyaltyTransactionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
   orderId?: boolean
+  paymentId?: boolean
+  type?: boolean
+  eventKey?: boolean
+  pointsAmount?: boolean
+  relatedTransactionId?: boolean
   points?: boolean
   reversedAt?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
+  childTransactions?: boolean | Prisma.LoyaltyTransaction$childTransactionsArgs<ExtArgs>
+  _count?: boolean | Prisma.LoyaltyTransactionCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["loyaltyTransaction"]>
 
 export type LoyaltyTransactionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
   orderId?: boolean
+  paymentId?: boolean
+  type?: boolean
+  eventKey?: boolean
+  pointsAmount?: boolean
+  relatedTransactionId?: boolean
   points?: boolean
   reversedAt?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
 }, ExtArgs["result"]["loyaltyTransaction"]>
 
 export type LoyaltyTransactionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
   userId?: boolean
   orderId?: boolean
+  paymentId?: boolean
+  type?: boolean
+  eventKey?: boolean
+  pointsAmount?: boolean
+  relatedTransactionId?: boolean
   points?: boolean
   reversedAt?: boolean
   createdAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
 }, ExtArgs["result"]["loyaltyTransaction"]>
 
 export type LoyaltyTransactionSelectScalar = {
   id?: boolean
   userId?: boolean
   orderId?: boolean
+  paymentId?: boolean
+  type?: boolean
+  eventKey?: boolean
+  pointsAmount?: boolean
+  relatedTransactionId?: boolean
   points?: boolean
   reversedAt?: boolean
   createdAt?: boolean
 }
 
-export type LoyaltyTransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orderId" | "points" | "reversedAt" | "createdAt", ExtArgs["result"]["loyaltyTransaction"]>
+export type LoyaltyTransactionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "orderId" | "paymentId" | "type" | "eventKey" | "pointsAmount" | "relatedTransactionId" | "points" | "reversedAt" | "createdAt", ExtArgs["result"]["loyaltyTransaction"]>
 export type LoyaltyTransactionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
+  childTransactions?: boolean | Prisma.LoyaltyTransaction$childTransactionsArgs<ExtArgs>
+  _count?: boolean | Prisma.LoyaltyTransactionCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type LoyaltyTransactionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
 }
 export type LoyaltyTransactionIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   order?: boolean | Prisma.OrderDefaultArgs<ExtArgs>
+  payment?: boolean | Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>
+  relatedTransaction?: boolean | Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>
 }
 
 export type $LoyaltyTransactionPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -672,11 +1368,19 @@ export type $LoyaltyTransactionPayload<ExtArgs extends runtime.Types.Extensions.
   objects: {
     user: Prisma.$UserPayload<ExtArgs>
     order: Prisma.$OrderPayload<ExtArgs>
+    payment: Prisma.$PaymentPayload<ExtArgs> | null
+    relatedTransaction: Prisma.$LoyaltyTransactionPayload<ExtArgs> | null
+    childTransactions: Prisma.$LoyaltyTransactionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: number
     userId: number
     orderId: number
+    paymentId: number | null
+    type: $Enums.LoyaltyTransactionType
+    eventKey: string
+    pointsAmount: number
+    relatedTransactionId: number | null
     points: number
     reversedAt: Date | null
     createdAt: Date
@@ -1076,6 +1780,9 @@ export interface Prisma__LoyaltyTransactionClient<T, Null = never, ExtArgs exten
   readonly [Symbol.toStringTag]: "PrismaPromise"
   user<T extends Prisma.UserDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.UserDefaultArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   order<T extends Prisma.OrderDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrderDefaultArgs<ExtArgs>>): Prisma.Prisma__OrderClient<runtime.Types.Result.GetResult<Prisma.$OrderPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  payment<T extends Prisma.LoyaltyTransaction$paymentArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.LoyaltyTransaction$paymentArgs<ExtArgs>>): Prisma.Prisma__PaymentClient<runtime.Types.Result.GetResult<Prisma.$PaymentPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  relatedTransaction<T extends Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.LoyaltyTransaction$relatedTransactionArgs<ExtArgs>>): Prisma.Prisma__LoyaltyTransactionClient<runtime.Types.Result.GetResult<Prisma.$LoyaltyTransactionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  childTransactions<T extends Prisma.LoyaltyTransaction$childTransactionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.LoyaltyTransaction$childTransactionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$LoyaltyTransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1108,6 +1815,11 @@ export interface LoyaltyTransactionFieldRefs {
   readonly id: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
   readonly userId: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
   readonly orderId: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
+  readonly paymentId: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
+  readonly type: Prisma.FieldRef<"LoyaltyTransaction", 'LoyaltyTransactionType'>
+  readonly eventKey: Prisma.FieldRef<"LoyaltyTransaction", 'String'>
+  readonly pointsAmount: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
+  readonly relatedTransactionId: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
   readonly points: Prisma.FieldRef<"LoyaltyTransaction", 'Int'>
   readonly reversedAt: Prisma.FieldRef<"LoyaltyTransaction", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"LoyaltyTransaction", 'DateTime'>
@@ -1504,6 +2216,68 @@ export type LoyaltyTransactionDeleteManyArgs<ExtArgs extends runtime.Types.Exten
    * Limit how many LoyaltyTransactions to delete.
    */
   limit?: number
+}
+
+/**
+ * LoyaltyTransaction.payment
+ */
+export type LoyaltyTransaction$paymentArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Payment
+   */
+  select?: Prisma.PaymentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Payment
+   */
+  omit?: Prisma.PaymentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.PaymentInclude<ExtArgs> | null
+  where?: Prisma.PaymentWhereInput
+}
+
+/**
+ * LoyaltyTransaction.relatedTransaction
+ */
+export type LoyaltyTransaction$relatedTransactionArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the LoyaltyTransaction
+   */
+  select?: Prisma.LoyaltyTransactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the LoyaltyTransaction
+   */
+  omit?: Prisma.LoyaltyTransactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.LoyaltyTransactionInclude<ExtArgs> | null
+  where?: Prisma.LoyaltyTransactionWhereInput
+}
+
+/**
+ * LoyaltyTransaction.childTransactions
+ */
+export type LoyaltyTransaction$childTransactionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the LoyaltyTransaction
+   */
+  select?: Prisma.LoyaltyTransactionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the LoyaltyTransaction
+   */
+  omit?: Prisma.LoyaltyTransactionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.LoyaltyTransactionInclude<ExtArgs> | null
+  where?: Prisma.LoyaltyTransactionWhereInput
+  orderBy?: Prisma.LoyaltyTransactionOrderByWithRelationInput | Prisma.LoyaltyTransactionOrderByWithRelationInput[]
+  cursor?: Prisma.LoyaltyTransactionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.LoyaltyTransactionScalarFieldEnum | Prisma.LoyaltyTransactionScalarFieldEnum[]
 }
 
 /**
