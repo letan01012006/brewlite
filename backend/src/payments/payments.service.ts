@@ -1,4 +1,9 @@
-﻿import {
+import {
+  InventoryService,
+  InsufficientIngredients,
+} from '../inventory/inventory.service.js';
+import { inventoryTransaction } from '../inventory/transaction.js';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -38,6 +43,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mockPaymentService: MockPaymentService,
+    private readonly inventory: InventoryService,
   ) {}
 
   async processPayment(
@@ -156,61 +162,75 @@ export class PaymentsService {
       };
     }
 
-    const points = Math.floor(order.total / VND_PER_LOYALTY_POINT);
-    const statusCode = chargeResult.success
-      ? HttpStatus.CREATED
-      : HttpStatus.PAYMENT_REQUIRED;
-    const response: Prisma.JsonObject = chargeResult.success
-      ? {
-          payment: {
-            id: payment.id,
-            orderId: order.id,
-            amount: order.total,
-            method: dto.method,
-            status: 'SUCCESS',
-            providerRef: chargeResult.providerRef ?? null,
-          },
-          order: {
-            id: order.id,
-            code: `#${order.id}`,
-            status: 'PAID',
-            total: order.total,
-            pointsEarned: points,
-          },
-        }
-      : {
-          statusCode,
-          code: 'PAYMENT_FAILED',
-          message:
-            chargeResult.failureReason ?? 'Cổng thanh toán từ chối giao dịch',
-          order: {
-            id: order.id,
-            code: `#${order.id}`,
-            status: 'PAYMENT_FAILED',
-          },
-          path: requestPath,
-          timestamp: new Date().toISOString(),
-        };
-
-    await this.prisma.$transaction(async (tx) => {
+    const finalized = await inventoryTransaction(this.prisma, async (tx) => {
       await this.lockPayableOrder(tx, order.id);
+      let outcome = chargeResult;
+      if (outcome.success) {
+        try {
+          await this.inventory.hold(tx, order.id);
+        } catch (error) {
+          if (!(error instanceof InsufficientIngredients)) throw error;
+          // Mock gateway only. Admission finishes before inventory mutation.
+          outcome = {
+            success: false,
+            failureReason:
+              'INSUFFICIENT_INGREDIENTS: Không đủ nguyên liệu để thanh toán đơn hàng.',
+          };
+        }
+      }
+      const points = Math.floor(order.total / VND_PER_LOYALTY_POINT);
+      const statusCode = outcome.success
+        ? HttpStatus.CREATED
+        : HttpStatus.PAYMENT_REQUIRED;
+      const response: Prisma.JsonObject = outcome.success
+        ? {
+            payment: {
+              id: payment.id,
+              orderId: order.id,
+              amount: order.total,
+              method: dto.method,
+              status: 'SUCCESS',
+              providerRef: outcome.providerRef ?? null,
+            },
+            order: {
+              id: order.id,
+              code: `#${order.id}`,
+              status: 'PAID',
+              total: order.total,
+              pointsEarned: points,
+            },
+          }
+        : {
+            statusCode,
+            code: 'PAYMENT_FAILED',
+            message:
+              outcome.failureReason ?? 'Cổng thanh toán từ chối giao dịch',
+            order: {
+              id: order.id,
+              code: `#${order.id}`,
+              status: 'PAYMENT_FAILED',
+            },
+            path: requestPath,
+            timestamp: new Date().toISOString(),
+          };
+
       await tx.payment.update({
         where: { id: payment.id },
         data: {
-          status: chargeResult.success ? 'SUCCESS' : 'FAILED',
-          providerRef: chargeResult.providerRef,
-          failureReason: chargeResult.failureReason,
+          status: outcome.success ? 'SUCCESS' : 'FAILED',
+          providerRef: outcome.providerRef,
+          failureReason: outcome.failureReason,
           responseSnapshot: response,
         },
       });
       await tx.order.update({
         where: { id: order.id },
         data: {
-          status: chargeResult.success ? 'PAID' : 'PAYMENT_FAILED',
-          ...(chargeResult.success ? { pointsEarned: points } : {}),
+          status: outcome.success ? 'PAID' : 'PAYMENT_FAILED',
+          ...(outcome.success ? { pointsEarned: points } : {}),
         },
       });
-      if (chargeResult.success && points > 0) {
+      if (outcome.success && points > 0) {
         await tx.user.update({
           where: { id: userId },
           data: { loyaltyPoints: { increment: points } },
@@ -219,8 +239,9 @@ export class PaymentsService {
           data: { userId, orderId: order.id, points },
         });
       }
+      return { statusCode, data: response };
     });
-    return { isReplayed: false, statusCode, data: response };
+    return { isReplayed: false, ...finalized };
   }
 
   private findPayment(

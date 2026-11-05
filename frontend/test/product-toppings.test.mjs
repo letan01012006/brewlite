@@ -150,7 +150,7 @@ function selection(product) {
     '@/store/auth-store': { useAuthStore: (selector) => selector({ user: { id: 1 } }) },
     '@/store/cart-store': { useCartStore: () => ({
       items: [], isHydrated: true, cartError: null,
-      addItem(input) { added.push(input); return true; },
+      async addItemChecked(input) { added.push(input); return true; },
     }) },
     '@/components/ui/modal': { Modal: 'dialog' },
   }, { ...h.globals, alert: (message) => alerts.push(message) });

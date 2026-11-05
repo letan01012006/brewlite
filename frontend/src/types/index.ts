@@ -11,11 +11,23 @@ export interface User {
 
 export type Size = "S" | "M" | "L";
 
+export type RecipeUnavailableReason =
+  | 'RECIPE_UNAVAILABLE'
+  | 'INSUFFICIENT_INGREDIENTS'
+  | 'INGREDIENT_PAUSED';
+
 export interface Topping {
   id: number;
   name: string;
   price: number;
   isActive?: boolean;
+  ingredientId?: number | null;
+  quantityPerServing?: string | null;
+  ingredient?: {
+    id: number;
+    name: string;
+    isActive: boolean;
+  } | null;
 }
 
 export interface Product {
@@ -24,6 +36,13 @@ export interface Product {
   price: number;
   category: string;
   stock: number;
+  isActive?: boolean;
+  inventoryMode?: 'INGREDIENT';
+  availability?: Array<{
+    size: Size;
+    maxQuantity: number;
+    reason: RecipeUnavailableReason | null;
+  }>;
   inStock?: boolean;
   imageUrl?: string | null;
   description?: string | null;
@@ -35,6 +54,12 @@ export interface Product {
 export interface ProductDetail extends Product {
   sizes: Array<{ size: Size; surcharge: number }>;
   toppings: Topping[];
+}
+
+export interface InventoryAvailability {
+  available: boolean;
+  shortages: Array<{ ingredientId: number; unit: string; quantity: string; availableQuantity: string }>;
+  lines: Array<{ index: number; productId: number; size: Size; maxQuantity: number }>;
 }
 
 export interface CartItem {
@@ -118,4 +143,72 @@ export interface ApiPaginationMeta {
 export interface PaginatedResponse<T> {
   data: T[];
   meta: ApiPaginationMeta;
+}
+
+// ===== Nguyên liệu & Kho (barista) =====
+export type IngredientUnit = 'GRAM' | 'MILLILITRE' | 'PIECE';
+export interface Ingredient {
+  id: number;
+  code: string;
+  name: string;
+  unit: IngredientUnit;
+  stockQuantity: string;
+  reservedQuantity: string;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface StockRow extends Ingredient {
+  availableQuantity: string;
+}
+export type MovementKindFilter =
+  | InventoryMovement['kind']
+  | 'ADJUSTMENT_POSITIVE'
+  | 'ADJUSTMENT_NEGATIVE';
+export interface InventoryMovement {
+  id: number;
+  kind: 'RECEIPT' | 'ADJUSTMENT' | 'HOLD' | 'RELEASE' | 'CONSUME';
+  ingredientId: number;
+  unit: IngredientUnit;
+  stockDelta: string;
+  reservedDelta: string;
+  orderId?: number | null;
+  actorId?: number | null;
+  reason: string | null;
+  createdAt: string;
+  ingredient?: {
+    code: string;
+    name: string;
+    toppings?: Array<{ id: number; name: string }>;
+  };
+  actor?: {
+    id: number;
+    fullName: string;
+    email: string;
+  } | null;
+}
+export interface ProductRecipeIngredient {
+  id?: number;
+  recipeId?: number;
+  ingredientId: number;
+  unit: IngredientUnit;
+  quantity: string;
+}
+export interface ProductRecipe {
+  id: number;
+  productId: number;
+  size: Size;
+  version: number;
+  isActive: boolean;
+  ingredients: ProductRecipeIngredient[];
+}
+export interface ToppingRecipe {
+  id: number;
+  ingredientId: number | null;
+  quantityPerServing: string | null;
+}
+export interface PreparedTopping extends Topping {
+  ingredientId: number | null;
+  quantityPerServing: string | null;
 }

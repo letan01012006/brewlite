@@ -11,7 +11,16 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onSelect }: ProductCardProps) {
   const [imgError, setImgError] = React.useState(false);
-  const isOutOfStock = product.stock <= 0;
+  const ingredientMode = product.inventoryMode === 'INGREDIENT';
+  const isPaused = product.isActive === false;
+  const isAllPaused =
+    ingredientMode &&
+    Boolean(
+      product.availability &&
+        product.availability.length > 0 &&
+        product.availability.every((a) => a.reason === 'INGREDIENT_PAUSED'),
+    );
+  const isOutOfStock = ingredientMode ? !product.inStock : product.stock <= 0;
   const imageSrc = getProductImageUrl(product.name, product.category, product.imageUrl);
 
   return (
@@ -49,12 +58,20 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
             {product.category}
           </span>
 
-          {/* Badge tồn kho */}
-          {isOutOfStock ? (
+          {/* Badge trạng thái bán / tồn kho */}
+          {isPaused ? (
+            <span className="absolute top-2 right-2 bg-stone-700/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md shadow-sm light:shadow-cafe-card ">
+              Tạm dừng
+            </span>
+          ) : isAllPaused ? (
+            <span className="absolute top-2 right-2 bg-amber-700/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md shadow-sm light:shadow-cafe-card ">
+              Không khả dụng
+            </span>
+          ) : isOutOfStock ? (
             <span className="absolute top-2 right-2 bg-rose-600/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md shadow-sm light:shadow-cafe-card ">
               Hết
             </span>
-          ) : product.stock <= 5 ? (
+          ) : !ingredientMode && product.stock <= 5 ? (
             <span className="absolute top-2 right-2 bg-amber-500/90 backdrop-blur-sm text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md shadow-sm light:shadow-cafe-card light:bg-cafe-accent light:text-cafe-primary ">
               Còn {product.stock}
             </span>
@@ -83,11 +100,17 @@ export function ProductCard({ product, onSelect }: ProductCardProps) {
 
         <button
           onClick={() => onSelect(product)}
-          disabled={isOutOfStock}
+          disabled={isPaused || isOutOfStock}
           aria-label={`Đặt món ${product.name}`}
           className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:from-stone-300 disabled:to-stone-300 dark:disabled:from-stone-800 dark:disabled:to-stone-800 text-white text-[11px] sm:text-xs md:text-sm font-bold px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer disabled:cursor-not-allowed shrink-0 light:shadow-cafe-card cafe-primary "
         >
-          {isOutOfStock ? 'Hết hàng' : '+ Đặt'}
+          {isPaused
+            ? 'Tạm dừng'
+            : isAllPaused
+              ? 'Không khả dụng'
+              : isOutOfStock
+                ? 'Hết hàng'
+                : '+ Đặt'}
         </button>
       </div>
     </div>
