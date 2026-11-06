@@ -718,5 +718,161 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(earnTx!.points).toBe(50);
     expect(earnTx!.eventKey).toBe(`order:${order.id}:earn`);
   });
+
+  it('B10: 100% points payment completes immediately without VNPAY', async () => {
+    // Top up points for customer
+    await db.user.update({
+      where: { id: customerUser.id },
+      data: { loyaltyPoints: 1500 },
+    });
+
+    const order = await createOrder(50000);
+    // 50.000 VND = 1.000 points (20 pts = 1.000 VND)
+    const payRes = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'POINTS', pointsUsed: 1000 })
+      .expect(201);
+
+    expect(payRes.body.payment.method).toBe('POINTS');
+    expect(payRes.body.payment.status).toBe('SUCCESS');
+    expect(payRes.body.payment.amount).toBe(0);
+    expect(payRes.body.payment.pointsUsed).toBe(1000);
+    expect(payRes.body.order.status).toBe('PAID');
+
+    // Customer balance: 1500 - 1000 = 500
+    const updatedCustomer = await db.user.findUniqueOrThrow({
+      where: { id: customerUser.id },
+    });
+    expect(updatedCustomer.loyaltyPoints).toBe(500);
+
+    // Check LoyaltyTransaction REDEEM
+    const redeemTx = await db.loyaltyTransaction.findFirst({
+      where: { paymentId: payRes.body.payment.id, type: 'REDEEM' },
+    });
+    expect(redeemTx).not.toBeNull();
+    expect(redeemTx!.points).toBe(-1000);
+    expect(redeemTx!.pointsAmount).toBe(50000);
+  });
+
+  it('B11: Partial points + VNPAY payment discounts order and generates VNPAY URL with remainder', async () => {
+    await db.user.update({
+      where: { id: customerUser.id },
+      data: { loyaltyPoints: 500 },
+    });
+
+    const order = await createOrder(50000);
+    // Use 100 points = 5.000 VND discount -> remainder 45.000 VND via VNPAY
+    const payRes = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 })
+      .expect(201);
+
+    expect(payRes.body.payment.method).toBe('VNPAY');
+    expect(payRes.body.payment.status).toBe('PROCESSING');
+    expect(payRes.body.payment.amount).toBe(45000);
+    expect(payRes.body.payment.pointsUsed).toBe(100);
+    expect(payRes.body.payment.pointsAmount).toBe(5000);
+    expect(payRes.body.payment.paymentUrl).toContain('vnp_Amount=4500000');
+
+    // Customer balance decremented: 500 - 100 = 400
+    const customer = await db.user.findUniqueOrThrow({
+      where: { id: customerUser.id },
+    });
+    expect(customer.loyaltyPoints).toBe(400);
+
+    // Check REDEEM transaction
+    const redeemTx = await db.loyaltyTransaction.findFirst({
+      where: { paymentId: payRes.body.payment.id, type: 'REDEEM' },
+    });
+    expect(redeemTx).not.toBeNull();
+    expect(redeemTx!.points).toBe(-100);
+    expect(redeemTx!.pointsAmount).toBe(5000);
+  });
+
+  it('B12: Cancelling order in PENDING with active PROCESSING payment cancels payment and refunds held points', async () => {
+    await db.user.update({
+      where: { id: customerUser.id },
+      data: { loyaltyPoints: 500 },
+    });
+
+    const order = await createOrder(50000);
+    const payRes = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 })
+      .expect(201);
+
+    const paymentId = payRes.body.payment.id;
+    // Points decremented to 400
+    let customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
+    expect(customer.loyaltyPoints).toBe(400);
+
+    // Customer cancels order directly while payment is PROCESSING
+    const cancelRes = await request(app.getHttpServer())
+      .post(`/api/orders/${order.id}/cancel`)
+      .auth(customerToken, { type: 'bearer' })
+      .expect(200);
+
+    expect(cancelRes.body.status).toBe('CANCELLED');
+
+    // Payment transitioned to CANCELLED
+    const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    expect(payment.status).toBe('CANCELLED');
+
+    // Points refunded back to 500
+    customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
+    expect(customer.loyaltyPoints).toBe(500);
+
+    // Check REFUND transaction
+    const refundTx = await db.loyaltyTransaction.findFirst({
+      where: { paymentId, type: 'REFUND' },
+    });
+    expect(refundTx).not.toBeNull();
+    expect(refundTx!.points).toBe(100);
+  });
+
+  it('B13: Retrying payment on order with abandoned PROCESSING payment cancels old and creates new payment', async () => {
+    await db.user.update({
+      where: { id: customerUser.id },
+      data: { loyaltyPoints: 500 },
+    });
+
+    const order = await createOrder(50000);
+    // First payment attempt (abandoned)
+    const firstPayRes = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 })
+      .expect(201);
+
+    const firstPaymentId = firstPayRes.body.payment.id;
+
+    // Second payment attempt ("Thanh toán tiếp") with NEW idempotency key
+    const secondPayRes = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 200 })
+      .expect(201);
+
+    expect(secondPayRes.body.payment.id).not.toBe(firstPaymentId);
+    expect(secondPayRes.body.payment.status).toBe('PROCESSING');
+    expect(secondPayRes.body.payment.pointsUsed).toBe(200);
+    expect(secondPayRes.body.payment.amount).toBe(40000); // 50k - 10k
+
+    // First payment is CANCELLED
+    const firstPayment = await db.payment.findUniqueOrThrow({ where: { id: firstPaymentId } });
+    expect(firstPayment.status).toBe('CANCELLED');
+
+    // Customer balance: 500 - 100 (first) + 100 (refunded) - 200 (second) = 300
+    const customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
+    expect(customer.loyaltyPoints).toBe(300);
+  });
 });
 

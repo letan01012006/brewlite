@@ -11,14 +11,23 @@ export class ProcessPaymentDto {
   orderId: number;
 
   @ApiProperty({
-    description: 'Phương thức thanh toán (VNPAY, WALLET, CARD)',
+    description: 'Phương thức thanh toán (VNPAY, WALLET, CARD, POINTS)',
     enum: PAYMENT_METHODS,
     example: 'VNPAY',
   })
   @IsIn(PAYMENT_METHODS, {
-    message: 'Phương thức thanh toán chỉ chấp nhận: VNPAY, WALLET hoặc CARD',
+    message: 'Phương thức thanh toán chỉ chấp nhận: VNPAY, WALLET, CARD hoặc POINTS',
   })
   method: PaymentMethod;
+
+  @ApiPropertyOptional({
+    description: 'Số điểm thưởng sử dụng để thanh toán (phải là bội số của 20)',
+    example: 100,
+  })
+  @IsInt({ message: 'Số điểm sử dụng phải là số nguyên' })
+  @Min(0, { message: 'Số điểm sử dụng không được âm' })
+  @IsOptional()
+  pointsUsed?: number;
 
   @ApiPropertyOptional({
     description: 'Idempotency-Key (nếu không truyền qua Header Idempotency-Key)',

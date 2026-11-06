@@ -63,6 +63,11 @@ function VnpayReturnContent() {
             new CheckoutFlow(window.sessionStorage).clear(user.id);
           }
           await refreshUser();
+        } else {
+          // Giao dịch không thành công / hủy: xóa attempt cũ để lượt thanh toán sau tạo key mới
+          if (user && typeof window !== "undefined") {
+            new CheckoutFlow(window.sessionStorage).resetAttempt(user.id);
+          }
         }
       } catch (err) {
         if (err instanceof ApiError) {
@@ -215,7 +220,12 @@ function VnpayReturnContent() {
                 Xem danh sách đơn hàng
               </Link>
               <Link
-                href="/checkout"
+                href={result?.order ? `/checkout?orderId=${result.order.id}` : "/checkout"}
+                onClick={() => {
+                  if (user && typeof window !== "undefined") {
+                    new CheckoutFlow(window.sessionStorage).resetAttempt(user.id);
+                  }
+                }}
                 className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors text-center"
               >
                 Thử lại thanh toán

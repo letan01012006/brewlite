@@ -408,23 +408,55 @@ export class OrdersService {
         (p) => p.status === 'PROCESSING',
       );
       if (processingPayment) {
-        if (
-          processingPayment.expiresAt &&
-          processingPayment.expiresAt <= new Date() &&
-          processingPayment.method === 'VNPAY'
-        ) {
-          await this.paymentsService.reconcileSinglePayment(processingPayment.id);
-          const reloaded = await tx.payment.findUnique({
+        if (processingPayment.method === 'VNPAY') {
+          // Khách chủ động hủy đơn khi giao dịch VNPAY bị bỏ dở (Vấn đề 3)
+          await tx.payment.update({
             where: { id: processingPayment.id },
+            data: {
+              status: 'CANCELLED',
+              failureReason: 'Khách hàng hủy đơn khi đang chờ thanh toán VNPAY',
+            },
           });
-          if (reloaded && reloaded.status === 'PROCESSING') {
-            throw new ConflictException({
-              code: 'PAYMENT_IN_PROGRESS',
-              message:
-                'Đơn hàng đang có giao dịch thanh toán đang xử lý, không thể hủy lúc này',
+
+          // Hoàn lại điểm thưởng nếu phiên thanh toán này có giữ điểm
+          if (processingPayment.pointsUsed > 0) {
+            const existingRefund = await tx.loyaltyTransaction.findFirst({
+              where: { paymentId: processingPayment.id, type: 'REFUND' },
             });
+            if (!existingRefund) {
+              await tx.user.update({
+                where: { id: order.userId },
+                data: {
+                  loyaltyPoints: { increment: processingPayment.pointsUsed },
+                },
+              });
+              const redeemTx = await tx.loyaltyTransaction.findFirst({
+                where: { paymentId: processingPayment.id, type: 'REDEEM' },
+              });
+              await tx.loyaltyTransaction.create({
+                data: {
+                  userId: order.userId,
+                  orderId: order.id,
+                  paymentId: processingPayment.id,
+                  relatedTransactionId: redeemTx?.id,
+                  points: processingPayment.pointsUsed,
+                  pointsAmount: processingPayment.pointsAmount,
+                  type: 'REFUND',
+                  eventKey: `payment:${processingPayment.id}:cancel-refund`,
+                },
+              });
+              await tx.order.update({
+                where: { id: order.id },
+                data: {
+                  discountAmount:
+                    order.discountAmount - processingPayment.pointsAmount,
+                  total: order.total + processingPayment.pointsAmount,
+                },
+              });
+            }
           }
         } else {
+          // Phương thức thanh toán đồng bộ (WALLET, CARD) đang có request xử lý dở dang
           throw new ConflictException({
             code: 'PAYMENT_IN_PROGRESS',
             message:
@@ -514,7 +546,37 @@ export class OrdersService {
           (p) => p.status === 'SUCCESS',
         );
         if (successfulPayment) {
-          if (successfulPayment.method === 'VNPAY') {
+          // Hoàn lại điểm thưởng nếu đơn PAID dùng điểm
+          if (successfulPayment.pointsUsed > 0) {
+            const existingRefund = await tx.loyaltyTransaction.findFirst({
+              where: { paymentId: successfulPayment.id, type: 'REFUND' },
+            });
+            if (!existingRefund) {
+              await tx.user.update({
+                where: { id: order.userId },
+                data: {
+                  loyaltyPoints: { increment: successfulPayment.pointsUsed },
+                },
+              });
+              const redeemTx = await tx.loyaltyTransaction.findFirst({
+                where: { paymentId: successfulPayment.id, type: 'REDEEM' },
+              });
+              await tx.loyaltyTransaction.create({
+                data: {
+                  userId: order.userId,
+                  orderId: order.id,
+                  paymentId: successfulPayment.id,
+                  relatedTransactionId: redeemTx?.id,
+                  points: successfulPayment.pointsUsed,
+                  pointsAmount: successfulPayment.pointsAmount,
+                  type: 'REFUND',
+                  eventKey: `payment:${successfulPayment.id}:paid-cancel-refund`,
+                },
+              });
+            }
+          }
+
+          if (successfulPayment.method === 'VNPAY' && successfulPayment.amount > 0) {
             await tx.paymentRefund.upsert({
               where: { paymentId: successfulPayment.id },
               create: {
@@ -525,7 +587,10 @@ export class OrdersService {
               },
               update: {},
             });
-          } else {
+          } else if (
+            successfulPayment.method === 'WALLET' ||
+            successfulPayment.method === 'CARD'
+          ) {
             // WALLET / CARD mock hoàn tiền tức thì
             const refundRef = `REFUND-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
             const now = new Date();
@@ -606,11 +671,12 @@ export class OrdersService {
         });
 
         if (!existingEarn) {
-          const points = pointsEarnedFor(order.total);
+          const successPayment = await tx.payment.findFirst({
+            where: { orderId, status: 'SUCCESS' },
+          });
+          const realAmount = successPayment?.amount ?? order.total;
+          const points = pointsEarnedFor(realAmount);
           if (points > 0) {
-            const successPayment = await tx.payment.findFirst({
-              where: { orderId, status: 'SUCCESS' },
-            });
 
             await tx.user.update({
               where: { id: order.userId },

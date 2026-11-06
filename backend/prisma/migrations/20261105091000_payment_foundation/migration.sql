@@ -41,16 +41,22 @@ CREATE UNIQUE INDEX "Payment_method_providerRef_key" ON "Payment"("method","prov
 CREATE UNIQUE INDEX "Order_id_userId_key" ON "Order"("id","userId");
 CREATE UNIQUE INDEX "Order_id_total_key" ON "Order"("id","total");
 CREATE UNIQUE INDEX "Payment_id_amount_key" ON "Payment"("id","amount");
-ALTER TABLE "Payment" DROP CONSTRAINT "Payment_orderId_fkey";
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_amount_fkey"
-  FOREIGN KEY ("orderId","amount") REFERENCES "Order"("id","total") ON DELETE RESTRICT ON UPDATE RESTRICT;
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_orderId_amount_fkey";
+ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_orderId_fkey";
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey"
+  FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "Payment" DROP CONSTRAINT IF EXISTS "Payment_points_valid_amounts";
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_points_valid_amounts" CHECK (
   "pointsUsed" >= 0 AND "pointsAmount" >= 0
-  AND (("method" = 'POINTS' AND "pointsUsed" > 0 AND "amount" > 0)
-    OR ("method" <> 'POINTS' AND "pointsUsed" = 0 AND "pointsAmount" = 0))
-  AND ("pointsAmount" = 0 OR ("method" = 'POINTS' AND "pointsAmount" = "amount"))
+  AND (
+    ("method" = 'POINTS' AND "pointsUsed" > 0 AND "pointsAmount" > 0)
+    OR ("method" = 'VNPAY' AND "amount" >= 5000 AND (
+      ("pointsUsed" = 0 AND "pointsAmount" = 0)
+      OR ("pointsUsed" > 0 AND "pointsAmount" > 0)
+    ))
+    OR ("method" IN ('WALLET', 'CARD') AND "pointsUsed" = 0 AND "pointsAmount" = 0)
+  )
 );
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_gateway_valid" CHECK (
   ("gatewayTxnRef" IS NULL OR ("method" = 'VNPAY' AND btrim("gatewayTxnRef") <> ''))

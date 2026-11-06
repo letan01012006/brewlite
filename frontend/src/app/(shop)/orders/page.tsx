@@ -144,6 +144,9 @@ function OrdersContent() {
       alert(
         "Đã hủy đơn hàng thành công! Tồn kho và quyền lợi đã được hoàn lại.",
       );
+      if (typeof window !== "undefined" && user) {
+        new CheckoutFlow(window.sessionStorage).clear(user.id);
+      }
       // Đóng modal và tải lại danh sách
       setSelectedOrder(null);
       await Promise.all([fetchMyOrders(), refreshUser()]);
@@ -304,16 +307,7 @@ function OrdersContent() {
                   <div className="flex items-center gap-2">
                     {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
                       <Link
-                        href="/checkout"
-                        onClick={async () => {
-                          if (user) {
-                            try {
-                              await new CheckoutFlow(window.sessionStorage).recover(user.id, order.id);
-                            } catch {
-                              // session may already exist
-                            }
-                          }
-                        }}
+                        href={`/checkout?orderId=${order.id}`}
                         className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm shadow-amber-600/25 inline-flex items-center"
                       >
                         Thanh toán tiếp →
@@ -497,19 +491,7 @@ function OrdersContent() {
                   selectedOrder.status,
                 ) && (
                   <Link
-                    href="/checkout"
-                    onClick={async () => {
-                      if (user) {
-                        try {
-                          await new CheckoutFlow(window.sessionStorage).recover(
-                            user.id,
-                            selectedOrder.id,
-                          );
-                        } catch {
-                          // ignore
-                        }
-                      }
-                    }}
+                    href={`/checkout?orderId=${selectedOrder.id}`}
                     className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm shadow-amber-600/25 inline-flex items-center"
                   >
                     Thanh toán tiếp →

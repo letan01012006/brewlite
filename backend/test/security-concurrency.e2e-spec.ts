@@ -153,24 +153,36 @@ describe.skipIf(!databaseUrl)(
         if (!entry.isDirectory()) continue;
         if (entry.name === '20261103153000_product_toppings') {
           // Simulate an upgrade: real rows exist before the relation migration.
-          const product = await db.product.create({ data: {
-            id: 901, name: 'Cà phê sữa', price: 37000, stock: 23, version: 9,
-            category: 'Cà phê', imageUrl: '/legacy.jpg',
-          } });
+          const product = await db.product.create({
+            data: {
+              id: 901, name: 'Cà phê sữa', price: 37000, stock: 23, version: 9,
+              category: 'Cà phê', imageUrl: '/legacy.jpg',
+            }
+          });
           legacyProductId = product.id;
-          await db.topping.createMany({ data: [
-            { id: 501, name: 'Kem cheese', price: 7777 },
-            { id: 702, name: 'Thạch', price: 4321 },
-          ] });
-          const user = await db.user.create({ data: {
-            email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
-          } });
+          await db.topping.createMany({
+            data: [
+              { id: 501, name: 'Kem cheese', price: 7777 },
+              { id: 702, name: 'Thạch', price: 4321 },
+            ]
+          });
+          const user = await db.user.create({
+            data: {
+              email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
+            }
+          });
           legacyUserId = user.id;
-          const order = await db.order.create({ data: {
-            userId: user.id, subtotal: 50000, total: 50000,
-            items: { create: { productId: product.id, productName: product.name, size: 'S', qty: 1,
-              unitPrice: 50000, lineTotal: 50000, toppings: [{ id: 501, name: 'Old snapshot', price: 13000 }] } },
-          } });
+          const order = await db.order.create({
+            data: {
+              userId: user.id, subtotal: 50000, total: 50000,
+              items: {
+                create: {
+                  productId: product.id, productName: product.name, size: 'S', qty: 1,
+                  unitPrice: 50000, lineTotal: 50000, toppings: [{ id: 501, name: 'Old snapshot', price: 13000 }]
+                }
+              },
+            }
+          });
           legacyOrderId = order.id;
         }
         const sql = await readFile(
@@ -250,15 +262,15 @@ describe.skipIf(!databaseUrl)(
       const product = await createProduct();
       const promo = withPromo
         ? await db.promoCode.create({
-            data: {
-              code: randomUUID().toUpperCase(),
-              type: 'FIXED',
-              value: 1000,
-              usedCount: 5,
-              startsAt: new Date('2020-01-01'),
-              expiresAt: new Date('2099-01-01'),
-            },
-          })
+          data: {
+            code: randomUUID().toUpperCase(),
+            type: 'FIXED',
+            value: 1000,
+            usedCount: 5,
+            startsAt: new Date('2020-01-01'),
+            expiresAt: new Date('2099-01-01'),
+          },
+        })
         : undefined;
       const response = await post('/orders', customerToken, {
         items: [{ productId: product.id, size: 'S', quantity: 1 }],
@@ -667,7 +679,7 @@ describe.skipIf(!databaseUrl)(
       expect((await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).reservedQuantity.toString()).toBe('0');
       const results = await queuedRace(ingredientId, pending.map(row => () => pay(row.body.id)), 'Ingredient');
       expect(results.filter(r => r.status === 201)).toHaveLength(stock);
-      expect(results.filter(r => r.status === 402)).toHaveLength(10-stock);
+      expect(results.filter(r => r.status === 402)).toHaveLength(10 - stock);
       const saved = await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
       expect(saved.stockQuantity.toString()).toBe(String(stock));
       expect(saved.reservedQuantity.toString()).toBe(String(stock));
@@ -1085,8 +1097,12 @@ describe.skipIf(!databaseUrl)(
 
     it('prices A + X, rejects A + Y in orders and promotions with no side effects, and accepts C without toppings', async () => {
       const { a, c, x, y, inactive } = await toppingFixture();
-      const promo = await db.promoCode.create({ data: { code: randomUUID().toUpperCase(), type: 'FIXED', value: 1000,
-        usedCount: 2, startsAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01') } });
+      const promo = await db.promoCode.create({
+        data: {
+          code: randomUUID().toUpperCase(), type: 'FIXED', value: 1000,
+          usedCount: 2, startsAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01')
+        }
+      });
       const validItem = { productId: a.id, size: 'M', quantity: 2, toppingIds: [x.id] };
       const preview = await post('/promotions/validate', customerToken, { code: promo.code, items: [validItem] }).expect(200);
       expect(preview.body.subtotal).toBe(90000);
