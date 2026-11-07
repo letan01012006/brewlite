@@ -23,7 +23,7 @@ const config: runtime.GetPrismaClientConfig = {
       "value": "prisma-client"
     },
     "output": {
-      "value": "D:\\OneDrive - Saigon University\\Desktop\\New folder (3)\\brewlite\\backend\\src\\generated\\prisma",
+      "value": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\backend\\src\\generated\\prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -37,7 +37,7 @@ const config: runtime.GetPrismaClientConfig = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "D:\\OneDrive - Saigon University\\Desktop\\New folder (3)\\brewlite\\backend\\prisma\\schema.prisma",
+    "sourceFilePath": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\backend\\prisma\\schema.prisma",
     "isCustomOutput": true
   },
   "relativePath": "../../../prisma",

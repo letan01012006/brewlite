@@ -5,11 +5,20 @@ import { sourceLoader, memoryStorage, deferred, walk } from "./load-source.mjs";
 
 // A handler-level render harness, not a browser/layout test. Real source,
 // checkout persistence, cart store and API sequencing run together.
-function harness(api, storage = memoryStorage()) {
+function harness(
+  api,
+  storage = memoryStorage(),
+  { balance = 0, search = "", product = item.product } = {},
+) {
   let index = 0;
   const slots = [];
   const effects = [];
-  const user = { id: 1, fullName: "Test", loyaltyPoints: 0, role: "CUSTOMER" };
+  const user = {
+    id: 1,
+    fullName: "Test",
+    loyaltyPoints: balance,
+    role: "CUSTOMER",
+  };
   const mocks = {
     react: {
       ...React,
@@ -41,7 +50,7 @@ function harness(api, storage = memoryStorage()) {
     "@/lib/api/client": {
       apiFetch: (path, options) =>
         path.startsWith("/products/")
-          ? Promise.resolve({ ...item.product, toppings: [] })
+          ? Promise.resolve({ ...product, toppings: [] })
           : api(path, options),
       ApiError: class extends Error {},
     },
@@ -58,7 +67,14 @@ function harness(api, storage = memoryStorage()) {
   const authStore = (selector) => (selector ? selector(authState) : authState);
   authStore.getState = () => authState;
   mocks["@/store/auth-store"] = { useAuthStore: authStore };
-  const load = sourceLoader(mocks, { window: { sessionStorage: storage } });
+  const redirects = [];
+  const load = sourceLoader(mocks, {
+    URLSearchParams,
+    window: {
+      sessionStorage: storage,
+      location: { search, assign: (url) => redirects.push(url) },
+    },
+  });
   const store = load("src/store/cart-store.ts").useCartStore;
   store.getState().hydrate(1);
   const cart = (selector) =>
@@ -73,10 +89,10 @@ function harness(api, storage = memoryStorage()) {
   const mount = async () => {
     render();
     effects.splice(0).forEach((effect) => effect());
-    await Promise.resolve();
+    await new Promise(setImmediate);
     return render();
   };
-  return { store, load, render, mount, storage, authState };
+  return { store, load, render, mount, storage, authState, redirects };
 }
 const payButton = (tree) =>
   walk(
@@ -181,18 +197,182 @@ test("removing a free disallowed topping requires another confirmation before cr
   const calls = [];
   const h = harness(async (path) => {
     calls.push(path);
-    return path === '/payments'
+    return path === "/payments"
       ? { ...success, order: { ...success.order, total: 50000 } }
       : { ...order, total: 50000, discountAmount: 0 };
   });
-  h.store.getState().addItem({ ...item, selectedToppings: [{ id: 71, name: 'Free old topping', price: 0 }] });
+  h.store
+    .getState()
+    .addItem({
+      ...item,
+      selectedToppings: [{ id: 71, name: "Free old topping", price: 0 }],
+    });
   await h.mount();
   await payButton(h.render()).props.onClick();
   assert.deepEqual(calls, []);
   assert.equal(h.store.getState().getTotal(), 50000);
   assert.equal(h.store.getState().items[0].selectedToppings.length, 0);
-  assert.ok(JSON.stringify(h.render()).includes('bấm thanh toán lần nữa'));
+  assert.ok(JSON.stringify(h.render()).includes("bấm thanh toán lần nữa"));
   await payButton(h.render()).props.onClick();
-  assert.equal(calls.filter((path) => path === '/orders').length, 1);
-  assert.equal(calls.filter((path) => path === '/payments').length, 1);
+  assert.equal(calls.filter((path) => path === "/orders").length, 1);
+  assert.equal(calls.filter((path) => path === "/payments").length, 1);
+});
+
+const pointsSwitch = (tree) =>
+  walk(tree, (node) => node.props?.role === "switch")[0];
+const pointsSummary = (tree) =>
+  JSON.stringify(walk(tree, (node) => node.props?.id === "points-summary")[0]);
+
+test("maximum-points switch recalculates when balance, promo or cart changes and turns off", async () => {
+  const h = harness(async () => order, memoryStorage(), { balance: 162 });
+  h.store.getState().addItem(item);
+  await h.mount();
+  assert.equal(
+    walk(h.render(), (node) => node.props?.type === "range").length,
+    0,
+  );
+  assert.equal(pointsSwitch(h.render()).props.checked, false);
+  pointsSwitch(h.render()).props.onChange({ target: { checked: true } });
+  assert.ok(pointsSummary(h.render()).includes("160"));
+  assert.ok(pointsSummary(h.render()).includes("8.000"));
+
+  h.store.getState().setPromo("TEN", 40000);
+  assert.ok(pointsSummary(h.render()).includes("100"));
+  assert.ok(pointsSummary(h.render()).includes("5.000"));
+  h.authState.user = { ...h.authState.user, loyaltyPoints: 70 };
+  assert.ok(pointsSummary(h.render()).includes("60"));
+  assert.ok(pointsSummary(h.render()).includes("3.000"));
+  h.store.getState().updateQuantity(h.store.getState().items[0].id, 2);
+  h.store.getState().setPromo(null, 0);
+  h.authState.user = { ...h.authState.user, loyaltyPoints: 1239 };
+  assert.ok(pointsSummary(h.render()).includes("1.220"));
+  assert.ok(pointsSummary(h.render()).includes("61.000"));
+  pointsSwitch(h.render()).props.onChange({ target: { checked: false } });
+  assert.equal(pointsSwitch(h.render()).props.checked, false);
+  assert.ok(!pointsSummary(h.render()).includes("61.000"));
+});
+
+test("maximum points pays exactly the order value and leaves surplus points untouched", async () => {
+  const calls = [];
+  const fullOrder = {
+    ...order,
+    total: 30000,
+    subtotal: 30000,
+    discountAmount: 0,
+  };
+  const h = harness(
+    async (path, options) => {
+      calls.push({ path, body: options?.body && JSON.parse(options.body) });
+      return path === "/payments"
+        ? {
+            payment: { method: "POINTS", status: "SUCCESS" },
+            order: { ...fullOrder, total: 0, status: "PAID" },
+          }
+        : fullOrder;
+    },
+    memoryStorage(),
+    { balance: 2000, product: { ...item.product, price: 30000 } },
+  );
+  h.store
+    .getState()
+    .addItem({ ...item, product: { ...item.product, price: 30000 } });
+  await h.mount();
+  pointsSwitch(h.render()).props.onChange({ target: { checked: true } });
+  assert.ok(pointsSummary(h.render()).includes("600"));
+  assert.ok(pointsSummary(h.render()).includes("1.400"));
+  await payButton(h.render()).props.onClick();
+  const payment = calls.find((c) => c.path === "/payments");
+  assert.equal(payment.body.method, "POINTS");
+  assert.equal(payment.body.pointsUsed, 600);
+  assert.equal(h.store.getState().items.length, 0);
+});
+
+test("new cart checkout does not pay the previously failed order", async () => {
+  const calls = [];
+  const freshOrder = { ...order, id: 8, total: 50000, discountAmount: 0 };
+  const h = harness(async (path) => {
+    calls.push(path);
+    return path === "/payments"
+      ? { ...success, order: { ...freshOrder, status: "PAID" } }
+      : freshOrder;
+  });
+  const { CheckoutFlow } = h.load("src/lib/checkout-flow.ts");
+  const flow = new CheckoutFlow(h.storage);
+  flow.save(1, {
+    cartKey: "old-basket",
+    phase: "failed",
+    order: { ...order, status: "PAYMENT_FAILED" },
+  });
+  h.store.getState().addItem(item);
+  await h.mount();
+  await payButton(h.render()).props.onClick();
+  assert.deepEqual(calls, ["/orders", "/orders/8", "/payments"]);
+  assert.equal(flow.read(1, 7).order.status, "PAYMENT_FAILED");
+});
+
+test("resuming held points does not subtract them twice from the displayed total", async () => {
+  const heldOrder = {
+    ...order,
+    discountAmount: 10000,
+    total: 40000,
+    payments: [
+      {
+        status: "PROCESSING",
+        method: "VNPAY",
+        pointsUsed: 100,
+        pointsAmount: 5000,
+        paymentUrl: "https://vnpay.test/held",
+      },
+    ],
+  };
+  const h = harness(async () => heldOrder, memoryStorage(), {
+    balance: 400,
+    search: "?orderId=7",
+  });
+  await h.mount();
+  assert.equal(pointsSwitch(h.render()).props.checked, true);
+  assert.equal(pointsSwitch(h.render()).props.disabled, true);
+  assert.ok(pointsSummary(h.render()).includes("100"));
+  assert.ok(
+    JSON.stringify(payButton(h.render()).props.children).includes("40.000"),
+  );
+});
+
+test("the cart checkout button starts a fresh checkout even for identical items", async () => {
+  const h = harness(async () => order);
+  h.store.getState().addItem(item);
+  const { CheckoutFlow } = h.load("src/lib/checkout-flow.ts");
+  const { cartKey } = h.load("src/lib/order-payload.ts");
+  const flow = new CheckoutFlow(h.storage);
+  flow.save(1, {
+    cartKey: cartKey(h.store.getState().items, null),
+    phase: "redirecting",
+    order,
+  });
+  const cartPage = h.load("src/app/cart/page.tsx").default();
+  const button = walk(
+    cartPage,
+    (node) => node.props?.onClick?.name === "handleProceedToCheckout",
+  )[0];
+  button.props.onClick();
+  assert.equal(flow.read(1), null);
+  assert.equal(flow.read(1, 7).order.id, 7);
+  assert.equal(h.store.getState().items.length, 1);
+});
+
+test("a delayed payment success does not empty a newer identical basket", async () => {
+  const pending = deferred();
+  const fullOrder = { ...order, total: 50000, discountAmount: 0 };
+  const h = harness(async (path) =>
+    path === "/payments" ? pending.promise : fullOrder,
+  );
+  h.store.getState().addItem(item);
+  await h.mount();
+  const payment = payButton(h.render()).props.onClick();
+  await new Promise(setImmediate);
+  assert.equal(h.store.getState().items.length, 0);
+  h.store.getState().addItem(item);
+  pending.resolve({ ...success, order: { ...fullOrder, status: "PAID" } });
+  await payment;
+  assert.equal(h.store.getState().items.length, 1);
 });

@@ -31,7 +31,7 @@ test("confirmed failure retries the SAME order with a NEW key", async () => {
   });
   await flow.prepare(1, "cart", {});
   await assert.rejects(flow.pay(1, "CARD", "FAILED"));
-  await flow.prepare(1, "changed cart", {});
+  await flow.prepare(1, "cart", {});
   const paid = await flow.pay(1, "CARD", "SUCCESS");
   const attempts = calls.filter((c) => c.path === "/payments");
   assert.equal(calls.filter((c) => c.path === "/orders").length, 1);
@@ -182,7 +182,7 @@ test("lost cancellation response keeps session until cancellation is confirmed",
   assert.equal(mutations, 1);
 });
 
-test("a cancelled order cannot be paid or silently replaced", async () => {
+test("a cancelled order cannot be paid; a different cart can create a new order", async () => {
   const calls = [];
   const flow = new CheckoutFlow(memoryStorage(), async (path) => {
     calls.push(path);
@@ -191,7 +191,7 @@ test("a cancelled order cannot be paid or silently replaced", async () => {
   await flow.prepare(1, "cart", {});
   await assert.rejects(flow.pay(1, "CARD", "SUCCESS"));
   await flow.prepare(1, "different-cart", {});
-  assert.equal(calls.filter((path) => path === "/orders").length, 1);
+  assert.equal(calls.filter((path) => path === "/orders").length, 2);
   assert.equal(calls.filter((path) => path === "/payments").length, 0);
 });
 
@@ -204,4 +204,116 @@ test("a recovered processing order waits instead of starting a new payment", asy
   await flow.prepare(1, "cart", {});
   await assert.rejects(flow.pay(1, "CARD", "SUCCESS"));
   assert.equal(payments, 0);
+});
+
+for (const phase of ["ready", "failed", "redirecting", "paying"]) {
+  test(`a new cart can create an identical basket while the old order is ${phase}`, async () => {
+    let created = 0;
+    const calls = [];
+    const flow = new CheckoutFlow(memoryStorage(), async (path) => {
+      calls.push(path);
+      return { ...order, id: ++created };
+    });
+    const first = await flow.prepare(1, "same-basket", {});
+    const attempt = {
+      orderId: 1,
+      method: "VNPAY",
+      idempotencyKey: "old-key",
+      pointsUsed: 100,
+    };
+    flow.save(1, { ...first, phase, attempt });
+    flow.beginCart(1);
+    const second = await flow.prepare(1, "same-basket", {});
+    assert.equal(second.order.id, 2);
+    assert.deepEqual(calls, ["/orders", "/orders"]);
+    assert.equal(flow.read(1, 1).attempt.idempotencyKey, "old-key");
+    assert.equal(flow.read(1, 1).phase, phase);
+    assert.equal(flow.read(2, 1), null);
+    const resumed = flow.startOrder(1, first.order);
+    assert.equal(resumed.order.id, 1);
+    assert.equal(resumed.attempt.idempotencyKey, "old-key");
+    assert.equal(flow.read(1, 2).order.id, 2);
+  });
+}
+
+test("a changed basket does not silently reuse an unpaid order", async () => {
+  let created = 0;
+  const flow = new CheckoutFlow(memoryStorage(), async () => ({
+    ...order,
+    id: ++created,
+  }));
+  await flow.prepare(1, "first-basket", {});
+  const next = await flow.prepare(1, "new-basket", {});
+  assert.equal(next.order.id, 2);
+  assert.equal(flow.read(1, 1).order.id, 1);
+});
+
+test("beginning a new cart preserves an ambiguous creation marker", async () => {
+  const flow = new CheckoutFlow(memoryStorage());
+  flow.save(1, { cartKey: "unknown", phase: "creating" });
+  assert.throws(() => flow.beginCart(1), /lịch sử đơn hàng/);
+  assert.equal(flow.read(1).phase, "creating");
+});
+
+test("late VNPAY responses and callbacks cannot replace a newer checkout", async () => {
+  const pending = deferred();
+  let created = 0;
+  const flow = new CheckoutFlow(memoryStorage(), async (path) => {
+    if (path === "/orders") return { ...order, id: ++created };
+    if (path === "/orders/1") return { ...order, id: 1 };
+    return pending.promise;
+  });
+  await flow.prepare(1, "cart-1", {});
+  const payment = flow.pay(1, "VNPAY");
+  await new Promise(setImmediate);
+  flow.beginCart(1);
+  await flow.prepare(1, "cart-2", {});
+  pending.resolve({
+    payment: { method: "VNPAY", paymentUrl: "https://vnpay.test/1" },
+    order: { ...order, id: 1 },
+  });
+  await payment;
+  assert.equal(flow.read(1).order.id, 2);
+  assert.equal(flow.read(1, 1).phase, "redirecting");
+  flow.resetAttempt(1, 1);
+  assert.equal(flow.read(1).order.id, 2);
+  flow.clear(1, 1);
+  assert.equal(flow.read(1).order.id, 2);
+  assert.equal(flow.read(1, 1), null);
+});
+
+test("a VNPAY order recovered in another tab resumes its existing URL without a new charge", async () => {
+  let mutations = 0;
+  const pendingOrder = {
+    ...order,
+    payments: [
+      {
+        status: "PROCESSING",
+        method: "VNPAY",
+        paymentUrl: "https://vnpay.test/existing",
+        expiresAt: "2999-01-01T00:00:00Z",
+      },
+    ],
+  };
+  const flow = new CheckoutFlow(memoryStorage(), async (path, options) => {
+    if (options?.method === "POST") mutations++;
+    return pendingOrder;
+  });
+  flow.startOrder(1, pendingOrder);
+  const resumed = await flow.pay(1, "VNPAY");
+  assert.equal(resumed.paymentUrl, "https://vnpay.test/existing");
+  assert.equal(mutations, 0);
+});
+
+test("an explicit retry cannot replace an unknown payment's key or points", async () => {
+  const attempts = [];
+  const flow = new CheckoutFlow(memoryStorage(), async (path, options) => {
+    if (path !== "/payments") return order;
+    attempts.push(options.body);
+    throw new Error("Response lost");
+  });
+  flow.startOrder(1, order);
+  await assert.rejects(flow.pay(1, "VNPAY", undefined, undefined, 100));
+  await assert.rejects(flow.pay(1, "VNPAY", undefined, undefined, 0, true));
+  assert.equal(attempts[0], attempts[1]);
 });

@@ -7,6 +7,7 @@ import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
 import { getProductImageUrl } from "@/lib/constants/product-images";
 import { pointsEarnedFor } from "@/lib/loyalty";
+import { CheckoutFlow } from "@/lib/checkout-flow";
 
 export default function CartPage() {
   const router = useRouter();
@@ -72,6 +73,17 @@ export default function CartPage() {
       // Nếu chưa đăng nhập, chuyển sang trang login với query redirect về checkout
       router.push("/login?redirect=/checkout");
     } else {
+      try {
+        new CheckoutFlow(window.sessionStorage).beginCart(user.id);
+      } catch (error) {
+        useCartStore.setState({
+          cartError:
+            error instanceof Error
+              ? error.message
+              : "Không thể bắt đầu đơn mới.",
+        });
+        return;
+      }
       router.push("/checkout");
     }
   };
@@ -105,18 +117,29 @@ export default function CartPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-stone-200 dark:border-stone-800 light:border-cafe-line ">
         <div>
           <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mb-1 light:text-cafe-muted ">
-            <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400 transition-colors light:hover:text-cafe-primary ">
+            <Link
+              href="/"
+              className="hover:text-amber-800 dark:hover:text-amber-400 transition-colors light:hover:text-cafe-primary "
+            >
               Trang chủ
             </Link>
             <span>/</span>
-            <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400 transition-colors light:hover:text-cafe-primary ">
+            <Link
+              href="/menu"
+              className="hover:text-amber-800 dark:hover:text-amber-400 transition-colors light:hover:text-cafe-primary "
+            >
               Menu
             </Link>
             <span>/</span>
-            <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">Giỏ hàng của bạn</span>
+            <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">
+              Giỏ hàng của bạn
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 dark:text-stone-100 tracking-tight light:text-cafe-ink ">
-            Giỏ Hàng <span className="text-amber-600 dark:text-amber-500 light:text-cafe-primary ">({totalCount} món)</span>
+            Giỏ Hàng{" "}
+            <span className="text-amber-600 dark:text-amber-500 light:text-cafe-primary ">
+              ({totalCount} món)
+            </span>
           </h1>
         </div>
 
@@ -182,8 +205,8 @@ export default function CartPage() {
                     <div className="w-20 h-20 rounded-xl overflow-hidden bg-amber-50 dark:bg-[#201814] shrink-0 border border-amber-200/40 dark:border-[#33261f]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-              loading="lazy"
-              decoding="async"
+                        loading="lazy"
+                        decoding="async"
                         src={imageSrc}
                         alt={item.product.name}
                         className="w-full h-full object-cover"
@@ -203,7 +226,9 @@ export default function CartPage() {
                       {/* Topping list */}
                       {item.selectedToppings.length > 0 && (
                         <div className="flex flex-wrap gap-1 text-[11px] text-stone-600 dark:text-[#a39589] light:text-cafe-muted ">
-                          <span className="text-stone-400 dark:text-[#78695d] light:text-cafe-muted ">Topping:</span>
+                          <span className="text-stone-400 dark:text-[#78695d] light:text-cafe-muted ">
+                            Topping:
+                          </span>
                           {item.selectedToppings.map((t) => (
                             <span
                               key={t.id}
