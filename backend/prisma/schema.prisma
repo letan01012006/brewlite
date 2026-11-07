@@ -288,7 +288,7 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order               Order                @relation(fields: [orderId, amount], references: [id, total], onDelete: Restrict, onUpdate: Restrict)
+  order               Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
   events              PaymentWebhookLog[]
   refunds             PaymentRefund[]
   loyaltyTransactions LoyaltyTransaction[]

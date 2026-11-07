@@ -5,10 +5,10 @@ import {
 } from '@nestjs/common';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { pointsEarnedFor } from '../../promotions/voucher-rules.js';
 import {
   MAX_TOPPINGS_PER_ITEM,
   SIZE_SURCHARGE,
-  VND_PER_LOYALTY_POINT,
   type SizeKey,
 } from './pricing.constants.js';
 
@@ -125,6 +125,6 @@ export class PricingService {
 
   /** Điểm thưởng cho một đơn: 1 điểm / 1.000đ của total, làm tròn xuống. */
   pointsFor(total: number): number {
-    return Math.floor(total / VND_PER_LOYALTY_POINT);
+    return pointsEarnedFor(total);
   }
 }

@@ -89,6 +89,7 @@ async function main() {
         fullName: u.fullName,
         role: u.role,
         passwordHash,
+        loyaltyPoints: u.role === 'CUSTOMER' ? 500 : 0,
       },
     });
   }

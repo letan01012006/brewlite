@@ -4,16 +4,19 @@ import type { Order, PaymentMethod } from "@/types";
 export interface PaymentAttempt {
   orderId: number;
   method: PaymentMethod;
-  mockResult: "SUCCESS" | "FAILED";
+  mockResult?: "SUCCESS" | "FAILED";
   idempotencyKey: string;
+  bankCode?: string;
+  pointsUsed?: number;
 }
 
 export interface CheckoutSession {
   cartKey: string;
-  phase: "creating" | "ready" | "paying" | "failed" | "paid";
+  phase: "creating" | "ready" | "paying" | "redirecting" | "failed" | "paid";
   order?: Order;
   attempt?: PaymentAttempt;
   paidMethod?: PaymentMethod;
+  paymentUrl?: string;
 }
 
 interface Storage {
@@ -55,13 +58,33 @@ export class CheckoutFlow {
     return value ? (JSON.parse(value) as CheckoutSession) : null;
   }
 
-  private save(userId: number, session: CheckoutSession) {
+  save(userId: number, session: CheckoutSession) {
     this.storage.setItem(this.key(userId), JSON.stringify(session));
     return session;
   }
 
+  resetAttempt(userId: number) {
+    const existing = this.read(userId);
+    if (!existing) return null;
+    return this.save(userId, {
+      ...existing,
+      phase: "ready",
+      attempt: undefined,
+      paymentUrl: undefined,
+    });
+  }
+
   clear(userId: number) {
     this.storage.removeItem(this.key(userId));
+  }
+
+  startOrder(userId: number, order: Order) {
+    return this.save(userId, {
+      cartKey: `order_${order.id}`,
+      phase: "ready",
+      order,
+      attempt: undefined,
+    });
   }
 
   async prepare(userId: number, cartKey: string, payload: unknown) {
@@ -102,7 +125,10 @@ export class CheckoutFlow {
   async pay(
     userId: number,
     method: PaymentMethod,
-    mockResult: "SUCCESS" | "FAILED",
+    mockResult?: "SUCCESS" | "FAILED",
+    bankCode?: string,
+    pointsUsed?: number,
+    retry = false,
   ) {
     let session = this.read(userId);
     if (!session?.order) throw new Error("Chưa có đơn hàng để thanh toán.");
@@ -123,15 +149,24 @@ export class CheckoutFlow {
         "Đơn đã được hủy. Hãy đóng đơn này trước khi đặt đơn khác.",
       );
     if (
+      !retry &&
       !session.attempt &&
       order.payments?.some((p) => p.status === "PROCESSING")
     ) {
       throw new Error("Giao dịch đang được xử lý. Vui lòng kiểm tra lại sau.");
     }
-    const attempt = session.attempt ?? {
+    const shouldCreateNewKey =
+      retry ||
+      session.phase === "redirecting" ||
+      session.phase === "failed" ||
+      order.status === "PAYMENT_FAILED";
+
+    const attempt: PaymentAttempt = (shouldCreateNewKey ? null : session.attempt) ?? {
       orderId: order.id,
       method,
-      mockResult,
+      ...(mockResult ? { mockResult } : {}),
+      ...(bankCode ? { bankCode } : {}),
+      ...(pointsUsed ? { pointsUsed } : {}),
       idempotencyKey: paymentKey(),
     };
     session = this.save(userId, {
@@ -142,9 +177,28 @@ export class CheckoutFlow {
     });
     try {
       const result = await this.api<{
-        payment: { method: PaymentMethod };
+        payment: {
+          id: number;
+          method: PaymentMethod;
+          status: string;
+          paymentUrl?: string | null;
+        };
         order: Pick<Order, "id" | "status" | "total" | "pointsEarned">;
-      }>("/payments", { method: "POST", body: JSON.stringify(attempt) });
+      }>("/payments", {
+        method: "POST",
+        headers: { "Idempotency-Key": attempt.idempotencyKey },
+        body: JSON.stringify(attempt),
+      });
+
+      if (result.payment.paymentUrl) {
+        return this.save(userId, {
+          ...session,
+          order: { ...order, ...result.order },
+          phase: "redirecting",
+          paymentUrl: result.payment.paymentUrl,
+        });
+      }
+
       return this.save(userId, {
         ...session,
         order: { ...order, ...result.order },
@@ -156,8 +210,7 @@ export class CheckoutFlow {
       // 5xx and PAYMENT_IN_PROGRESS retain the exact key AND request body.
       if (
         error instanceof ApiError &&
-        error.statusCode === 402 &&
-        error.code === "PAYMENT_FAILED"
+        error.statusCode === 402
       ) {
         this.save(userId, {
           ...session,

@@ -16,6 +16,84 @@ import { seedDemoCatalog } from '../prisma/demo-catalog.js';
 import { PricingService } from '../src/common/pricing/pricing.service.js';
 import { DEMO_PRODUCT_TOPPINGS } from '../prisma/demo-product-toppings.js';
 
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = '';
+  let inDollarQuote = false;
+  let inSingleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const nextChar = sql[i + 1];
+
+    if (inLineComment) {
+      if (char === '\n') {
+        inLineComment = false;
+      }
+      current += char;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (char === '*' && nextChar === '/') {
+        inBlockComment = false;
+        current += '*/';
+        i++;
+        continue;
+      }
+      current += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote) {
+      if (char === '-' && nextChar === '-') {
+        inLineComment = true;
+        current += '--';
+        i++;
+        continue;
+      }
+      if (char === '/' && nextChar === '*') {
+        inBlockComment = true;
+        current += '/*';
+        i++;
+        continue;
+      }
+    }
+
+    if (!inSingleQuote && char === '$' && nextChar === '$') {
+      inDollarQuote = !inDollarQuote;
+      current += '$$';
+      i++;
+      continue;
+    }
+
+    if (!inDollarQuote && char === "'") {
+      if (nextChar === "'") {
+        current += "''";
+        i++;
+        continue;
+      }
+      inSingleQuote = !inSingleQuote;
+      current += char;
+      continue;
+    }
+
+    if (!inDollarQuote && !inSingleQuote && char === ';') {
+      const trimmed = current.trim();
+      if (trimmed) statements.push(trimmed);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+  const trimmed = current.trim();
+  if (trimmed) statements.push(trimmed);
+  return statements;
+}
+
 // Opt in explicitly. Every run creates and removes only its own isolated schema.
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const schema = `brewlite_test_${randomUUID().replaceAll('-', '')}`;
@@ -75,31 +153,43 @@ describe.skipIf(!databaseUrl)(
         if (!entry.isDirectory()) continue;
         if (entry.name === '20261103153000_product_toppings') {
           // Simulate an upgrade: real rows exist before the relation migration.
-          const product = await db.product.create({ data: {
-            id: 901, name: 'Cà phê sữa', price: 37000, stock: 23, version: 9,
-            category: 'Cà phê', imageUrl: '/legacy.jpg',
-          } });
+          const product = await db.product.create({
+            data: {
+              id: 901, name: 'Cà phê sữa', price: 37000, stock: 23, version: 9,
+              category: 'Cà phê', imageUrl: '/legacy.jpg',
+            }
+          });
           legacyProductId = product.id;
-          await db.topping.createMany({ data: [
-            { id: 501, name: 'Kem cheese', price: 7777 },
-            { id: 702, name: 'Thạch', price: 4321 },
-          ] });
-          const user = await db.user.create({ data: {
-            email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
-          } });
+          await db.topping.createMany({
+            data: [
+              { id: 501, name: 'Kem cheese', price: 7777 },
+              { id: 702, name: 'Thạch', price: 4321 },
+            ]
+          });
+          const user = await db.user.create({
+            data: {
+              email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
+            }
+          });
           legacyUserId = user.id;
-          const order = await db.order.create({ data: {
-            userId: user.id, subtotal: 50000, total: 50000,
-            items: { create: { productId: product.id, productName: product.name, size: 'S', qty: 1,
-              unitPrice: 50000, lineTotal: 50000, toppings: [{ id: 501, name: 'Old snapshot', price: 13000 }] } },
-          } });
+          const order = await db.order.create({
+            data: {
+              userId: user.id, subtotal: 50000, total: 50000,
+              items: {
+                create: {
+                  productId: product.id, productName: product.name, size: 'S', qty: 1,
+                  unitPrice: 50000, lineTotal: 50000, toppings: [{ id: 501, name: 'Old snapshot', price: 13000 }]
+                }
+              },
+            }
+          });
           legacyOrderId = order.id;
         }
         const sql = await readFile(
           resolve(migrations, entry.name, 'migration.sql'),
           'utf8',
         );
-        for (const statement of sql.split(';').filter((part) => part.trim())) {
+        for (const statement of splitSqlStatements(sql)) {
           await db.$executeRawUnsafe(statement);
         }
       }
@@ -172,15 +262,15 @@ describe.skipIf(!databaseUrl)(
       const product = await createProduct();
       const promo = withPromo
         ? await db.promoCode.create({
-            data: {
-              code: randomUUID().toUpperCase(),
-              type: 'FIXED',
-              value: 1000,
-              usedCount: 5,
-              startsAt: new Date('2020-01-01'),
-              expiresAt: new Date('2099-01-01'),
-            },
-          })
+          data: {
+            code: randomUUID().toUpperCase(),
+            type: 'FIXED',
+            value: 1000,
+            usedCount: 5,
+            startsAt: new Date('2020-01-01'),
+            expiresAt: new Date('2099-01-01'),
+          },
+        })
         : undefined;
       const response = await post('/orders', customerToken, {
         items: [{ productId: product.id, size: 'S', quantity: 1 }],
@@ -428,7 +518,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(success ? 535 : 500);
+        ).toBe(500);
       },
     );
 
@@ -464,6 +554,20 @@ describe.skipIf(!databaseUrl)(
     it('reverses stock, promo usage, points and payment only once for simultaneous PAID cancellations', async () => {
       const { orderId, product, promo } = await fixture(true);
       await pay(orderId).expect(201);
+      // Simulate legacy order with EARN to test points reversal
+      await db.user.update({
+        where: { id: userId },
+        data: { loyaltyPoints: 535 },
+      });
+      const earnTx = await db.loyaltyTransaction.create({
+        data: {
+          userId,
+          orderId,
+          points: 35,
+          type: 'EARN',
+          eventKey: `legacy:loyalty:${orderId}`,
+        },
+      });
       const results = await queuedRace(orderId, [
         () => post(`/orders/${orderId}/cancel`, customerToken),
         () => post(`/orders/${orderId}/cancel`, baristaToken),
@@ -481,10 +585,10 @@ describe.skipIf(!databaseUrl)(
         (await db.user.findUniqueOrThrow({ where: { id: userId } }))
           .loyaltyPoints,
       ).toBe(500);
-      expect(
-        (await db.loyaltyTransaction.findUniqueOrThrow({ where: { orderId } }))
-          .reversedAt,
-      ).not.toBeNull();
+      const reloadedEarn = await db.loyaltyTransaction.findUniqueOrThrow({
+        where: { id: earnTx.id },
+      });
+      expect(reloadedEarn.reversedAt).not.toBeNull();
       const payment = await db.payment.findFirstOrThrow({ where: { orderId } });
       expect(payment.refundedAmount).toBe(payment.amount);
       expect(payment.refundedAt).not.toBeNull();
@@ -532,7 +636,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(cancelFirst ? 500 : 535);
+        ).toBe(500);
         const payment = await db.payment.findFirstOrThrow({
           where: { orderId },
         });
@@ -545,7 +649,22 @@ describe.skipIf(!databaseUrl)(
       await pay(orderId, customerToken, randomUUID(), 'FAILED').expect(402);
       await pay(orderId, customerToken, randomUUID(), 'FAILED').expect(402);
       await pay(orderId).expect(201);
-      expect(await db.loyaltyTransaction.count({ where: { orderId } })).toBe(1);
+      await request(app.getHttpServer())
+        .patch(`/api/orders/${orderId}/status`)
+        .auth(baristaToken, { type: 'bearer' })
+        .send({ status: 'PREPARING' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/api/orders/${orderId}/status`)
+        .auth(baristaToken, { type: 'bearer' })
+        .send({ status: 'READY' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .patch(`/api/orders/${orderId}/status`)
+        .auth(baristaToken, { type: 'bearer' })
+        .send({ status: 'COMPLETED' })
+        .expect(200);
+      expect(await db.loyaltyTransaction.count({ where: { orderId, type: 'EARN' } })).toBe(1);
       expect(
         (await db.user.findUniqueOrThrow({ where: { id: userId } }))
           .loyaltyPoints,
@@ -560,7 +679,7 @@ describe.skipIf(!databaseUrl)(
       expect((await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).reservedQuantity.toString()).toBe('0');
       const results = await queuedRace(ingredientId, pending.map(row => () => pay(row.body.id)), 'Ingredient');
       expect(results.filter(r => r.status === 201)).toHaveLength(stock);
-      expect(results.filter(r => r.status === 402)).toHaveLength(10-stock);
+      expect(results.filter(r => r.status === 402)).toHaveLength(10 - stock);
       const saved = await db.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
       expect(saved.stockQuantity.toString()).toBe(String(stock));
       expect(saved.reservedQuantity.toString()).toBe(String(stock));
@@ -730,13 +849,11 @@ describe.skipIf(!databaseUrl)(
         ).toHaveLength(4);
         expect(charge).toHaveBeenCalledTimes(1);
         expect(await db.payment.count({ where: { orderId } })).toBe(1);
-        expect(await db.loyaltyTransaction.count({ where: { orderId } })).toBe(
-          mockResult === 'SUCCESS' ? 1 : 0,
-        );
+        expect(await db.loyaltyTransaction.count({ where: { orderId } })).toBe(0);
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(mockResult === 'SUCCESS' ? 535 : 500);
+        ).toBe(500);
         const saved = await db.payment.findUniqueOrThrow({
           where: { idempotencyKey: key },
         });
@@ -895,17 +1012,30 @@ describe.skipIf(!databaseUrl)(
       const order = await post('/orders', customerToken, {
         items: [{ productId: product.id, size: 'S', quantity: 1 }],
       }).expect(201);
-      const payment = await pay(order.body.id).expect(201);
-      expect(payment.body.order.pointsEarned).toBe(110);
-      expect(
-        (await db.user.findUniqueOrThrow({ where: { id: userId } }))
-          .loyaltyPoints,
-      ).toBe(610);
+      await pay(order.body.id).expect(201);
+      // Giả lập đơn hàng cũ đã có điểm EARN để kiểm thử thu hồi
+      await db.user.update({
+        where: { id: userId },
+        data: { loyaltyPoints: 610 },
+      });
+      const earnTx = await db.loyaltyTransaction.create({
+        data: {
+          userId,
+          orderId: order.body.id,
+          points: 110,
+          type: 'EARN',
+          eventKey: `legacy:loyalty:${order.body.id}`,
+        },
+      });
       await post(`/orders/${order.body.id}/cancel`, customerToken).expect(200);
       expect(
         (await db.user.findUniqueOrThrow({ where: { id: userId } }))
           .loyaltyPoints,
       ).toBe(500);
+      const reloadedEarn = await db.loyaltyTransaction.findUniqueOrThrow({
+        where: { id: earnTx.id },
+      });
+      expect(reloadedEarn.reversedAt).not.toBeNull();
       expect(
         (await db.product.findUniqueOrThrow({ where: { id: product.id } }))
           .stock,
@@ -955,7 +1085,7 @@ describe.skipIf(!databaseUrl)(
         expect(detail.body.toppings.map((t: { id: number }) => t.id)).toEqual(ids);
         expect(detail.body.sizes).toEqual([{ size: 'S', surcharge: 0 }, { size: 'M', surcharge: 5000 }, { size: 'L', surcharge: 10000 }]);
         expect(detail.body).not.toHaveProperty('version');
-        expect(detail.body).not.toHaveProperty('isActive');
+        expect(detail.body.isActive).toBe(true);
         const list = await request(app.getHttpServer()).get(`/api/products?search=${p.name}&category=Coffee&limit=1&page=1`).expect(200);
         expect(list.body.meta).toMatchObject({ total: 1, page: 1, limit: 1 });
         expect(list.body.data[0].toppings).toEqual(detail.body.toppings);
@@ -967,8 +1097,12 @@ describe.skipIf(!databaseUrl)(
 
     it('prices A + X, rejects A + Y in orders and promotions with no side effects, and accepts C without toppings', async () => {
       const { a, c, x, y, inactive } = await toppingFixture();
-      const promo = await db.promoCode.create({ data: { code: randomUUID().toUpperCase(), type: 'FIXED', value: 1000,
-        usedCount: 2, startsAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01') } });
+      const promo = await db.promoCode.create({
+        data: {
+          code: randomUUID().toUpperCase(), type: 'FIXED', value: 1000,
+          usedCount: 2, startsAt: new Date('2020-01-01'), expiresAt: new Date('2099-01-01')
+        }
+      });
       const validItem = { productId: a.id, size: 'M', quantity: 2, toppingIds: [x.id] };
       const preview = await post('/promotions/validate', customerToken, { code: promo.code, items: [validItem] }).expect(200);
       expect(preview.body.subtotal).toBe(90000);

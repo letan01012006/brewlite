@@ -86,10 +86,10 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
       .set('Idempotency-Key', key)
       .send({ orderId, method: 'WALLET', mockResult });
   }
-  function status(id: number) {
+  function status(id: number, nextStatus = 'PREPARING') {
     return f
       .api('patch', `/orders/${id}/status`, f.barista.token)
-      .send({ status: 'PREPARING' });
+      .send({ status: nextStatus });
   }
   function cancel(id: number) {
     return f.api('post', `/orders/${id}/cancel`, f.customer.token);

@@ -607,6 +607,7 @@ export type PaymentScalarWhereWithAggregatesInput = {
 export type PaymentCreateInput = {
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -679,6 +680,7 @@ export type PaymentUncheckedCreateInput = {
 export type PaymentUpdateInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -785,6 +787,7 @@ export type PaymentCreateManyInput = {
 export type PaymentUpdateManyMutationInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1103,6 +1106,7 @@ export type PaymentUpdateOneWithoutLoyaltyTransactionsNestedInput = {
 export type PaymentCreateWithoutOrderInput = {
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1138,6 +1142,7 @@ export type PaymentUncheckedCreateWithoutOrderInput = {
   id?: number
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1235,6 +1240,7 @@ export type PaymentScalarWhereInput = {
 export type PaymentCreateWithoutEventsInput = {
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1321,6 +1327,7 @@ export type PaymentUpdateToOneWithWhereWithoutEventsInput = {
 export type PaymentUpdateWithoutEventsInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1391,6 +1398,7 @@ export type PaymentUncheckedUpdateWithoutEventsInput = {
 export type PaymentCreateWithoutRefundsInput = {
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1477,6 +1485,7 @@ export type PaymentUpdateToOneWithWhereWithoutRefundsInput = {
 export type PaymentUpdateWithoutRefundsInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1547,6 +1556,7 @@ export type PaymentUncheckedUpdateWithoutRefundsInput = {
 export type PaymentCreateWithoutLoyaltyTransactionsInput = {
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1633,6 +1643,7 @@ export type PaymentUpdateToOneWithWhereWithoutLoyaltyTransactionsInput = {
 export type PaymentUpdateWithoutLoyaltyTransactionsInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1704,6 +1715,7 @@ export type PaymentCreateManyOrderInput = {
   id?: number
   idempotencyKey: string
   requestHash: string
+  amount: number
   method: $Enums.PaymentMethod
   status?: $Enums.PaymentStatus
   providerRef?: string | null
@@ -1735,6 +1747,7 @@ export type PaymentCreateManyOrderInput = {
 export type PaymentUpdateWithoutOrderInput = {
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1770,6 +1783,7 @@ export type PaymentUncheckedUpdateWithoutOrderInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1805,6 +1819,7 @@ export type PaymentUncheckedUpdateManyWithoutOrderInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   requestHash?: Prisma.StringFieldUpdateOperationsInput | string
+  amount?: Prisma.IntFieldUpdateOperationsInput | number
   method?: Prisma.EnumPaymentMethodFieldUpdateOperationsInput | $Enums.PaymentMethod
   status?: Prisma.EnumPaymentStatusFieldUpdateOperationsInput | $Enums.PaymentStatus
   providerRef?: Prisma.NullableStringFieldUpdateOperationsInput | string | null

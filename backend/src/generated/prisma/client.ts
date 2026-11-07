@@ -42,7 +42,7 @@ export { Prisma }
 
 // file annotations for bundling tools to include these files
 path.join(__dirname, "query_engine-windows.dll.node")
-path.join(process.cwd(), "src/generated/prisma/query_engine-windows.dll.node")
+path.join(process.cwd(), "backend/src/generated/prisma/query_engine-windows.dll.node")
 
 /**
  * Model Product

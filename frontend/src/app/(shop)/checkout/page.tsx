@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth-store";
 import type { Order, PaymentMethod } from "@/types";
 import { CheckoutFlow, type CheckoutSession } from "@/lib/checkout-flow";
 import { cartKey, orderItems } from "@/lib/order-payload";
+import { pointsEarnedFor } from "@/lib/loyalty";
 
 function checkoutFlow(token?: string) {
   return new CheckoutFlow(window.sessionStorage, (path, options) =>
@@ -28,6 +29,13 @@ export default function CheckoutPage() {
 
 function CheckoutContent() {
   const router = useRouter();
+  const queryOrderId =
+    typeof window !== "undefined" &&
+    typeof URLSearchParams !== "undefined" &&
+    window.location?.search
+      ? new URLSearchParams(window.location.search).get("orderId")
+      : null;
+
   const {
     items,
     promoCode: cartPromoCode,
@@ -42,8 +50,9 @@ function CheckoutContent() {
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("WALLET");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("VNPAY");
   const [mockResult, setMockResult] = useState<"SUCCESS" | "FAILED">("SUCCESS");
+  const [pointsToUse, setPointsToUse] = useState<number>(0);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -53,12 +62,30 @@ function CheckoutContent() {
   const [isRestoring, setIsRestoring] = useState(true);
   const [recoveryId, setRecoveryId] = useState("");
   const busy = useRef(false);
+
   const order = session?.order;
   const subtotal = order?.subtotal ?? getSubtotal();
-  const total = order?.total ?? getTotal();
-  const discountAmount = order?.discountAmount ?? cartDiscount;
+  const promoDiscount = order?.discountAmount ?? cartDiscount;
   const promoCode = order ? order.promoCode : cartPromoCode;
-  const pointsEarned = successOrder?.pointsEarned ?? Math.floor(total / 1000);
+
+  // Tổng tiền trước khi trừ điểm
+  const baseTotal = Math.max(0, subtotal - promoDiscount);
+
+  // Điểm thưởng của user và giới hạn điểm dùng cho đơn
+  const userLoyaltyPoints = user?.loyaltyPoints ?? 0;
+  const maxPossiblePointsForOrder = Math.floor(baseTotal / 1000) * 20;
+  const maxPointsUsable = Math.min(
+    userLoyaltyPoints,
+    maxPossiblePointsForOrder,
+  );
+
+  const validPointsToUse = Math.min(pointsToUse, maxPointsUsable);
+  const pointsDiscountVnd = Math.floor(validPointsToUse / 20) * 1000;
+  const payableAmount = Math.max(0, baseTotal - pointsDiscountVnd);
+
+  const pointsEarned =
+    successOrder?.pointsEarned ?? pointsEarnedFor(payableAmount);
+
   const displayItems = order
     ? order.items.map((item) => ({
         id: String(item.id),
@@ -71,20 +98,65 @@ function CheckoutContent() {
 
   useEffect(() => {
     let active = true;
-    queueMicrotask(() => {
+    queueMicrotask(async () => {
       if (!active) return;
       try {
-        const restored = useAuthStore.getState().user
-          ? checkoutFlow().read(useAuthStore.getState().user!.id)
-          : null;
-        setSession(restored);
-        setSuccessOrder(
-          restored?.phase === "paid" ? (restored.order ?? null) : null,
-        );
-        if (restored?.paidMethod) setPaymentMethod(restored.paidMethod);
-        else if (restored?.attempt) {
-          setPaymentMethod(restored.attempt.method);
-          setMockResult(restored.attempt.mockResult);
+        const currentUser = useAuthStore.getState().user;
+        const currentToken = useAuthStore.getState().token;
+        if (!currentUser) {
+          setIsRestoring(false);
+          return;
+        }
+        const flow = checkoutFlow(currentToken ?? undefined);
+
+        // Nếu có queryOrderId trên URL (ví dụ bấm "Thanh toán tiếp" từ /orders)
+        if (queryOrderId) {
+          try {
+            const fetchedOrder = await apiFetch<Order>(
+              `/orders/${queryOrderId}`,
+              { token: currentToken ?? undefined },
+            );
+            if (active && fetchedOrder) {
+              const newSession = flow.startOrder(currentUser.id, fetchedOrder);
+              setSession(newSession);
+              setIsRestoring(false);
+              return;
+            }
+          } catch (e) {
+            console.error("Failed to recover order from queryOrderId:", e);
+          }
+        }
+
+        const restored = flow.read(currentUser.id);
+        if (restored) {
+          if (
+            restored.order?.status === "CANCELLED" ||
+            restored.order?.status === "COMPLETED"
+          ) {
+            flow.clear(currentUser.id);
+            setSession(null);
+          } else {
+            // Nếu phiên trước đó đang ở phase "redirecting" hoặc "failed" (khách đã quay lại từ cổng thanh toán):
+            // Reset attempt cũ để lượt thanh toán tiếp theo tạo Idempotency-Key mới tinh
+            let cleanSession = restored;
+            if (
+              restored.phase === "redirecting" ||
+              restored.phase === "failed" ||
+              restored.paymentUrl
+            ) {
+              cleanSession = flow.resetAttempt(currentUser.id) ?? restored;
+            }
+            setSession(cleanSession);
+            setSuccessOrder(
+              cleanSession.phase === "paid" ? (cleanSession.order ?? null) : null,
+            );
+            if (cleanSession.paidMethod) setPaymentMethod(cleanSession.paidMethod);
+            else if (cleanSession.attempt) {
+              setPaymentMethod(cleanSession.attempt.method);
+              if (cleanSession.attempt.mockResult)
+                setMockResult(cleanSession.attempt.mockResult);
+            }
+          }
         }
       } catch {
         setErrorMsg(
@@ -96,7 +168,7 @@ function CheckoutContent() {
     return () => {
       active = false;
     };
-  }, [user?.id]);
+  }, [user?.id, queryOrderId]);
 
   useEffect(() => {
     initAuth();
@@ -111,6 +183,26 @@ function CheckoutContent() {
       }
     }
   }, [token, router]);
+
+  const handleSetPoints = (pts: number) => {
+    const clamped = Math.max(0, Math.min(pts, maxPointsUsable));
+    const rounded = Math.floor(clamped / 20) * 20;
+    setPointsToUse(rounded);
+  };
+
+  const handleUseMaxPoints = () => {
+    if (userLoyaltyPoints >= maxPossiblePointsForOrder) {
+      setPointsToUse(maxPossiblePointsForOrder);
+    } else {
+      if (baseTotal >= 5000) {
+        const maxVnpayDiscount = baseTotal - 5000;
+        const maxVnpayPoints = Math.floor(maxVnpayDiscount / 1000) * 20;
+        setPointsToUse(Math.min(userLoyaltyPoints, maxVnpayPoints));
+      } else {
+        setPointsToUse(0);
+      }
+    }
+  };
 
   if (isRestoring || isLoadingAuth || !isHydrated)
     return <p className="p-8 text-center">Đang khôi phục đơn hàng...</p>;
@@ -139,26 +231,40 @@ function CheckoutContent() {
           {/* Chi tiết đơn tóm tắt */}
           <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-4.5 border border-stone-200/70 dark:border-stone-700 text-left space-y-2.5 text-xs text-stone-600 dark:text-stone-300 light:bg-cafe-page light:border-cafe-line light:text-cafe-muted ">
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Mã đơn hàng:</span>
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">
+                Mã đơn hàng:
+              </span>
               <span className="font-bold text-stone-900 dark:text-stone-100 font-mono text-sm light:text-cafe-ink ">
                 #{successOrder.id}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Phương thức:</span>
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">
+                Phương thức:
+              </span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "WALLET" ? "Ví điện tử" : "Thẻ ngân hàng"}
+                {paymentMethod === "POINTS" || (successOrder.total === 0 && !successOrder.payments?.some(p => p.method === "VNPAY"))
+                  ? "Điểm thưởng (100%)"
+                  : paymentMethod === "VNPAY"
+                    ? "Cổng VNPAY (QR / ATM)"
+                    : paymentMethod === "WALLET"
+                      ? "Ví điện tử"
+                      : "Thẻ ngân hàng"}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">Tổng thanh toán:</span>
+              <span className="text-stone-400 dark:text-stone-500 light:text-cafe-muted ">
+                Tiền mặt thanh toán:
+              </span>
               <span className="font-extrabold text-amber-900 dark:text-amber-400 font-mono text-sm light:text-cafe-primary ">
                 {successOrder.total.toLocaleString("vi-VN")}₫
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
-              <span>⭐ Điểm tích lũy nhận được:</span>
-              <span className="font-bold">+{pointsEarned} điểm</span>
+              <span>⭐ Điểm tích lũy dự kiến:</span>
+              <span className="font-bold">
+                +{pointsEarned} điểm (cộng khi hoàn tất đơn)
+              </span>
             </div>
           </div>
 
@@ -183,7 +289,7 @@ function CheckoutContent() {
     );
   }
 
-  // Nếu giỏ hàng trống (chưa đặt thành công)
+  // Nếu giỏ hàng trống (chưa đặt thành công và không phải tiếp tục đơn)
   if (items.length === 0 && !session) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center space-y-4">
@@ -219,7 +325,7 @@ function CheckoutContent() {
       try {
         setSession(checkoutFlow().read(user.id));
       } catch {
-        /* Keep the visible snapshot. */
+        /* Keep snapshot */
       }
       busy.current = false;
       setIsProcessing(false);
@@ -228,9 +334,13 @@ function CheckoutContent() {
 
   const handlePayOrder = () =>
     runAction(async () => {
+      setErrorMsg(null);
       if (!user || useCartStore.getState().isValidatingPromo) return;
       const flow = checkoutFlow(token!);
-      if (!flow.read(user.id)) {
+      let currentSession = flow.read(user.id);
+
+      // Nếu chưa có session và không có queryOrderId: prepare đơn mới từ giỏ hàng
+      if (!currentSession && !queryOrderId) {
         if (!(await useCartStore.getState().refreshCart()))
           throw new Error(
             useCartStore.getState().cartError ||
@@ -245,42 +355,57 @@ function CheckoutContent() {
         if (refreshed.requiresReview) {
           refreshed.acknowledgeChanges();
           throw new Error(
-            `${refreshed.notice || 'Thành phần giỏ hàng đã thay đổi.'} Hãy kiểm tra các món và bấm thanh toán lần nữa để xác nhận.`,
+            `${refreshed.notice || "Thành phần giỏ hàng đã thay đổi."} Hãy kiểm tra các món và bấm thanh toán lần nữa để xác nhận.`,
           );
         }
-        if (refreshed.getTotal() !== total)
-          throw new Error(
-            "Giá hoặc khuyến mãi đã thay đổi. Vui lòng kiểm tra tổng tiền và xác nhận lại.",
-          );
-      }
-      const current = useCartStore.getState();
-      const prepared = await flow.prepare(
-        user.id,
-        cartKey(current.items, current.promoCode),
-        {
-          items: orderItems(current.items),
-          promoCode: current.promoCode || undefined,
-        },
-      );
-      setSession(prepared);
-      // Creation fixes the server price. Never charge an amount the customer has
-      // not seen: a changed total requires a second explicit confirmation.
-      if (prepared.order!.total !== total) {
-        setErrorMsg(
-          `Tổng tiền được cập nhật thành ${prepared.order!.total.toLocaleString("vi-VN")}₫. Vui lòng kiểm tra và xác nhận lại, hoặc hủy đơn để sửa giỏ hàng.`,
+        const current = useCartStore.getState();
+        const clientTotal = baseTotal;
+        currentSession = await flow.prepare(
+          user.id,
+          cartKey(current.items, current.promoCode),
+          {
+            items: orderItems(current.items),
+            promoCode: current.promoCode || undefined,
+          },
         );
+        setSession(currentSession);
+        if (currentSession.order && currentSession.order.total !== clientTotal) {
+          setErrorMsg(
+            `Tổng tiền được cập nhật thành ${currentSession.order.total.toLocaleString("vi-VN")}₫. Vui lòng kiểm tra và xác nhận lại, hoặc hủy đơn để sửa giỏ hàng.`,
+          );
+          return;
+        }
+      }
+
+      const activeOrder = currentSession?.order;
+      if (!activeOrder) throw new Error("Chưa có đơn hàng để thanh toán.");
+
+      if (useAuthStore.getState().token !== token) return;
+
+      const effectiveMethod: PaymentMethod =
+        payableAmount === 0 ? "POINTS" : paymentMethod;
+
+      const isRetry = Boolean(queryOrderId || session?.attempt || session?.order);
+      const paid = await flow.pay(
+        user.id,
+        effectiveMethod,
+        mockResult,
+        undefined,
+        validPointsToUse,
+        isRetry,
+      );
+
+      if (paid.paymentUrl && typeof window !== "undefined") {
+        window.location.assign(paid.paymentUrl);
         return;
       }
-      if (useAuthStore.getState().token !== token) return;
-      const paid = await flow.pay(user.id, paymentMethod, mockResult);
+
       if (paid.order && useAuthStore.getState().token === token) {
         const latest = useCartStore.getState();
         if (cartKey(latest.items, latest.promoCode) === paid.cartKey)
           clearCart();
         setSuccessOrder(paid.order);
-        setPaymentMethod(paid.paidMethod ?? paymentMethod);
-        // The receipt stays in component state; a later visit can start a new
-        // purchase even when the customer leaves through the website header.
+        setPaymentMethod(paid.paidMethod ?? effectiveMethod);
         flow.clear(user.id);
         await useAuthStore.getState().refreshUser();
       }
@@ -302,19 +427,30 @@ function CheckoutContent() {
     <div className="w-full py-2 sm:py-4">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mb-1.5 light:text-cafe-muted ">
-        <Link href="/" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
+        <Link
+          href="/"
+          className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary "
+        >
           Trang chủ
         </Link>
         <span>/</span>
-        <Link href="/menu" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
+        <Link
+          href="/menu"
+          className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary "
+        >
           Menu
         </Link>
         <span>/</span>
-        <Link href="/cart" className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary ">
+        <Link
+          href="/cart"
+          className="hover:text-amber-800 dark:hover:text-amber-400 light:hover:text-cafe-primary "
+        >
           Giỏ hàng
         </Link>
         <span>/</span>
-        <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">Thanh toán</span>
+        <span className="text-stone-800 dark:text-stone-200 font-medium light:text-cafe-ink ">
+          Thanh toán
+        </span>
       </div>
 
       <h1 className="text-xl sm:text-2xl font-black text-stone-900 dark:text-stone-100 tracking-tight mb-4 light:text-cafe-ink ">
@@ -322,7 +458,7 @@ function CheckoutContent() {
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* CỘT TRÁI (7 cols): Chọn Phương Thức Thanh Toán */}
+        {/* CỘT TRÁI (7 cols): Thông tin, Dùng điểm & Phương Thức Thanh Toán */}
         <div className="lg:col-span-7 space-y-4">
           {/* 1. Thông tin khách hàng */}
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
@@ -332,7 +468,9 @@ function CheckoutContent() {
             </h3>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="bg-stone-50 dark:bg-[#1f1915] p-3 rounded-xl border border-[#ede5dc] dark:border-[#2e241e] light:bg-cafe-page light:border-cafe-line ">
-                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5 light:text-cafe-muted ">Họ và tên:</span>
+                <span className="text-stone-400 dark:text-[#7d6e62] block mb-0.5 light:text-cafe-muted ">
+                  Họ và tên:
+                </span>
                 <span className="font-semibold text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                   {user?.fullName || "Khách hàng"}
                 </span>
@@ -348,134 +486,138 @@ function CheckoutContent() {
             </div>
           </div>
 
-          {/* 2. Phương thức thanh toán không tiền mặt */}
-          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+          {/* 2. Khu vực Dùng điểm thưởng (Vấn đề 1) */}
+          <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-4 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
-                <span>💳</span>
-                <span>Phương thức thanh toán</span>
+              <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink">
+                <span>⭐</span>
+                <span>Dùng điểm thưởng</span>
               </h3>
-              <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-200/60 dark:border-emerald-800/60">
-                Cashless 100%
+              <span className="text-xs font-semibold text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                Bạn có: {userLoyaltyPoints.toLocaleString("vi-VN")} điểm
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              {/* Option WALLET */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "WALLET"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
-                }`}
-              >
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="paymentMethod"
-                  value="WALLET"
-                  checked={paymentMethod === "WALLET"}
-                  onChange={() => setPaymentMethod("WALLET")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
-                />
-                <div className="space-y-1">
-                  <div className="font-bold text-sm flex items-center gap-1.5">
-                    <span>📱</span>
-                    <span>Ví Điện Tử</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    Momo, ZaloPay, VNPay (Quét mã QR siêu nhanh)
-                  </p>
-                </div>
-              </label>
+            <p className="text-xs text-stone-500 dark:text-[#9e8f83] light:text-cafe-muted">
+              Tỷ lệ quy đổi:{" "}
+              <span className="font-semibold text-amber-700 dark:text-amber-300">
+                20 điểm = 1.000đ
+              </span>{" "}
+              giảm giá (áp dụng theo bội số của 20 điểm).
+            </p>
 
-              {/* Option CARD */}
-              <label
-                className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                  paymentMethod === "CARD"
-                    ? "border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary "
-                    : "border-[#ede5dc] dark:border-[#2a221c] hover:border-amber-400 dark:hover:border-amber-700/60 bg-white dark:bg-[#1a1411] text-stone-700 dark:text-[#cfc3b9] light:border-cafe-line light:hover:border-cafe-primary light:bg-cafe-surface light:text-cafe-ink "
-                }`}
-              >
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="paymentMethod"
-                  value="CARD"
-                  checked={paymentMethod === "CARD"}
-                  onChange={() => setPaymentMethod("CARD")}
-                  className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary "
-                />
-                <div className="space-y-1">
-                  <div className="font-bold text-sm flex items-center gap-1.5">
-                    <span>💳</span>
-                    <span>Thẻ Ngân Hàng</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted ">
-                    ATM / Visa / Mastercard / Napas nội địa
-                  </p>
+            {userLoyaltyPoints >= 20 ? (
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-600 dark:text-[#cfc3b9]">
+                    Điểm muốn dùng:
+                  </span>
+                  <span className="font-bold font-mono text-amber-800 dark:text-amber-400 text-sm">
+                    {validPointsToUse} điểm (-
+                    {pointsDiscountVnd.toLocaleString("vi-VN")}đ)
+                  </span>
                 </div>
-              </label>
-            </div>
+
+                {/* Thanh trượt chọn điểm */}
+                <input
+                  type="range"
+                  min="0"
+                  max={maxPointsUsable}
+                  step="20"
+                  value={validPointsToUse}
+                  onChange={(e) => handleSetPoints(Number(e.target.value))}
+                  disabled={isProcessing || maxPointsUsable === 0}
+                  className="w-full accent-amber-600 cursor-pointer"
+                />
+
+                {/* Các mốc chọn nhanh */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {[0, 100, 200, 500]
+                    .filter((pts) => pts <= maxPointsUsable)
+                    .map((pts) => (
+                      <button
+                        key={pts}
+                        type="button"
+                        onClick={() => handleSetPoints(pts)}
+                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                          validPointsToUse === pts
+                            ? "bg-amber-600 text-white border-amber-600"
+                            : "bg-stone-50 dark:bg-[#1f1915] text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-500"
+                        }`}
+                      >
+                        {pts === 0 ? "Không dùng" : `${pts} điểm`}
+                      </button>
+                    ))}
+                  <button
+                    type="button"
+                    onClick={handleUseMaxPoints}
+                    className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold hover:bg-amber-200 transition-colors ml-auto"
+                  >
+                    Dùng tối đa
+                  </button>
+                </div>
+
+                {payableAmount === 0 && (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                    🎉 Bạn đang dùng điểm chi trả 100% đơn hàng này! Đơn hàng sẽ
+                    chuyển sang trạng thái <strong>Đã thanh toán</strong> ngay
+                    lập tức mà không cần qua VNPAY.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-stone-400 dark:text-stone-500 italic">
+                Bạn cần tối thiểu 20 điểm thưởng để bắt đầu đổi giảm giá.
+              </p>
+            )}
           </div>
 
-          {/* 3. Tùy chọn Demo / Test Cổng thanh toán */}
-          <div className="bg-amber-50/50 dark:bg-[#1c1612] border border-amber-200/80 dark:border-[#33261f] rounded-2xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 light:text-cafe-primary ">
-                <span>⚙️</span>
-                <span>Chế độ Demo Cổng Thanh Toán</span>
-              </span>
-              <span className="text-[10px] text-stone-500 dark:text-[#8e7e72] light:text-cafe-muted ">
-                Hỗ trợ kiểm thử đề tài
-              </span>
-            </div>
-            <div className="flex gap-4 text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="SUCCESS"
-                  checked={mockResult === "SUCCESS"}
-                  onChange={() => setMockResult("SUCCESS")}
-                  className="accent-emerald-600 cursor-pointer"
-                />
-                <span className="font-medium text-emerald-800 dark:text-emerald-300">
-                  ✓ Giả lập Thành công (201)
+          {/* 3. Phương thức thanh toán không tiền mặt - VNPAY (chỉ khi payableAmount > 0) */}
+          {payableAmount > 0 && (
+            <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-3 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm flex items-center gap-2 light:text-cafe-ink ">
+                  <span>💳</span>
+                  <span>Phương thức thanh toán phần còn lại</span>
+                </h3>
+                <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-200/60 dark:border-emerald-800/60">
+                  Cashless 100%
                 </span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  disabled={isProcessing || !!session?.attempt}
-                  name="mockResult"
-                  value="FAILED"
-                  checked={mockResult === "FAILED"}
-                  onChange={() => setMockResult("FAILED")}
-                  className="accent-rose-600 cursor-pointer"
-                />
-                <span className="font-medium text-rose-800 dark:text-rose-300">
-                  ✕ Giả lập Thất bại (402)
-                </span>
-              </label>
+              </div>
+
+              <div className="pt-1">
+                <label className="flex items-start gap-3 p-3.5 rounded-2xl border border-amber-600 bg-amber-500/10 dark:bg-amber-500/15 ring-2 ring-amber-500/30 text-amber-950 dark:text-amber-200 font-medium light:ring-cafe-primary/30 light:bg-cafe-accent light:text-cafe-primary light:border-cafe-primary cursor-pointer">
+                  <input
+                    type="radio"
+                    disabled={isProcessing}
+                    name="paymentMethod"
+                    value="VNPAY"
+                    checked={paymentMethod === "VNPAY"}
+                    onChange={() => setPaymentMethod("VNPAY")}
+                    className="mt-0.5 accent-amber-600 cursor-pointer light:accent-cafe-primary"
+                  />
+                  <div className="space-y-1">
+                    <div className="font-bold text-sm flex items-center gap-1.5">
+                      <span>⚡</span>
+                      <span>Cổng Thanh Toán VNPAY (QR / Ngân Hàng)</span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 dark:text-[#9e8f83] leading-relaxed light:text-cafe-muted">
+                      Quét mã VNPAY-QR qua ứng dụng ngân hàng, ví điện tử hoặc
+                      thanh toán qua thẻ ATM / Visa / Master nội địa và quốc tế.
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           {session && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-sm space-y-3 text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
               {order ? (
                 <>
                   <p>
-                    Đang tiếp tục đơn #{order.id}. Món và giá đã được giữ theo
-                    đơn này.
+                    Đang xử lý đơn #{order.id}. Món và giá đã được giữ theo đơn này.
                   </p>
-                  {session.attempt && (
-                    <p>
-                      Chưa xác định kết quả giao dịch. Bấm kiểm tra để tiếp tục
-                      an toàn trên cùng đơn.
-                    </p>
-                  )}
                   <button
                     type="button"
                     disabled={isProcessing}
@@ -488,8 +630,8 @@ function CheckoutContent() {
               ) : (
                 <>
                   <p>
-                    Chưa nhận được kết quả tạo đơn. Hãy kiểm tra lịch sử để
-                    tránh đặt trùng.
+                    Chưa nhận được kết quả tạo đơn. Hãy kiểm tra lịch sử để tránh
+                    đặt trùng.
                   </p>
                   <Link href="/orders" className="underline">
                     Mở lịch sử đơn hàng
@@ -555,12 +697,14 @@ function CheckoutContent() {
                 <span>⚠️</span>
                 <span>Thanh toán không thành công:</span>
               </div>
-              <p className="text-[11px] text-rose-600 dark:text-rose-400">{errorMsg}</p>
+              <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                {errorMsg}
+              </p>
             </div>
           )}
         </div>
 
-        {/* CỘT PHẢI (5 cols): Tóm tắt chi phí & Nút Xác Nhận */}
+        {/* CỘT PHẢI (5 cols): Tóm tắt chi phí & Nút Thanh Toán */}
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-white dark:bg-[#161210] rounded-2xl border border-[#ede5dc] dark:border-[#2a221c] p-5 shadow-sm space-y-4 light:bg-cafe-surface light:border-cafe-line light:shadow-cafe-card ">
             <h3 className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm pb-2 border-b border-[#ede5dc] dark:border-[#2a221c] flex items-center justify-between light:text-cafe-ink light:border-cafe-line ">
@@ -581,8 +725,12 @@ function CheckoutContent() {
                     <span className="font-bold text-stone-800 dark:text-[#f4ede6] light:text-cafe-ink ">
                       {item.quantity}x
                     </span>{" "}
-                    <span className="text-stone-700 dark:text-[#cfc3b9] light:text-cafe-ink ">{item.product.name}</span>{" "}
-                    <span className="text-stone-400 dark:text-[#7d6e62] light:text-cafe-muted ">({item.size})</span>
+                    <span className="text-stone-700 dark:text-[#cfc3b9] light:text-cafe-ink ">
+                      {item.product.name}
+                    </span>{" "}
+                    <span className="text-stone-400 dark:text-[#7d6e62] light:text-cafe-muted ">
+                      ({item.size})
+                    </span>
                   </div>
                   <span className="font-mono text-stone-700 dark:text-[#cfc3b9] shrink-0 light:text-cafe-ink ">
                     {item.lineTotal.toLocaleString("vi-VN")}₫
@@ -591,6 +739,7 @@ function CheckoutContent() {
               ))}
             </div>
 
+            {/* Bảng chi tiết tính tiền (Vấn đề 1) */}
             <div className="space-y-2 pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] text-xs text-stone-600 dark:text-[#9e8f83] light:border-cafe-line light:text-cafe-muted ">
               <div className="flex justify-between">
                 <span>Tạm tính:</span>
@@ -598,29 +747,38 @@ function CheckoutContent() {
                   {subtotal.toLocaleString("vi-VN")}₫
                 </span>
               </div>
-              {promoCode && (
+              {promoCode && promoDiscount > 0 && (
                 <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                   <span>Mã {promoCode}:</span>
                   <span className="font-mono font-medium">
-                    -{discountAmount.toLocaleString("vi-VN")}₫
+                    -{promoDiscount.toLocaleString("vi-VN")}₫
+                  </span>
+                </div>
+              )}
+              {pointsDiscountVnd > 0 && (
+                <div className="flex justify-between text-amber-700 dark:text-amber-400">
+                  <span>Giảm giá điểm ({validPointsToUse} điểm):</span>
+                  <span className="font-mono font-medium">
+                    -{pointsDiscountVnd.toLocaleString("vi-VN")}₫
                   </span>
                 </div>
               )}
               <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
-                <span>⭐ Tích lũy điểm:</span>
+                <span>⭐ Tích lũy điểm (khi hoàn tất):</span>
                 <span className="font-bold">+{pointsEarned} điểm</span>
               </div>
             </div>
 
             <div className="pt-3 border-t border-[#ede5dc] dark:border-[#2a221c] flex justify-between items-baseline light:border-cafe-line ">
               <span className="font-bold text-stone-900 dark:text-[#f4ede6] text-sm light:text-cafe-ink ">
-                Tổng thanh toán:
+                Cần thanh toán:
               </span>
               <span className="text-2xl font-black text-amber-900 dark:text-amber-400 font-mono light:text-cafe-primary ">
-                {total.toLocaleString("vi-VN")}₫
+                {payableAmount.toLocaleString("vi-VN")}₫
               </span>
             </div>
 
+            {/* Nút bấm thanh toán (Vấn đề 2: Đổi nhãn nút bấm) */}
             <button
               type="button"
               onClick={handlePayOrder}
@@ -658,10 +816,9 @@ function CheckoutContent() {
                 </>
               ) : (
                 <span>
-                  {session?.attempt
-                    ? "Kiểm tra / tiếp tục giao dịch"
-                    : "Xác Nhận Thanh Toán"}{" "}
-                  ({total.toLocaleString("vi-VN")}₫)
+                  {payableAmount === 0
+                    ? "Thanh toán bằng điểm thưởng (0₫)"
+                    : `Thanh toán (${payableAmount.toLocaleString("vi-VN")}₫)`}
                 </span>
               )}
             </button>
