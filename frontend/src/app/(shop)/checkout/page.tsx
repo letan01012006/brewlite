@@ -10,7 +10,11 @@ import { useAuthStore } from "@/store/auth-store";
 import type { Order, PaymentMethod } from "@/types";
 import { CheckoutFlow, type CheckoutSession } from "@/lib/checkout-flow";
 import { cartKey, orderItems } from "@/lib/order-payload";
-import { pointsEarnedFor } from "@/lib/loyalty";
+import {
+  maxRedeemablePoints,
+  pointsEarnedFor,
+  pointsToDiscountVnd,
+} from "@/lib/loyalty";
 
 function checkoutFlow(token?: string) {
   return new CheckoutFlow(window.sessionStorage, (path, options) =>
@@ -44,15 +48,13 @@ function CheckoutContent() {
     isRefreshing,
     isHydrated,
     getSubtotal,
-    getTotal,
     clearCart,
   } = useCartStore();
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("VNPAY");
-  const [mockResult, setMockResult] = useState<"SUCCESS" | "FAILED">("SUCCESS");
-  const [pointsToUse, setPointsToUse] = useState<number>(0);
+  const [useMaxPoints, setUseMaxPoints] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -64,8 +66,13 @@ function CheckoutContent() {
   const busy = useRef(false);
 
   const order = session?.order;
+  const heldPayment = order?.payments?.find((p) => p.status === "PROCESSING");
+  const heldPoints = heldPayment?.pointsUsed ?? 0;
+  const heldDiscount = heldPayment?.pointsAmount ?? 0;
   const subtotal = order?.subtotal ?? getSubtotal();
-  const promoDiscount = order?.discountAmount ?? cartDiscount;
+  const promoDiscount = order
+    ? Math.max(0, order.discountAmount - heldDiscount)
+    : cartDiscount;
   const promoCode = order ? order.promoCode : cartPromoCode;
 
   // Tổng tiền trước khi trừ điểm
@@ -73,14 +80,19 @@ function CheckoutContent() {
 
   // Điểm thưởng của user và giới hạn điểm dùng cho đơn
   const userLoyaltyPoints = user?.loyaltyPoints ?? 0;
-  const maxPossiblePointsForOrder = Math.floor(baseTotal / 1000) * 20;
-  const maxPointsUsable = Math.min(
-    userLoyaltyPoints,
-    maxPossiblePointsForOrder,
+  const maxPointsUsable = maxRedeemablePoints(
+    userLoyaltyPoints + heldPoints,
+    baseTotal,
   );
-
-  const validPointsToUse = Math.min(pointsToUse, maxPointsUsable);
-  const pointsDiscountVnd = Math.floor(validPointsToUse / 20) * 1000;
+  const pendingAttempt =
+    session?.phase === "paying" ? session.attempt : undefined;
+  const pointsLocked = Boolean(pendingAttempt || heldPayment);
+  const validPointsToUse = pointsLocked
+    ? (pendingAttempt?.pointsUsed ?? heldPoints)
+    : useMaxPoints
+      ? maxPointsUsable
+      : 0;
+  const pointsDiscountVnd = pointsToDiscountVnd(validPointsToUse);
   const payableAmount = Math.max(0, baseTotal - pointsDiscountVnd);
 
   const pointsEarned =
@@ -99,6 +111,7 @@ function CheckoutContent() {
   useEffect(() => {
     let active = true;
     queueMicrotask(async () => {
+      if (!isHydrated) return;
       if (!active) return;
       try {
         const currentUser = useAuthStore.getState().user;
@@ -119,15 +132,32 @@ function CheckoutContent() {
             if (active && fetchedOrder) {
               const newSession = flow.startOrder(currentUser.id, fetchedOrder);
               setSession(newSession);
+              setUseMaxPoints(
+                Boolean(
+                  newSession.attempt?.pointsUsed ||
+                  fetchedOrder.payments?.some(
+                    (p) => p.status === "PROCESSING" && p.pointsUsed,
+                  ),
+                ),
+              );
               setIsRestoring(false);
               return;
             }
-          } catch (e) {
-            console.error("Failed to recover order from queryOrderId:", e);
+          } catch (error) {
+            throw error;
           }
         }
 
-        const restored = flow.read(currentUser.id);
+        let restored = flow.read(currentUser.id);
+        const currentCart = useCartStore.getState();
+        if (
+          restored?.order &&
+          currentCart.items.length &&
+          restored.cartKey !== cartKey(currentCart.items, currentCart.promoCode)
+        ) {
+          flow.beginCart(currentUser.id);
+          restored = null;
+        }
         if (restored) {
           if (
             restored.order?.status === "CANCELLED" ||
@@ -136,25 +166,33 @@ function CheckoutContent() {
             flow.clear(currentUser.id);
             setSession(null);
           } else {
-            // Nếu phiên trước đó đang ở phase "redirecting" hoặc "failed" (khách đã quay lại từ cổng thanh toán):
-            // Reset attempt cũ để lượt thanh toán tiếp theo tạo Idempotency-Key mới tinh
             let cleanSession = restored;
-            if (
-              restored.phase === "redirecting" ||
-              restored.phase === "failed" ||
-              restored.paymentUrl
-            ) {
-              cleanSession = flow.resetAttempt(currentUser.id) ?? restored;
+            if (restored.order) {
+              const latestOrder = await apiFetch<Order>(
+                `/orders/${restored.order.id}`,
+                { token: currentToken ?? undefined },
+              );
+              if (!active) return;
+              cleanSession = flow.startOrder(currentUser.id, latestOrder);
             }
             setSession(cleanSession);
-            setSuccessOrder(
-              cleanSession.phase === "paid" ? (cleanSession.order ?? null) : null,
+            setUseMaxPoints(
+              Boolean(
+                cleanSession.attempt?.pointsUsed ||
+                cleanSession.order?.payments?.some(
+                  (p) => p.status === "PROCESSING" && p.pointsUsed,
+                ),
+              ),
             );
-            if (cleanSession.paidMethod) setPaymentMethod(cleanSession.paidMethod);
+            setSuccessOrder(
+              cleanSession.phase === "paid"
+                ? (cleanSession.order ?? null)
+                : null,
+            );
+            if (cleanSession.paidMethod)
+              setPaymentMethod(cleanSession.paidMethod);
             else if (cleanSession.attempt) {
               setPaymentMethod(cleanSession.attempt.method);
-              if (cleanSession.attempt.mockResult)
-                setMockResult(cleanSession.attempt.mockResult);
             }
           }
         }
@@ -168,7 +206,7 @@ function CheckoutContent() {
     return () => {
       active = false;
     };
-  }, [user?.id, queryOrderId]);
+  }, [user?.id, queryOrderId, isHydrated]);
 
   useEffect(() => {
     initAuth();
@@ -183,26 +221,6 @@ function CheckoutContent() {
       }
     }
   }, [token, router]);
-
-  const handleSetPoints = (pts: number) => {
-    const clamped = Math.max(0, Math.min(pts, maxPointsUsable));
-    const rounded = Math.floor(clamped / 20) * 20;
-    setPointsToUse(rounded);
-  };
-
-  const handleUseMaxPoints = () => {
-    if (userLoyaltyPoints >= maxPossiblePointsForOrder) {
-      setPointsToUse(maxPossiblePointsForOrder);
-    } else {
-      if (baseTotal >= 5000) {
-        const maxVnpayDiscount = baseTotal - 5000;
-        const maxVnpayPoints = Math.floor(maxVnpayDiscount / 1000) * 20;
-        setPointsToUse(Math.min(userLoyaltyPoints, maxVnpayPoints));
-      } else {
-        setPointsToUse(0);
-      }
-    }
-  };
 
   if (isRestoring || isLoadingAuth || !isHydrated)
     return <p className="p-8 text-center">Đang khôi phục đơn hàng...</p>;
@@ -243,7 +261,9 @@ function CheckoutContent() {
                 Phương thức:
               </span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "POINTS" || (successOrder.total === 0 && !successOrder.payments?.some(p => p.method === "VNPAY"))
+                {paymentMethod === "POINTS" ||
+                (successOrder.total === 0 &&
+                  !successOrder.payments?.some((p) => p.method === "VNPAY"))
                   ? "Điểm thưởng (100%)"
                   : paymentMethod === "VNPAY"
                     ? "Cổng VNPAY (QR / ATM)"
@@ -271,14 +291,18 @@ function CheckoutContent() {
           <div className="pt-2 flex flex-col sm:flex-row gap-3">
             <Link
               href="/orders"
-              onClick={() => user && checkoutFlow().clear(user.id)}
+              onClick={() =>
+                user && checkoutFlow().clear(user.id, successOrder.id)
+              }
               className="flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all text-center light:shadow-cafe-card cafe-primary "
             >
               Theo dõi đơn hàng của tôi →
             </Link>
             <Link
               href="/menu"
-              onClick={() => user && checkoutFlow().clear(user.id)}
+              onClick={() =>
+                user && checkoutFlow().clear(user.id, successOrder.id)
+              }
               className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors text-center light:bg-cafe-soft light:hover:bg-cafe-line light:text-cafe-ink "
             >
               Về Menu chính
@@ -338,6 +362,10 @@ function CheckoutContent() {
       if (!user || useCartStore.getState().isValidatingPromo) return;
       const flow = checkoutFlow(token!);
       let currentSession = flow.read(user.id);
+      if (queryOrderId && currentSession?.order?.id !== Number(queryOrderId))
+        throw new Error(
+          "Không thể tải đúng đơn hàng cần thanh toán. Vui lòng mở lại từ lịch sử đơn hàng.",
+        );
 
       // Nếu chưa có session và không có queryOrderId: prepare đơn mới từ giỏ hàng
       if (!currentSession && !queryOrderId) {
@@ -369,7 +397,18 @@ function CheckoutContent() {
           },
         );
         setSession(currentSession);
-        if (currentSession.order && currentSession.order.total !== clientTotal) {
+        // The confirmed order now owns these items. A later cart is a new order.
+        if (
+          cartKey(
+            useCartStore.getState().items,
+            useCartStore.getState().promoCode,
+          ) === currentSession.cartKey
+        )
+          clearCart();
+        if (
+          currentSession.order &&
+          currentSession.order.total !== clientTotal
+        ) {
           setErrorMsg(
             `Tổng tiền được cập nhật thành ${currentSession.order.total.toLocaleString("vi-VN")}₫. Vui lòng kiểm tra và xác nhận lại, hoặc hủy đơn để sửa giỏ hàng.`,
           );
@@ -382,31 +421,49 @@ function CheckoutContent() {
 
       if (useAuthStore.getState().token !== token) return;
 
+      const latestUser = useAuthStore.getState().user;
+      const latestHeld = activeOrder.payments?.find(
+        (p) => p.status === "PROCESSING",
+      );
+      const latestBaseTotal =
+        activeOrder.total + (latestHeld?.pointsAmount ?? 0);
+      const selectedPoints = pointsLocked
+        ? validPointsToUse
+        : useMaxPoints
+          ? maxRedeemablePoints(
+              (latestUser?.loyaltyPoints ?? 0) + (latestHeld?.pointsUsed ?? 0),
+              latestBaseTotal,
+            )
+          : 0;
+      if (selectedPoints !== validPointsToUse) {
+        setErrorMsg(
+          "Số điểm áp dụng đã thay đổi. Vui lòng kiểm tra tổng tiền và xác nhận lại.",
+        );
+        return;
+      }
       const effectiveMethod: PaymentMethod =
-        payableAmount === 0 ? "POINTS" : paymentMethod;
+        latestBaseTotal - pointsToDiscountVnd(selectedPoints) === 0
+          ? "POINTS"
+          : paymentMethod;
 
-      const isRetry = Boolean(queryOrderId || session?.attempt || session?.order);
       const paid = await flow.pay(
         user.id,
         effectiveMethod,
-        mockResult,
         undefined,
-        validPointsToUse,
-        isRetry,
+        undefined,
+        selectedPoints,
       );
 
       if (paid.paymentUrl && typeof window !== "undefined") {
+        await useAuthStore.getState().refreshUser();
         window.location.assign(paid.paymentUrl);
         return;
       }
 
       if (paid.order && useAuthStore.getState().token === token) {
-        const latest = useCartStore.getState();
-        if (cartKey(latest.items, latest.promoCode) === paid.cartKey)
-          clearCart();
         setSuccessOrder(paid.order);
         setPaymentMethod(paid.paidMethod ?? effectiveMethod);
-        flow.clear(user.id);
+        flow.clear(user.id, paid.order.id);
         await useAuthStore.getState().refreshUser();
       }
     });
@@ -503,72 +560,84 @@ function CheckoutContent() {
               <span className="font-semibold text-amber-700 dark:text-amber-300">
                 20 điểm = 1.000đ
               </span>{" "}
-              giảm giá (áp dụng theo bội số của 20 điểm).
+              giảm giá. Hệ thống tự tính số điểm phù hợp với đơn hàng.
             </p>
 
-            {userLoyaltyPoints >= 20 ? (
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-stone-600 dark:text-[#cfc3b9]">
-                    Điểm muốn dùng:
-                  </span>
-                  <span className="font-bold font-mono text-amber-800 dark:text-amber-400 text-sm">
-                    {validPointsToUse} điểm (-
-                    {pointsDiscountVnd.toLocaleString("vi-VN")}đ)
-                  </span>
-                </div>
-
-                {/* Thanh trượt chọn điểm */}
-                <input
-                  type="range"
-                  min="0"
-                  max={maxPointsUsable}
-                  step="20"
-                  value={validPointsToUse}
-                  onChange={(e) => handleSetPoints(Number(e.target.value))}
-                  disabled={isProcessing || maxPointsUsable === 0}
-                  className="w-full accent-amber-600 cursor-pointer"
-                />
-
-                {/* Các mốc chọn nhanh */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {[0, 100, 200, 500]
-                    .filter((pts) => pts <= maxPointsUsable)
-                    .map((pts) => (
-                      <button
-                        key={pts}
-                        type="button"
-                        onClick={() => handleSetPoints(pts)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-                          validPointsToUse === pts
-                            ? "bg-amber-600 text-white border-amber-600"
-                            : "bg-stone-50 dark:bg-[#1f1915] text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-amber-500"
-                        }`}
-                      >
-                        {pts === 0 ? "Không dùng" : `${pts} điểm`}
-                      </button>
-                    ))}
-                  <button
-                    type="button"
-                    onClick={handleUseMaxPoints}
-                    className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold hover:bg-amber-200 transition-colors ml-auto"
-                  >
-                    Dùng tối đa
-                  </button>
-                </div>
-
-                {payableAmount === 0 && (
-                  <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                    🎉 Bạn đang dùng điểm chi trả 100% đơn hàng này! Đơn hàng sẽ
-                    chuyển sang trạng thái <strong>Đã thanh toán</strong> ngay
-                    lập tức mà không cần qua VNPAY.
-                  </div>
-                )}
+            <label className="flex items-center justify-between gap-4 cursor-pointer rounded-xl border border-amber-200 dark:border-amber-800 p-3">
+              <span className="font-semibold text-sm text-stone-800 dark:text-stone-100">
+                Dùng điểm tối đa
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={pointsLocked ? validPointsToUse > 0 : useMaxPoints}
+                onChange={(event) => setUseMaxPoints(event.target.checked)}
+                disabled={
+                  isProcessing ||
+                  pointsLocked ||
+                  (!useMaxPoints && maxPointsUsable === 0)
+                }
+                aria-describedby="points-summary"
+                className="h-5 w-5 accent-amber-700 cursor-pointer disabled:cursor-not-allowed"
+              />
+            </label>
+            <div
+              id="points-summary"
+              aria-live="polite"
+              className="space-y-2 text-xs text-stone-600 dark:text-stone-300"
+            >
+              <div className="flex justify-between gap-3">
+                <span>Số điểm sẽ dùng:</span>
+                <strong>{validPointsToUse.toLocaleString("vi-VN")} điểm</strong>
               </div>
-            ) : (
-              <p className="text-xs text-stone-400 dark:text-stone-500 italic">
-                Bạn cần tối thiểu 20 điểm thưởng để bắt đầu đổi giảm giá.
+              <div className="flex justify-between gap-3">
+                <span>Tiền được giảm:</span>
+                <strong className="text-amber-800 dark:text-amber-400">
+                  {pointsDiscountVnd.toLocaleString("vi-VN")}₫
+                </strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Điểm còn lại:</span>
+                <strong>
+                  {Math.max(
+                    0,
+                    userLoyaltyPoints + heldPoints - validPointsToUse,
+                  ).toLocaleString("vi-VN")}{" "}
+                  điểm
+                </strong>
+              </div>
+            </div>
+            {heldPoints > 0 && (
+              <p className="text-xs text-stone-500">
+                Đơn này đang giữ {heldPoints.toLocaleString("vi-VN")} điểm. Điểm
+                sẽ được hoàn lại nếu thanh toán thất bại hoặc đơn được hủy.
               </p>
+            )}
+            {pointsLocked && (
+              <p className="text-xs text-stone-500">
+                Lựa chọn điểm đã được gửi cùng giao dịch đang xử lý. Bạn có thể
+                tiếp tục thanh toán hoặc hủy đơn.
+              </p>
+            )}
+            {!pointsLocked && maxPointsUsable === 0 && (
+              <p className="text-xs text-stone-500">
+                Chưa có điểm có thể áp dụng cho đơn này.
+              </p>
+            )}
+            {useMaxPoints && payableAmount > 0 && (
+              <p className="text-xs text-stone-500">
+                Số điểm được làm tròn tự động; phần thanh toán VNPAY cần từ
+                5.000₫.
+              </p>
+            )}
+            {payableAmount === 0 && validPointsToUse > 0 && (
+              <div className="space-y-3 pt-1">
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                  🎉 Bạn đang dùng điểm chi trả 100% đơn hàng này! Đơn hàng sẽ
+                  chuyển sang trạng thái <strong>Đã thanh toán</strong> ngay lập
+                  tức mà không cần qua VNPAY.
+                </div>
+              </div>
             )}
           </div>
 
@@ -616,7 +685,8 @@ function CheckoutContent() {
               {order ? (
                 <>
                   <p>
-                    Đang xử lý đơn #{order.id}. Món và giá đã được giữ theo đơn này.
+                    Đang xử lý đơn #{order.id}. Món và giá đã được giữ theo đơn
+                    này.
                   </p>
                   <button
                     type="button"
@@ -624,14 +694,24 @@ function CheckoutContent() {
                     onClick={handleCancel}
                     className="underline font-semibold"
                   >
-                    Hủy / đóng đơn để sửa giỏ hàng
+                    Hủy đơn này
                   </button>
+                  <Link
+                    href="/menu"
+                    onClick={() => user && checkoutFlow().beginCart(user.id)}
+                    className="block underline font-semibold"
+                  >
+                    Đặt đơn mới
+                  </Link>
+                  <Link href="/orders" className="block underline">
+                    Xem các đơn đã đặt
+                  </Link>
                 </>
               ) : (
                 <>
                   <p>
-                    Chưa nhận được kết quả tạo đơn. Hãy kiểm tra lịch sử để tránh
-                    đặt trùng.
+                    Chưa nhận được kết quả tạo đơn. Hãy kiểm tra lịch sử để
+                    tránh đặt trùng.
                   </p>
                   <Link href="/orders" className="underline">
                     Mở lịch sử đơn hàng

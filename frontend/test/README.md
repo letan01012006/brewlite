@@ -66,11 +66,21 @@ tabs naturally to release any old controller, rather than force-reloading paymen
 The unit tests simulate these browser APIs; they do not prove real browser update
 timing or profile migration. Document any unavailable browser/backend checks.
 
-Checkout recovery is per account in the current tab's sessionStorage. A pending
-order stays fixed until paid or explicitly cancelled. If the POST /orders
+Checkout recovery is per account and per order in the current tab's sessionStorage.
+Starting checkout from the cart creates a new order even if an older order is pending
+or failed, including an identical basket. Confirmed order items leave the cart;
+older orders remain accessible from history and retain their payment replay keys.
+VNPAY return callbacks only update their own order and never clear a newer cart.
+An unresolved payment reuses the original key and body. If the POST /orders
 response is lost, the UI blocks automatic creation retries and lets the user
 recover an order from history. Order creation has no backend idempotency API;
 it is deliberately not retried automatically.
+
+Checkout uses a single maximum-points switch. Its derived amount is recalculated
+from the current balance and total after promotions, rounded to valid 20-point
+steps, capped at the order value, and leaves a VNPAY remainder of at least 5,000 VND
+unless points cover the entire order. Held points are shown separately when
+resuming a payment; their discount is not subtracted twice.
 
 The cart is stored separately in localStorage per account (and for guests).
 Discount amounts and derived totals are not trusted when restoring. Catalog

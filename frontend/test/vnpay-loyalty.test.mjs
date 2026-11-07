@@ -3,8 +3,56 @@ import assert from "node:assert/strict";
 import { sourceLoader, memoryStorage } from "./load-source.mjs";
 
 const load = sourceLoader();
-const { pointsEarnedFor, pointsToDiscountVnd, WELCOME_POINTS, VND_PER_LOYALTY_POINT, POINTS_STEP, VND_PER_STEP } = load("src/lib/loyalty.ts");
+const {
+  pointsEarnedFor,
+  pointsToDiscountVnd,
+  WELCOME_POINTS,
+  VND_PER_LOYALTY_POINT,
+  POINTS_STEP,
+  VND_PER_STEP,
+} = load("src/lib/loyalty.ts");
 const { CheckoutFlow } = load("src/lib/checkout-flow.ts");
+const { maxRedeemablePoints } = load("src/lib/loyalty.ts");
+
+test("maximum points rounds balances, preserves excess and respects the VNPAY minimum", () => {
+  for (const [balance, total, expected] of [
+    [162, 90000, 160],
+    [2000, 30000, 600],
+    [19, 30000, 0],
+    [139, 10000, 100],
+    [200, 10000, 200],
+    [1000, 10500, 100],
+    [1000, 4000, 80],
+    [60, 4000, 0],
+    [1000, 4500, 0],
+    [100, 0, 0],
+    [0, 50000, 0],
+    [NaN, 50000, 0],
+    [100, Infinity, 0],
+  ])
+    assert.equal(
+      maxRedeemablePoints(balance, total),
+      expected,
+      `${balance} points / ${total} VND`,
+    );
+
+  for (let total = 0; total <= 60000; total += 500) {
+    for (let balance = 0; balance < 1400; balance += 37) {
+      const used = maxRedeemablePoints(balance, total);
+      const discount = pointsToDiscountVnd(used);
+      assert.equal(used % 20, 0);
+      assert.ok(used <= balance && discount <= total);
+      if (used > 0)
+        assert.ok(total - discount === 0 || total - discount >= 5000);
+      const nextDiscount = pointsToDiscountVnd(used + 20);
+      assert.ok(
+        used + 20 > balance ||
+          nextDiscount > total ||
+          (total - nextDiscount > 0 && total - nextDiscount < 5000),
+      );
+    }
+  }
+});
 
 test("loyalty rules: 500 welcome points and 1 point per 1.000 VND (floor)", () => {
   assert.equal(WELCOME_POINTS, 500);
@@ -48,7 +96,8 @@ test("checkout flow: VNPAY payment returns paymentUrl and sets phase to redirect
       method: "VNPAY",
       status: "PROCESSING",
       amount: 50000,
-      paymentUrl: "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_TxnRef=123",
+      paymentUrl:
+        "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_TxnRef=123",
       expiresAt: "2026-11-05T10:00:00Z",
     },
     order: {
@@ -68,7 +117,7 @@ test("checkout flow: VNPAY payment returns paymentUrl and sets phase to redirect
   });
 
   await flow.prepare(1, "cart-key-vnpay", {});
-  const session = await flow.pay(1, "VNPAY");
+  const session = await flow.pay(1, "VNPAY", "SUCCESS");
 
   assert.equal(session.phase, "redirecting");
   assert.equal(session.paymentUrl, vnpaySuccessResponse.payment.paymentUrl);
@@ -76,7 +125,52 @@ test("checkout flow: VNPAY payment returns paymentUrl and sets phase to redirect
   const paymentCall = calls.find((c) => c.path === "/payments");
   assert.equal(paymentCall.body.method, "VNPAY");
   assert.equal(paymentCall.body.orderId, 99);
+  assert.equal(Object.hasOwn(paymentCall.body, "mockResult"), false);
   assert.ok(paymentCall.body.idempotencyKey);
+});
+
+test("restored VNPAY attempts drop the legacy mock field without changing the key", async () => {
+  const order = {
+    id: 99,
+    status: "PENDING",
+    total: 50000,
+    payments: [{ method: "VNPAY", status: "PROCESSING" }],
+  };
+  const storage = memoryStorage();
+  storage.setItem(
+    "brewlite_checkout_v1_1",
+    JSON.stringify({
+      cartKey: "existing-cart",
+      phase: "paying",
+      order,
+      attempt: {
+        orderId: 99,
+        method: "VNPAY",
+        mockResult: "SUCCESS",
+        idempotencyKey: "existing-vnpay-key",
+        bankCode: "NCB",
+        pointsUsed: 100,
+      },
+    }),
+  );
+  let sent;
+  const flow = new CheckoutFlow(storage, async (path, options) => {
+    if (path !== "/payments") return order;
+    sent = JSON.parse(options.body);
+    assert.equal(options.headers["Idempotency-Key"], "existing-vnpay-key");
+    return {
+      payment: { method: "VNPAY", paymentUrl: "https://vnpay.test/pay" },
+      order,
+    };
+  });
+
+  const session = await flow.pay(1, "VNPAY");
+  assert.equal(Object.hasOwn(sent, "mockResult"), false);
+  assert.equal(sent.idempotencyKey, "existing-vnpay-key");
+  assert.equal(sent.bankCode, "NCB");
+  assert.equal(sent.pointsUsed, 100);
+  assert.equal(session.phase, "redirecting");
+  assert.equal(flow.read(1).attempt.mockResult, undefined);
 });
 
 test("checkout flow: POINTS 100% completes immediately without gateway redirect", async () => {
@@ -116,7 +210,7 @@ test("checkout flow: POINTS 100% completes immediately without gateway redirect"
   });
 
   await flow.prepare(1, "cart-key-points", {});
-  const session = await flow.pay(1, "POINTS", undefined, undefined, 400);
+  const session = await flow.pay(1, "POINTS", "SUCCESS", undefined, 400);
 
   assert.equal(session.phase, "paid");
   assert.equal(session.order?.status, "PAID");
@@ -124,6 +218,7 @@ test("checkout flow: POINTS 100% completes immediately without gateway redirect"
   const paymentCall = calls.find((c) => c.path === "/payments");
   assert.equal(paymentCall.body.method, "POINTS");
   assert.equal(paymentCall.body.pointsUsed, 400);
+  assert.equal(Object.hasOwn(paymentCall.body, "mockResult"), false);
 });
 
 test("checkout flow: retry after redirect/failure generates fresh idempotencyKey", async () => {
@@ -172,7 +267,11 @@ test("checkout flow: retry after redirect/failure generates fresh idempotencyKey
   // Second attempt ("Thử lại thanh toán")
   const s2 = await flow.pay(1, "VNPAY");
   const secondKey = keysUsed[1];
-  assert.notEqual(firstKey, secondKey, "Must generate a brand new idempotencyKey for retry");
+  assert.notEqual(
+    firstKey,
+    secondKey,
+    "Must generate a brand new idempotencyKey for retry",
+  );
   assert.equal(s2.phase, "redirecting");
 });
 
@@ -207,5 +306,3 @@ test("checkout flow: new cart after cancelled order creates fresh order without 
   assert.equal(s2.order.id, 102);
   assert.notEqual(s2.order.id, 101);
 });
-
-

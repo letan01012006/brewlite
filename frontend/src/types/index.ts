@@ -107,6 +107,8 @@ export interface Payment {
   id: number;
   orderId: number;
   amount: number;
+  pointsUsed?: number;
+  pointsAmount?: number;
   method: PaymentMethod;
   status: PaymentStatus;
   providerRef?: string | null;

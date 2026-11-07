@@ -327,6 +327,9 @@ export class OrdersService {
             method: true,
             status: true,
             amount: true,
+            pointsUsed: true,
+            pointsAmount: true,
+            paymentUrl: true,
             providerRef: true,
             refundedAt: true,
             refundedAmount: true,
@@ -363,7 +366,10 @@ export class OrdersService {
       total: order.total,
       promoCode: order.promoCode,
       pointsEarned: order.pointsEarned,
-      payments: order.payments,
+      payments: order.payments.map((payment) => ({
+        ...payment,
+        paymentUrl: order.userId === userId ? payment.paymentUrl : null,
+      })),
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
     };

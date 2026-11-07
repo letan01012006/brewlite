@@ -836,6 +836,83 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(refundTx!.points).toBe(100);
   });
 
+  it.each(['PROCESSING', 'FAILED'] as const)('B14: a %s payment does not block a new identical order and exposes held points for recovery', async (status) => {
+    const first = await createOrder();
+    const payment = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: first.id, method: 'VNPAY', pointsUsed: 100 })
+      .expect(201);
+    const savedPayment = await db.payment.findUniqueOrThrow({ where: { id: payment.body.payment.id } });
+    if (status === 'FAILED') {
+      await request(app.getHttpServer())
+        .get('/api/payments/vnpay/ipn')
+        .query(signVnpayParams({
+          vnp_Amount: '4500000',
+          vnp_TxnRef: savedPayment.gatewayTxnRef!,
+          vnp_ResponseCode: '51',
+          vnp_TmnCode: testConfig.tmnCode,
+        }))
+        .expect(200);
+    }
+    const second = await createOrder();
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe('PENDING');
+    const oldOrder = await request(app.getHttpServer())
+      .get(`/api/orders/${first.id}`)
+      .auth(customerToken, { type: 'bearer' })
+      .expect(200);
+    expect(oldOrder.body.payments[0]).toMatchObject({
+      status, pointsUsed: 100, pointsAmount: 5000,
+      paymentUrl: expect.any(String),
+    });
+    expect(oldOrder.body.status).toBe(status === 'FAILED' ? 'PAYMENT_FAILED' : 'PENDING');
+    const staffView = await request(app.getHttpServer())
+      .get(`/api/orders/${first.id}`)
+      .auth(baristaToken, { type: 'bearer' })
+      .expect(200);
+    expect(staffView.body.payments[0].paymentUrl).toBeNull();
+    const customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
+    expect(customer.loyaltyPoints).toBe(status === 'FAILED' ? 500 : 400);
+  });
+
+  it('B15: upgrading a legacy 100-point CHECK accepts 160 points for 8000 VND without rewriting old payments', async () => {
+    await db.user.update({ where: { id: customerUser.id }, data: { loyaltyPoints: 162 } });
+    await db.product.update({ where: { id: testProduct.id }, data: { price: 230000 } });
+    const legacyOrder = await createOrder();
+    const legacyPayment = await db.payment.create({ data: {
+      orderId: legacyOrder.id, amount: 230000, method: 'VNPAY', status: 'FAILED',
+      idempotencyKey: randomUUID(), requestHash: 'legacy', pointsUsed: 400, pointsAmount: 4000,
+    } });
+    await db.$executeRawUnsafe(`ALTER TABLE "Payment"
+      DROP CONSTRAINT "Payment_points_valid_amounts",
+      ADD CONSTRAINT "Payment_points_valid_amounts" CHECK (
+        "pointsUsed" >= 0 AND "pointsAmount" >= 0
+        AND "pointsUsed" % 100 = 0 AND "pointsAmount" = ("pointsUsed" / 100) * 1000
+      )`);
+    const newOrder = await createOrder();
+    const key = randomUUID();
+    await request(app.getHttpServer())
+      .post('/api/payments').auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', key)
+      .send({ orderId: newOrder.id, method: 'VNPAY', pointsUsed: 160 })
+      .expect(500);
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(162);
+    expect(await db.payment.count({ where: { orderId: newOrder.id } })).toBe(0);
+
+    await db.$executeRawUnsafe(await readFile(resolve('prisma/migrations/20261107103000_payment_points_snapshot_compatibility/migration.sql'), 'utf8'));
+    const recovered = await request(app.getHttpServer())
+      .post('/api/payments').auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', key)
+      .send({ orderId: newOrder.id, method: 'VNPAY', pointsUsed: 160 })
+      .expect(201);
+    expect(recovered.body.payment).toMatchObject({ status: 'PROCESSING', pointsUsed: 160, pointsAmount: 8000, amount: 222000 });
+    expect(recovered.body.payment.paymentUrl).toContain('vnp_Amount=22200000');
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(2);
+    expect(await db.payment.findUniqueOrThrow({ where: { id: legacyPayment.id } })).toEqual(legacyPayment);
+  });
+
   it('B13: Retrying payment on order with abandoned PROCESSING payment cancels old and creates new payment', async () => {
     await db.user.update({
       where: { id: customerUser.id },

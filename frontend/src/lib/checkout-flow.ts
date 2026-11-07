@@ -53,37 +53,75 @@ export class CheckoutFlow {
     return `brewlite_checkout_v1_${userId}`;
   }
 
-  read(userId: number): CheckoutSession | null {
-    const value = this.storage.getItem(this.key(userId));
+  read(userId: number, orderId?: number): CheckoutSession | null {
+    const value = this.storage.getItem(
+      orderId ? `${this.key(userId)}_order_${orderId}` : this.key(userId),
+    );
+    if (!value && orderId) {
+      const active = this.read(userId);
+      return active?.order?.id === orderId ? active : null;
+    }
     return value ? (JSON.parse(value) as CheckoutSession) : null;
   }
 
-  save(userId: number, session: CheckoutSession) {
-    this.storage.setItem(this.key(userId), JSON.stringify(session));
+  save(userId: number, session: CheckoutSession, activate = true) {
+    const value = JSON.stringify(session);
+    if (session.order)
+      this.storage.setItem(
+        `${this.key(userId)}_order_${session.order.id}`,
+        value,
+      );
+    if (activate) this.storage.setItem(this.key(userId), value);
     return session;
   }
 
-  resetAttempt(userId: number) {
+  beginCart(userId: number) {
     const existing = this.read(userId);
-    if (!existing) return null;
-    return this.save(userId, {
-      ...existing,
-      phase: "ready",
-      attempt: undefined,
-      paymentUrl: undefined,
-    });
-  }
-
-  clear(userId: number) {
+    if (existing && !existing.order)
+      throw new Error(
+        "Chưa xác định được kết quả tạo đơn. Hãy kiểm tra lịch sử đơn hàng trước khi đặt lại.",
+      );
+    if (existing) this.save(userId, existing, false);
     this.storage.removeItem(this.key(userId));
   }
 
+  resetAttempt(userId: number, orderId?: number) {
+    const existing = this.read(userId, orderId);
+    if (!existing) return null;
+    return this.save(
+      userId,
+      {
+        ...existing,
+        phase: "ready",
+        attempt: undefined,
+        paymentUrl: undefined,
+      },
+      !orderId || this.read(userId)?.order?.id === orderId,
+    );
+  }
+
+  clear(userId: number, orderId?: number) {
+    const targetOrderId = orderId ?? this.read(userId)?.order?.id;
+    if (targetOrderId)
+      this.storage.removeItem(`${this.key(userId)}_order_${targetOrderId}`);
+    if (!orderId || this.read(userId)?.order?.id === orderId)
+      this.storage.removeItem(this.key(userId));
+  }
+
   startOrder(userId: number, order: Order) {
+    const existing = this.read(userId, order.id);
     return this.save(userId, {
-      cartKey: `order_${order.id}`,
-      phase: "ready",
+      ...existing,
+      cartKey: existing?.cartKey ?? `order_${order.id}`,
+      phase: paidStatuses.includes(order.status)
+        ? "paid"
+        : order.status === "PAYMENT_FAILED"
+          ? "failed"
+          : (existing?.phase ?? "ready"),
+      ...(order.status === "PAYMENT_FAILED"
+        ? { attempt: undefined, paymentUrl: undefined }
+        : {}),
       order,
-      attempt: undefined,
     });
   }
 
@@ -94,7 +132,8 @@ export class CheckoutFlow {
         throw new Error(
           "Chưa xác định được kết quả tạo đơn. Hãy kiểm tra lịch sử đơn hàng trước khi tiếp tục.",
         );
-      return existing;
+      if (existing.cartKey === cartKey) return existing;
+      this.beginCart(userId);
     }
     this.save(userId, { cartKey, phase: "creating" });
     try {
@@ -134,47 +173,75 @@ export class CheckoutFlow {
     if (!session?.order) throw new Error("Chưa có đơn hàng để thanh toán.");
     const order = await this.api<Order>(`/orders/${session.order.id}`);
     if (paidStatuses.includes(order.status)) {
-      return this.save(userId, {
-        ...session,
-        order,
-        phase: "paid",
-        paidMethod:
-          order.payments?.find((p) => p.status === "SUCCESS")?.method ??
-          session.attempt?.method ??
-          method,
-      });
+      return this.save(
+        userId,
+        {
+          ...session,
+          order,
+          phase: "paid",
+          paidMethod:
+            order.payments?.find((p) => p.status === "SUCCESS")?.method ??
+            session.attempt?.method ??
+            method,
+        },
+        this.read(userId)?.order?.id === order.id,
+      );
     }
     if (order.status === "CANCELLED")
       throw new Error(
         "Đơn đã được hủy. Hãy đóng đơn này trước khi đặt đơn khác.",
       );
-    if (
-      !retry &&
-      !session.attempt &&
-      order.payments?.some((p) => p.status === "PROCESSING")
-    ) {
+    const processing = order.payments?.find((p) => p.status === "PROCESSING");
+    if (!retry && !session.attempt && processing) {
+      if (
+        processing.method === "VNPAY" &&
+        processing.paymentUrl &&
+        (!processing.expiresAt || Date.parse(processing.expiresAt) > Date.now())
+      ) {
+        return this.save(
+          userId,
+          {
+            ...session,
+            order,
+            phase: "redirecting",
+            paymentUrl: processing.paymentUrl,
+          },
+          this.read(userId)?.order?.id === order.id,
+        );
+      }
       throw new Error("Giao dịch đang được xử lý. Vui lòng kiểm tra lại sau.");
     }
     const shouldCreateNewKey =
-      retry ||
+      (retry && session.phase !== "paying") ||
       session.phase === "redirecting" ||
       session.phase === "failed" ||
       order.status === "PAYMENT_FAILED";
 
-    const attempt: PaymentAttempt = (shouldCreateNewKey ? null : session.attempt) ?? {
+    const attempt: PaymentAttempt = (shouldCreateNewKey
+      ? null
+      : session.attempt) ?? {
       orderId: order.id,
       method,
-      ...(mockResult ? { mockResult } : {}),
+      ...((method === "WALLET" || method === "CARD") && mockResult
+        ? { mockResult }
+        : {}),
       ...(bankCode ? { bankCode } : {}),
       ...(pointsUsed ? { pointsUsed } : {}),
       idempotencyKey: paymentKey(),
     };
-    session = this.save(userId, {
-      ...session,
-      order,
-      phase: "paying",
-      attempt,
-    });
+    // Older sessions included this demo field for VNPAY. The backend excludes
+    // it from VNPAY's request hash, so removing it preserves replay identity.
+    if (attempt.method === "VNPAY") delete attempt.mockResult;
+    session = this.save(
+      userId,
+      {
+        ...session,
+        order,
+        phase: "paying",
+        attempt,
+      },
+      this.read(userId)?.order?.id === order.id,
+    );
     try {
       const result = await this.api<{
         payment: {
@@ -191,33 +258,54 @@ export class CheckoutFlow {
       });
 
       if (result.payment.paymentUrl) {
-        return this.save(userId, {
-          ...session,
-          order: { ...order, ...result.order },
-          phase: "redirecting",
-          paymentUrl: result.payment.paymentUrl,
-        });
+        return this.save(
+          userId,
+          {
+            ...session,
+            order: { ...order, ...result.order },
+            phase: "redirecting",
+            paymentUrl: result.payment.paymentUrl,
+          },
+          this.read(userId)?.order?.id === order.id,
+        );
       }
 
-      return this.save(userId, {
-        ...session,
-        order: { ...order, ...result.order },
-        phase: "paid",
-        paidMethod: result.payment.method,
-      });
+      return this.save(
+        userId,
+        {
+          ...session,
+          order: { ...order, ...result.order },
+          phase: "paid",
+          paidMethod: result.payment.method,
+        },
+        this.read(userId)?.order?.id === order.id,
+      );
     } catch (error) {
       // Only a definitive declined payment permits a new key. Network errors,
       // 5xx and PAYMENT_IN_PROGRESS retain the exact key AND request body.
-      if (
+      if (error instanceof ApiError && error.statusCode === 402) {
+        this.save(
+          userId,
+          {
+            ...session,
+            phase: "failed",
+            attempt: undefined,
+            order: { ...order, status: "PAYMENT_FAILED" },
+          },
+          this.read(userId)?.order?.id === order.id,
+        );
+      } else if (
         error instanceof ApiError &&
-        error.statusCode === 402
+        [
+          "INSUFFICIENT_LOYALTY_POINTS",
+          "POINTS_EXCEED_ORDER_TOTAL",
+          "INVALID_POINTS_AMOUNT",
+          "VNPAY_MIN_AMOUNT_INVALID",
+          "VALIDATION_ERROR",
+        ].includes(error.code) &&
+        [400, 422].includes(error.statusCode)
       ) {
-        this.save(userId, {
-          ...session,
-          phase: "failed",
-          attempt: undefined,
-          order: { ...order, status: "PAYMENT_FAILED" },
-        });
+        this.resetAttempt(userId, order.id);
       }
       throw error;
     }
@@ -230,6 +318,6 @@ export class CheckoutFlow {
     if (order.status !== "CANCELLED")
       await this.api(`/orders/${order.id}/cancel`, { method: "POST" });
     // A lost cancellation response is safe: the next GET sees CANCELLED.
-    this.clear(userId);
+    this.clear(userId, session.order.id);
   }
 }

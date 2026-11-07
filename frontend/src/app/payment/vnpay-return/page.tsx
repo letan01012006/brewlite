@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useAuthStore } from "@/store/auth-store";
-import { useCartStore } from "@/store/cart-store";
 import { CheckoutFlow } from "@/lib/checkout-flow";
 import type { Order, Payment } from "@/types";
 
@@ -17,8 +16,14 @@ interface ReturnResult {
 
 function VnpayReturnContent() {
   const searchParams = useSearchParams();
-  const { user, token, initAuth, refreshUser, isLoading: isLoadingAuth } = useAuthStore();
-  const clearCart = useCartStore((state) => state.clearCart);
+  const {
+    user,
+    token,
+    initAuth,
+    refreshUser,
+    isLoading: isLoadingAuth,
+  } = useAuthStore();
+  const userId = user?.id;
 
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<ReturnResult | null>(null);
@@ -30,18 +35,24 @@ function VnpayReturnContent() {
 
   useEffect(() => {
     if (isLoadingAuth) return;
+    let active = true;
 
     const verify = async () => {
       try {
         const queryStr = searchParams.toString();
         if (!queryStr) {
-          setError("Không tìm thấy thông tin phản hồi từ cổng thanh toán VNPAY.");
+          setError(
+            "Không tìm thấy thông tin phản hồi từ cổng thanh toán VNPAY.",
+          );
           setLoading(false);
           return;
         }
 
         const effectiveToken =
-          token ?? (typeof window !== "undefined" ? localStorage.getItem("brewlite_token") : null);
+          token ??
+          (typeof window !== "undefined"
+            ? localStorage.getItem("brewlite_token")
+            : null);
 
         if (!effectiveToken) {
           setError("Vui lòng đăng nhập lại để xem kết quả thanh toán.");
@@ -49,27 +60,39 @@ function VnpayReturnContent() {
           return;
         }
 
-        const data = await apiFetch<ReturnResult>(`/payments/vnpay/return?${queryStr}`, {
-          method: "GET",
-          token: effectiveToken,
-        });
+        const data = await apiFetch<ReturnResult>(
+          `/payments/vnpay/return?${queryStr}`,
+          {
+            method: "GET",
+            token: effectiveToken,
+          },
+        );
 
+        if (!active) return;
         setResult(data);
 
         if (data.payment.status === "SUCCESS") {
-          // Clear cart and checkout session
-          clearCart();
-          if (user) {
-            new CheckoutFlow(window.sessionStorage).clear(user.id);
+          if (userId) {
+            new CheckoutFlow(window.sessionStorage).clear(
+              userId,
+              data.order.id,
+            );
           }
           await refreshUser();
-        } else {
+        } else if (
+          ["FAILED", "EXPIRED", "CANCELLED"].includes(data.payment.status)
+        ) {
           // Giao dịch không thành công / hủy: xóa attempt cũ để lượt thanh toán sau tạo key mới
-          if (user && typeof window !== "undefined") {
-            new CheckoutFlow(window.sessionStorage).resetAttempt(user.id);
+          if (userId && typeof window !== "undefined") {
+            new CheckoutFlow(window.sessionStorage).resetAttempt(
+              userId,
+              data.order.id,
+            );
           }
+          await refreshUser();
         }
       } catch (err) {
+        if (!active) return;
         if (err instanceof ApiError) {
           setError(err.message || "Xác thực giao dịch VNPAY thất bại.");
         } else if (err instanceof Error) {
@@ -78,12 +101,15 @@ function VnpayReturnContent() {
           setError("Có lỗi xảy ra khi xác thực giao dịch VNPAY.");
         }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     void verify();
-  }, [searchParams, token, isLoadingAuth, user, clearCart, refreshUser]);
+    return () => {
+      active = false;
+    };
+  }, [searchParams, token, isLoadingAuth, userId, refreshUser]);
 
   if (loading) {
     return (
@@ -118,34 +144,43 @@ function VnpayReturnContent() {
                 Giao dịch VNPAY hoàn tất!
               </h1>
               <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 max-w-sm mx-auto">
-                Đơn hàng đã được thanh toán và chuyển đến quầy pha chế của Barista.
+                Đơn hàng đã được thanh toán và chuyển đến quầy pha chế của
+                Barista.
               </p>
             </div>
 
             {/* Chi tiết đơn */}
             <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-4.5 border border-stone-200/70 dark:border-stone-700 text-left space-y-2.5 text-xs text-stone-600 dark:text-stone-300">
               <div className="flex justify-between">
-                <span className="text-stone-400 dark:text-stone-500">Mã đơn hàng:</span>
+                <span className="text-stone-400 dark:text-stone-500">
+                  Mã đơn hàng:
+                </span>
                 <span className="font-bold text-stone-900 dark:text-stone-100 font-mono text-sm">
                   #{result?.order.id}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-stone-400 dark:text-stone-500">Phương thức:</span>
+                <span className="text-stone-400 dark:text-stone-500">
+                  Phương thức:
+                </span>
                 <span className="font-semibold text-stone-800 dark:text-stone-200">
                   Cổng VNPAY ({result?.payment.bankCode || "QR / Ngân Hàng"})
                 </span>
               </div>
               {result?.payment.providerRef && (
                 <div className="flex justify-between">
-                  <span className="text-stone-400 dark:text-stone-500">Mã giao dịch VNPAY:</span>
+                  <span className="text-stone-400 dark:text-stone-500">
+                    Mã giao dịch VNPAY:
+                  </span>
                   <span className="font-mono text-stone-800 dark:text-stone-200">
                     {result.payment.providerRef}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-stone-400 dark:text-stone-500">Số tiền thanh toán:</span>
+                <span className="text-stone-400 dark:text-stone-500">
+                  Số tiền thanh toán:
+                </span>
                 <span className="font-extrabold text-amber-900 dark:text-amber-400 font-mono text-sm">
                   {result?.payment.amount.toLocaleString("vi-VN")}₫
                 </span>
@@ -153,7 +188,8 @@ function VnpayReturnContent() {
               <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400">
                 <span>⭐ Tích lũy điểm thưởng:</span>
                 <span className="font-bold">
-                  +{Math.floor((result?.order.total ?? 0) / 1000)} điểm (cộng khi hoàn tất)
+                  +{Math.floor((result?.order.total ?? 0) / 1000)} điểm (cộng
+                  khi hoàn tất)
                 </span>
               </div>
             </div>
@@ -187,7 +223,9 @@ function VnpayReturnContent() {
                 Giao dịch chưa hoàn tất
               </h1>
               <p className="text-xs sm:text-sm text-rose-600 dark:text-rose-400 max-w-sm mx-auto">
-                {error || result?.message || "Giao dịch bị gián đoạn hoặc khách hàng đã hủy."}
+                {error ||
+                  result?.message ||
+                  "Giao dịch bị gián đoạn hoặc khách hàng đã hủy."}
               </p>
             </div>
 
@@ -195,7 +233,9 @@ function VnpayReturnContent() {
               <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-4 border border-stone-200/70 dark:border-stone-700 text-left space-y-2 text-xs text-stone-600 dark:text-stone-300">
                 <div className="flex justify-between">
                   <span>Mã đơn:</span>
-                  <span className="font-mono font-bold">#{result.order.id}</span>
+                  <span className="font-mono font-bold">
+                    #{result.order.id}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Trạng thái đơn:</span>
@@ -220,12 +260,11 @@ function VnpayReturnContent() {
                 Xem danh sách đơn hàng
               </Link>
               <Link
-                href={result?.order ? `/checkout?orderId=${result.order.id}` : "/checkout"}
-                onClick={() => {
-                  if (user && typeof window !== "undefined") {
-                    new CheckoutFlow(window.sessionStorage).resetAttempt(user.id);
-                  }
-                }}
+                href={
+                  result?.order
+                    ? `/checkout?orderId=${result.order.id}`
+                    : "/checkout"
+                }
                 className="py-3 px-5 rounded-xl font-semibold text-xs sm:text-sm bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 transition-colors text-center"
               >
                 Thử lại thanh toán
