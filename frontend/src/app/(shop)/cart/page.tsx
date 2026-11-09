@@ -57,8 +57,20 @@ export default function CartPage() {
     setPromo(null, 0);
     setInputCode("");
   };
-  const handleUpdateQty = updateQuantityChecked;
-  const handleRemoveItem = removeItem;
+  const handleRemoveItem = (itemId: string) => {
+    const item = useCartStore.getState().items.find((entry) => entry.id === itemId);
+    if (!item) return;
+    if (window.confirm(`Bạn có muốn xóa "${item.product.name}" khỏi giỏ hàng không?`)) {
+      removeItem(itemId);
+    }
+  };
+  const handleUpdateQty = (itemId: string, quantity: number) => {
+    if (quantity === 0) {
+      handleRemoveItem(itemId);
+      return;
+    }
+    void updateQuantityChecked(itemId, quantity);
+  };
 
   // Chuyển sang trang checkout
   const handleProceedToCheckout = () => {
