@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthGate } from "@/components/auth/auth-gate";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Modal } from "@/components/ui/modal";
 import { Pagination } from "@/components/ui/pagination";
@@ -524,15 +525,11 @@ function InventoryContent() {
             <span>←</span>
             <span>Quầy pha chế (Barista)</span>
           </Link>
-          <span className="text-stone-600">•</span>
-          <Link
-            href="/menu"
-            className="text-xs font-semibold text-stone-300 hover:text-amber-400 transition-colors light:text-cafe-muted"
-          >
-            Thực đơn khách
-          </Link>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </div>
 
       <main className="max-w-[1600px] mx-auto px-4 md:px-6 py-5 space-y-5">

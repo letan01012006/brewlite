@@ -206,3 +206,79 @@ test("protected gate hides private content and redirects guests / wrong role", (
     privateContent,
   );
 });
+
+test("customer gate waits for verification, redirects baristas and permits guests/customers", () => {
+  const effects = [];
+  const redirects = [];
+  const content = { shop: "customer content" };
+  let initialized = 0;
+  let retries = 0;
+  let state = {
+    user: null,
+    token: null,
+    isLoading: true,
+    initAuth() { initialized++; },
+    refreshUser() { retries++; },
+  };
+  const load = sourceLoader({
+    react: { useEffect: (callback) => effects.push(callback) },
+    "next/navigation": {
+      useRouter: () => ({ replace: (path) => redirects.push(path) }),
+    },
+    "@/store/auth-store": { useAuthStore: () => state },
+  });
+  const { CustomerGate } = load("src/components/auth/customer-gate.tsx");
+  const render = () => {
+    const tree = CustomerGate({ children: content });
+    effects.splice(0).forEach((effect) => effect());
+    return tree;
+  };
+
+  assert.notEqual(render(), content);
+  assert.equal(initialized, 1);
+  assert.equal(redirects.length, 0);
+
+  state = { ...state, token: "token", isLoading: false, error: "Network error" };
+  const failedVerification = render();
+  assert.notEqual(failedVerification, content);
+  failedVerification.props.children[1].props.onClick();
+  assert.equal(retries, 1);
+
+  state = { ...state, user: { ...customer, role: "BARISTA" } };
+  assert.equal(render(), null);
+  assert.equal(redirects.at(-1), "/barista");
+
+  state = { ...state, user: customer };
+  assert.equal(render(), content);
+  state = { ...state, user: null, token: null };
+  assert.equal(render(), content);
+
+  // An account change must also hide an already mounted customer area.
+  state = { ...state, token: "barista-token", user: { ...customer, role: "BARISTA" } };
+  assert.equal(render(), null);
+  assert.equal(redirects.length, 2);
+});
+
+test("barista logout clears the session and returns to login only after confirmation", () => {
+  let confirmed = false;
+  let loggedOut = 0;
+  const redirects = [];
+  const load = sourceLoader({
+    "next/navigation": {
+      useRouter: () => ({ replace: (path) => redirects.push(path) }),
+    },
+    "@/store/auth-store": {
+      useAuthStore: (selector) => selector({ logout() { loggedOut++; } }),
+    },
+  }, { window: { confirm: () => confirmed } });
+  const { LogoutButton } = load("src/components/auth/logout-button.tsx");
+  const button = LogoutButton();
+  assert.equal(button.props["aria-label"], "Đăng xuất");
+  button.props.onClick();
+  assert.equal(loggedOut, 0);
+  assert.equal(redirects.length, 0);
+  confirmed = true;
+  button.props.onClick();
+  assert.equal(loggedOut, 1);
+  assert.deepEqual(redirects, ["/login"]);
+});

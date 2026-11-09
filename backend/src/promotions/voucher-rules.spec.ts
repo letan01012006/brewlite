@@ -9,8 +9,8 @@ import {
 } from './voucher-rules.js';
 
 describe('voucher-rules and loyalty points', () => {
-  it('defines welcome points as 500 and 1 point per 1000 VND', () => {
-    expect(WELCOME_POINTS).toBe(500);
+  it('defines welcome points as 1000 and 1 point per 1000 VND', () => {
+    expect(WELCOME_POINTS).toBe(1000);
     expect(VND_PER_LOYALTY_POINT).toBe(1000);
     expect(POINTS_STEP).toBe(20);
     expect(VND_PER_STEP).toBe(1000);

@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthGate } from "@/components/auth/auth-gate";
+import { LogoutButton } from "@/components/auth/logout-button";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuthStore } from "@/store/auth-store";
 import { apiFetch, ApiError } from "@/lib/api/client";
@@ -171,16 +172,13 @@ function BaristaContent() {
 
   return (
     <div className="min-h-screen bg-stone-100/60 dark:bg-stone-950 pb-16 light:bg-cafe-soft/60 ">
-      {/* Top Mini Bar with Back Link */}
+      {/* Barista navigation and account actions */}
       <div className="bg-[#1c1410] dark:bg-[#0c0a09] border-b border-stone-800 px-4 py-2.5 flex items-center justify-between text-stone-100 light:bg-cafe-surface light:border-cafe-line light:text-cafe-ink ">
-        <Link
-          href="/"
-          className="text-xs font-semibold text-stone-300 hover:text-amber-400 flex items-center gap-1.5 transition-colors light:text-cafe-muted "
-        >
-          <span>←</span>
-          <span>Về trang chủ</span>
-        </Link>
-        <div className="flex items-center gap-3"><Link href="/barista/inventory" className="text-xs font-semibold text-stone-300 hover:text-amber-400 transition-colors light:text-cafe-muted ">Nguyên liệu &amp; Kho</Link><ThemeToggle /></div>
+        <Link href="/barista/inventory" className="text-xs font-semibold text-stone-300 hover:text-amber-400 transition-colors light:text-cafe-muted ">Nguyên liệu &amp; Kho</Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </div>
 
       {/* Barista Header Bar */}

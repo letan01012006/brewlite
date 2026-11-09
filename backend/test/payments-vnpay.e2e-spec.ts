@@ -281,7 +281,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     return res.body as { id: number; total: number; status: string };
   }
 
-  it('B1: Register grants 500 welcome points; does not alter existing users', async () => {
+  it('B1: Register grants 1000 welcome points; does not alter existing users', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/api/auth/register')
       .send({
@@ -291,7 +291,11 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       })
       .expect(201);
 
-    expect(regRes.body.loyaltyPoints).toBe(500);
+    expect(regRes.body.loyaltyPoints).toBe(1000);
+    const newCustomer = await db.user.findUniqueOrThrow({
+      where: { id: regRes.body.id },
+    });
+    expect(newCustomer.loyaltyPoints).toBe(1000);
 
     // Existing customer remains unchanged
     const customerInDb = await db.user.findUniqueOrThrow({
@@ -489,7 +493,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
 
     // Crucial: Loyalty points must NOT be added at payment time!
     const userAfter = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(userAfter.loyaltyPoints).toBe(WELCOME_POINTS); // still 500!
+    expect(userAfter.loyaltyPoints).toBe(WELCOME_POINTS);
     expect(await db.loyaltyTransaction.count({ where: { orderId: order.id } })).toBe(0);
 
     // Duplicate IPN -> returns 02 (already confirmed)
@@ -697,9 +701,9 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       .send({ status: 'READY' })
       .expect(200);
 
-    // Customer still has 500 points at READY
+    // Welcome points stay unchanged until COMPLETED.
     let customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(customer.loyaltyPoints).toBe(500);
+    expect(customer.loyaltyPoints).toBe(WELCOME_POINTS);
 
     // COMPLETED -> earns 50 points (50000 / 1000 = 50)
     await request(app.getHttpServer())
@@ -709,7 +713,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       .expect(200);
 
     customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(customer.loyaltyPoints).toBe(550);
+    expect(customer.loyaltyPoints).toBe(WELCOME_POINTS + 50);
 
     const earnTx = await db.loyaltyTransaction.findFirst({
       where: { orderId: order.id, type: 'EARN' },

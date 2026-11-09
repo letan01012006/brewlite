@@ -54,8 +54,8 @@ test("maximum points rounds balances, preserves excess and respects the VNPAY mi
   }
 });
 
-test("loyalty rules: 500 welcome points and 1 point per 1.000 VND (floor)", () => {
-  assert.equal(WELCOME_POINTS, 500);
+test("loyalty rules: 1000 welcome points and 1 point per 1.000 VND (floor)", () => {
+  assert.equal(WELCOME_POINTS, 1000);
   assert.equal(VND_PER_LOYALTY_POINT, 1000);
   assert.equal(POINTS_STEP, 20);
   assert.equal(VND_PER_STEP, 1000);
