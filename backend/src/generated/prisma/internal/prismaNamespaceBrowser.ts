@@ -114,6 +114,13 @@ export type ToppingScalarFieldEnum = (typeof ToppingScalarFieldEnum)[keyof typeo
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
+  phone: 'phone',
+  isPhoneVerified: 'isPhoneVerified',
+  welcomePointsGrantedAt: 'welcomePointsGrantedAt',
+  otpHash: 'otpHash',
+  otpExpiresAt: 'otpExpiresAt',
+  otpSentAt: 'otpSentAt',
+  otpAttempts: 'otpAttempts',
   passwordHash: 'passwordHash',
   fullName: 'fullName',
   role: 'role',

@@ -1,5 +1,7 @@
 # BrewLite
 
+Luồng đăng ký số điện thoại, OTP và cấp tài khoản nhân viên: xem [hướng dẫn demo và kết quả kiểm thử](docs/auth-demo.md).
+
 Ứng dụng đặt cà phê không dùng tiền mặt. NestJS + Next.js + PostgreSQL (Prisma).
 
 ## Yêu cầu
@@ -45,6 +47,12 @@ của bạn. Giữ `DATABASE_URL` theo mẫu nếu dùng PostgreSQL từ Docker 
 của dự án. Không đưa file `.env` lên GitHub.
 
 Sau đó chạy trong cùng terminal:
+
+Với `.env` từ phiên bản cũ, `npm.cmd run start:dev` tự bổ sung `OTP_HASH_SECRET`
+ngẫu nhiên nếu thiếu và giữ nguyên các cấu hình đã có. Khóa được lưu để OTP vẫn
+hợp lệ sau khi khởi động lại. Cơ chế này chỉ chạy trong dev/test; production phải
+cấu hình khóa riêng. OTP local mặc định là mã ngẫu nhiên ghi ở log backend;
+đặt `AUTH_OTP_DEMO=true` trong `.env` nếu muốn dùng mã demo `123456`.
 
 ```powershell
 npx.cmd prisma generate

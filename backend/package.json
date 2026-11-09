@@ -11,6 +11,7 @@
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
+    "prestart:dev": "node scripts/prepare-dev-env.mjs",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
@@ -21,7 +22,8 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "test:database": "tsx --test prisma/ingredient-database.test.ts",
-    "test:database:payment": "tsx --test prisma/payment-database.test.ts"
+    "test:database:payment": "tsx --test prisma/payment-database.test.ts",
+    "test:database:auth": "node prisma/auth-upgrade-check.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

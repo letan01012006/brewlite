@@ -14,7 +14,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 interface BaristaOrder extends Order {
   user: {
     fullName: string;
-    email: string;
+    email: string | null;
   };
 }
 

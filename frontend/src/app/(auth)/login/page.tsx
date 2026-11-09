@@ -31,6 +31,7 @@ function LoginForm() {
   const redirectPath = safeRedirect(searchParams.get("redirect"));
 
   const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"phone" | "email">("phone");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +42,7 @@ function LoginForm() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
-      setErrorMsg("Vui lòng nhập đầy đủ Email và Mật khẩu");
+      setErrorMsg("Vui lòng nhập đầy đủ số điện thoại/email và mật khẩu");
       return;
     }
 
@@ -52,7 +53,7 @@ function LoginForm() {
       const res = await apiFetch<LoginResponse>("/auth/login", {
         method: "POST",
         auth: false,
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ [mode]: email.trim(), password }),
       });
 
       // Lưu Auth vào Zustand Store & LocalStorage
@@ -61,11 +62,15 @@ function LoginForm() {
       // Chuyển trang theo vai trò
       if (res.user.role === "BARISTA") {
         router.push("/barista");
+      } else if (res.user.role === "MANAGER") {
+        router.push("/manager");
       } else {
         router.push(redirectPath);
       }
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && err.code === "PHONE_NOT_VERIFIED" && mode === "phone") {
+        router.push(`/verify-otp?phone=${encodeURIComponent(email.trim())}&redirect=${encodeURIComponent(redirectPath)}`);
+      } else if (err instanceof ApiError) {
         setErrorMsg(err.message);
       } else {
         setErrorMsg(
@@ -102,15 +107,22 @@ function LoginForm() {
 
         {/* Form Đăng nhập */}
         <form onSubmit={handleLogin} className="space-y-4">
+          <div className="flex gap-4 text-sm">
+            <button type="button" aria-pressed={mode === "phone"} onClick={() => { setMode("phone"); setEmail(""); }} className="underline">Số điện thoại</button>
+            <button type="button" aria-pressed={mode === "email"} onClick={() => { setMode("email"); setEmail(""); }} className="underline">Email (tài khoản cũ)</button>
+          </div>
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
-              Email đăng nhập <span className="text-rose-500">*</span>
+              {mode === "phone" ? "Số điện thoại" : "Email tài khoản cũ"} <span className="text-rose-500">*</span>
             </label>
             <input
-              type="email"
+              type={mode === "phone" ? "tel" : "email"}
+              name={mode}
+              autoComplete="username"
+              pattern={mode === "phone" ? "0[0-9]{9}" : undefined}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@brewlite.com"
+              placeholder={mode === "phone" ? "0912345678" : "example@brewlite.com"}
               required
               className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
             />
@@ -123,6 +135,8 @@ function LoginForm() {
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Nhập mật khẩu..."

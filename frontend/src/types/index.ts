@@ -1,8 +1,10 @@
-export type Role = "CUSTOMER" | "BARISTA";
+export type Role = "CUSTOMER" | "BARISTA" | "MANAGER";
 
 export interface User {
   id: number;
-  email: string;
+  email: string | null;
+  phone?: string | null;
+  isPhoneVerified?: boolean;
   fullName: string;
   role: Role;
   loyaltyPoints: number;
@@ -202,7 +204,7 @@ export interface InventoryMovement {
   actor?: {
     id: number;
     fullName: string;
-    email: string;
+    email: string | null;
   } | null;
 }
 export interface ProductRecipeIngredient {
