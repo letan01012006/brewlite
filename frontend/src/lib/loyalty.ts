@@ -1,5 +1,5 @@
 export const VND_PER_LOYALTY_POINT = 1000;
-export const WELCOME_POINTS = 500;
+export const WELCOME_POINTS = 1000;
 export const POINTS_STEP = 20;
 export const VND_PER_STEP = 1000;
 export const VNPAY_MIN_AMOUNT = 5000;
