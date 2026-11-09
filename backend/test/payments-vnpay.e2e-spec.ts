@@ -25,6 +25,7 @@ import {
   type VnpayConfig,
 } from '../src/payments/vnpay/vnpay.util.js';
 import { WELCOME_POINTS } from '../src/promotions/voucher-rules.js';
+import { OtpService } from '../src/auth/otp.service.js';
 import { splitSqlStatements } from './database-fixture.js';
 
 const testConfig: VnpayConfig = {
@@ -281,19 +282,27 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     return res.body as { id: number; total: number; status: string };
   }
 
-  it('B1: Register grants 1000 welcome points; does not alter existing users', async () => {
+  it('B1: OTP verification grants 1000 welcome points; does not alter existing users', async () => {
     const regRes = await request(app.getHttpServer())
       .post('/api/auth/register')
       .send({
         email: `new-${randomUUID()}@example.com`,
+        phone: '0987654321',
         password: 'Password@123',
         fullName: 'New User',
       })
       .expect(201);
 
-    expect(regRes.body.loyaltyPoints).toBe(1000);
+    const pending = await db.user.findUniqueOrThrow({ where: { phone: regRes.body.phone } });
+    expect(pending.loyaltyPoints).toBe(0);
+    await db.user.update({ where: { id: pending.id }, data: {
+      otpHash: app.get(OtpService).hash(pending.phone!, '654321'),
+    } });
+    const verified = await request(app.getHttpServer()).post('/api/auth/verify-otp')
+      .send({ phone: pending.phone, code: '654321' }).expect(200);
+    expect(verified.body.user.loyaltyPoints).toBe(1000);
     const newCustomer = await db.user.findUniqueOrThrow({
-      where: { id: regRes.body.id },
+      where: { id: pending.id },
     });
     expect(newCustomer.loyaltyPoints).toBe(1000);
 
@@ -841,6 +850,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
   });
 
   it.each(['PROCESSING', 'FAILED'] as const)('B14: a %s payment does not block a new identical order and exposes held points for recovery', async (status) => {
+    await db.user.update({ where: { id: customerUser.id }, data: { loyaltyPoints: 500 } });
     const first = await createOrder();
     const payment = await request(app.getHttpServer())
       .post('/api/payments')

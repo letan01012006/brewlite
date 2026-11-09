@@ -10,6 +10,7 @@ import {
   seedDemoCatalog,
 } from './demo-catalog.js';
 import { seedDemoInventory } from './demo-inventory.js';
+import { seedManager } from './manager-seed.js';
 
 const databaseUrl = process.env.DATABASE_URL!;
 const adapter = new PrismaPg(
@@ -53,6 +54,7 @@ const promoCodes = [
 ];
 
 async function main() {
+  await seedManager(prisma);
   console.log('Seeding BrewLite...');
 
   await seedDemoCatalog(prisma);

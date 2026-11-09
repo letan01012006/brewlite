@@ -98,7 +98,8 @@ export type Size = (typeof Size)[keyof typeof Size]
 
 export const Role = {
   CUSTOMER: 'CUSTOMER',
-  BARISTA: 'BARISTA'
+  BARISTA: 'BARISTA',
+  MANAGER: 'MANAGER'
 } as const
 
 export type Role = (typeof Role)[keyof typeof Role]

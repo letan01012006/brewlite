@@ -3,17 +3,8 @@
 import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuthStore } from "@/store/auth-store";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { safeRedirect } from "@/lib/safe-redirect";
-import type { User } from "@/types";
-
-interface LoginResponse {
-  accessToken: string;
-  tokenType: string;
-  expiresIn: number;
-  user: User;
-}
 
 export default function RegisterPage() {
   return (
@@ -29,6 +20,7 @@ function RegisterForm() {
   const redirectPath = safeRedirect(searchParams.get("redirect"));
 
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -36,12 +28,11 @@ function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const setAuth = useAuthStore((state) => state.setAuth);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !email.trim() || !password) {
+    if (!fullName.trim() || !/^0[0-9]{9}$/.test(phone) || !password) {
       setErrorMsg("Vui lòng điền đầy đủ các thông tin");
       return;
     }
@@ -66,29 +57,18 @@ function RegisterForm() {
 
     try {
       // 1. Đăng ký tài khoản
-      await apiFetch<User>("/auth/register", {
+      await apiFetch<{ phone: string }>("/auth/register", {
         method: "POST",
         auth: false,
         body: JSON.stringify({
           fullName: fullName.trim(),
-          email: email.trim(),
+          phone,
+          ...(email.trim() ? { email: email.trim() } : {}),
           password,
         }),
       });
 
-      // 2. Tự động đăng nhập để lấy JWT Token
-      const loginRes = await apiFetch<LoginResponse>("/auth/login", {
-        method: "POST",
-        auth: false,
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
-
-      // 3. Lưu Auth và điều hướng
-      setAuth(loginRes.user, loginRes.accessToken);
-      router.push(redirectPath);
+      router.push(`/verify-otp?phone=${encodeURIComponent(phone)}&resendAfter=60&redirect=${encodeURIComponent(redirectPath)}`);
     } catch (err) {
       if (err instanceof ApiError) {
         setErrorMsg(err.message);
@@ -127,11 +107,32 @@ function RegisterForm() {
         {/* Form Đăng ký */}
         <form onSubmit={handleRegister} className="space-y-3.5">
           <div>
+            <label htmlFor="register-phone" className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
+              Số điện thoại <span className="text-rose-500">*</span>
+            </label>
+            <input
+              id="register-phone"
+              type="tel"
+              name="phone"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              pattern="0[0-9]{9}"
+              maxLength={10}
+              required
+              placeholder="0912345678"
+              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
+            />
+          </div>
+          <div>
             <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
               Họ và tên của bạn <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
+              name="fullName"
+              minLength={2}
+              maxLength={100}
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Nguyễn Văn A"
@@ -142,14 +143,14 @@ function RegisterForm() {
 
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-[#cfc3b9] block mb-1.5 light:text-cafe-muted ">
-              Địa chỉ Email <span className="text-rose-500">*</span>
+              Email (không bắt buộc)
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@brewlite.com"
-              required
+              maxLength={150}
               className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#ede5dc] dark:border-[#2a221c] bg-white dark:bg-[#1a1411] text-stone-900 dark:text-[#f4ede6] focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-600/20 placeholder:text-stone-400 dark:placeholder:text-[#6e5f54] light:border-cafe-line light:bg-cafe-surface light:text-cafe-ink light:focus:border-cafe-primary light:focus:ring-cafe-primary/20 light:placeholder:text-cafe-muted "
             />
           </div>
@@ -166,6 +167,10 @@ function RegisterForm() {
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={64}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Nhập mật khẩu..."
@@ -188,7 +193,9 @@ function RegisterForm() {
             </label>
             <input
               type={showPassword ? "text" : "password"}
-              value={confirmPassword}
+              name="confirmPassword"
+                autoComplete="new-password"
+                value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Nhập lại mật khẩu trên..."
               required

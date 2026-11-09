@@ -90,7 +90,7 @@ export function splitSqlStatements(sql: string): string[] {
   return statements;
 }
 
-export async function databaseFixture() {
+export async function databaseFixture(beforeAuthMigration?: (db: PrismaClient) => Promise<void>) {
   const url = process.env.TEST_DATABASE_URL;
   if (!url)
     throw new Error(
@@ -131,6 +131,7 @@ export async function databaseFixture() {
       await readdir(resolve('prisma/migrations'), { withFileTypes: true })
     ).sort((a, b) => a.name.localeCompare(b.name))) {
       if (!entry.isDirectory()) continue;
+      if (entry.name === '20261109090000_phone_auth_manager') await beforeAuthMigration?.(db);
       const sql = await readFile(
         resolve('prisma/migrations', entry.name, 'migration.sql'),
         'utf8',

@@ -15,7 +15,7 @@
  * model files in the `model` directory!
  */
 
-import * as runtime from "@prisma/client/runtime/library"
+import * as runtime from "@prisma/client/runtime/client"
 import type * as Prisma from "../models.js"
 import { type PrismaClient } from "./class.js"
 
@@ -1679,6 +1679,13 @@ export type ToppingScalarFieldEnum = (typeof ToppingScalarFieldEnum)[keyof typeo
 export const UserScalarFieldEnum = {
   id: 'id',
   email: 'email',
+  phone: 'phone',
+  isPhoneVerified: 'isPhoneVerified',
+  welcomePointsGrantedAt: 'welcomePointsGrantedAt',
+  otpHash: 'otpHash',
+  otpExpiresAt: 'otpExpiresAt',
+  otpSentAt: 'otpSentAt',
+  otpAttempts: 'otpAttempts',
   passwordHash: 'passwordHash',
   fullName: 'fullName',
   role: 'role',

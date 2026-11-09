@@ -34,7 +34,8 @@ chung cho orders và promotions, không phụ thuộc ProductsModule.
 
 ### Nâng cấp an toàn
 
-Dừng backend trước khi generate trên Windows để tránh DLL Prisma bị khóa.
+Prisma dùng `engineType = "client"` với adapter PostgreSQL hiện có, không nạp DLL
+query engine vào backend. Nest không sao chép native DLL vào `dist`.
 Trong `backend`, dùng cấu hình `DATABASE_URL` hiện tại:
 
 ```powershell

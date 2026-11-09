@@ -14,6 +14,7 @@ export function CustomerGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && user?.role === "BARISTA") router.replace("/barista");
+    if (!isLoading && user?.role === "MANAGER") router.replace("/manager");
   }, [isLoading, user, router]);
 
   if (isLoading)
@@ -29,7 +30,7 @@ export function CustomerGate({ children }: { children: ReactNode }) {
       </div>
     );
 
-  if (user?.role === "BARISTA") return null;
+  if (user?.role === "BARISTA" || user?.role === "MANAGER") return null;
 
   return children;
 }

@@ -166,11 +166,12 @@ describe.skipIf(!databaseUrl)(
               { id: 702, name: 'Thạch', price: 4321 },
             ]
           });
-          const user = await db.user.create({
-            data: {
-              email: 'legacy@test.example', fullName: 'Legacy', passwordHash: 'unchanged', loyaltyPoints: 123,
-            }
-          });
+          // This intentionally runs against the pre-auth schema. Do not use a
+          // generated User projection containing columns from later migrations.
+          const [user] = await db.$queryRaw<Array<{ id: number }>>`
+            INSERT INTO "User" (email,"fullName","passwordHash","loyaltyPoints")
+            VALUES ('legacy@test.example','Legacy','unchanged',123) RETURNING id
+          `;
           legacyUserId = user.id;
           const order = await db.order.create({
             data: {

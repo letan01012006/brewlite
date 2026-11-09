@@ -1,30 +1,30 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({ description: 'Địa chỉ email (tối đa 150 ký tự)', example: 'an@example.com' })
-  @IsEmail({}, { message: 'Email không hợp lệ' })
-  @MaxLength(150, { message: 'Email không được vượt quá 150 ký tự' })
-  @IsNotEmpty({ message: 'Email không được để trống' })
-  email: string;
-
-  @ApiProperty({
-    description: 'Mật khẩu (8 - 64 ký tự, chứa ít nhất 1 chữ cái và 1 chữ số)',
-    example: 'Passw0rd!',
-  })
-  @IsString({ message: 'Mật khẩu phải là chuỗi' })
-  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
-  @MaxLength(64, { message: 'Mật khẩu không được vượt quá 64 ký tự' })
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, {
-    message: 'Mật khẩu phải chứa ít nhất 1 chữ cái và 1 chữ số',
-  })
-  password: string;
-
-  @ApiProperty({ description: 'Họ và tên người dùng (2 - 100 ký tự)', example: 'Nguyễn Văn An' })
-  @IsString({ message: 'Họ và tên phải là chuỗi' })
-  @IsNotEmpty({ message: 'Họ và tên không được để trống' })
-  @MinLength(2, { message: 'Họ và tên phải có ít nhất 2 ký tự' })
-  @MaxLength(100, { message: 'Họ và tên không được vượt quá 100 ký tự' })
+  @ApiProperty({ example: 'Nguyễn Văn An', minLength: 2, maxLength: 100 })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
   fullName: string;
-}
 
+  @ApiProperty({ example: '0912345678', pattern: '^0[0-9]{9}$' })
+  @Matches(/^0[0-9]{9}$/, { message: 'Số điện thoại gồm 10 chữ số bắt đầu bằng 0' })
+  phone: string;
+
+  @ApiPropertyOptional({ example: 'an@example.com', nullable: true })
+  @Transform(({ value }) => typeof value === 'string' ? value.toLowerCase().trim() || undefined : value)
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(150)
+  email?: string | null;
+
+  @ApiProperty({ description: '8–64 ký tự, ít nhất một chữ cái và một chữ số', example: 'Passw0rd!' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(64)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/)
+  password: string;
+}

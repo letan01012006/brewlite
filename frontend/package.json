@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:browser:auth": "node test/auth-browser-smoke.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",

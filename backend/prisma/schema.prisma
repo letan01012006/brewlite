@@ -1,6 +1,8 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider   = "prisma-client"
+  output     = "../src/generated/prisma"
+  // Use the existing PostgreSQL adapter without locking a native DLL on Windows.
+  engineType = "client"
 }
 
 datasource db {
@@ -78,6 +80,7 @@ enum Size {
 enum Role {
   CUSTOMER
   BARISTA
+  MANAGER
 }
 
 enum DiscountType {
@@ -156,7 +159,14 @@ model Topping {
 
 model User {
   id            Int      @id @default(autoincrement())
-  email         String   @unique
+  email         String?  @unique
+  phone         String?  @unique
+  isPhoneVerified Boolean @default(false)
+  welcomePointsGrantedAt DateTime?
+  otpHash       String?
+  otpExpiresAt  DateTime?
+  otpSentAt     DateTime?
+  otpAttempts   Int      @default(0)
   passwordHash  String
   fullName      String
   role          Role     @default(CUSTOMER)
