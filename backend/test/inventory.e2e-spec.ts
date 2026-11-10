@@ -15,6 +15,8 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
   afterEach(() => vi.restoreAllMocks());
   it('documents stock, availability and idempotency headers in Swagger', async () => {
     const document = (await f.api('get', '/docs-json').expect(200)).body;
+    expect(document.paths['/api/products/toppings'].post).toBeDefined();
+    expect(document.paths['/api/toppings'].post).toBeUndefined();
     expect(
       document.paths['/api/inventory/availability'].post.responses['200']
         .content['application/json'].schema.properties.lines,

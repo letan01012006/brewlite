@@ -4,6 +4,7 @@ import { AuthGate } from "@/components/auth/auth-gate";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Modal } from "@/components/ui/modal";
+import { AddProductModal } from "@/components/inventory/add-product-modal";
 import { Pagination } from "@/components/ui/pagination";
 import { useAuthStore } from "@/store/auth-store";
 import { ApiError } from "@/lib/api/client";
@@ -289,6 +290,7 @@ function InventoryContent() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
+  const loadGeneration = useRef(0);
   const [togglingProductIds, setTogglingProductIds] = useState<
     Record<number, boolean>
   >({});
@@ -374,7 +376,8 @@ function InventoryContent() {
     | { type: "history"; defaultIngredientId?: number }
     | { type: "add-ingredient" }
     | { type: "add-topping"; editTopping?: PreparedTopping }
-    | { type: "recipe"; product: Product }
+    | { type: "add-product" }
+    | { type: "recipe"; product: Product; setup?: boolean }
   >(null);
 
   const applySettledLoad = useCallback(
@@ -408,6 +411,11 @@ function InventoryContent() {
 
       if (prodRes.status === "fulfilled") {
         setProducts(prodRes.value);
+        setActiveModal(previous => {
+          if (previous?.type !== "recipe") return previous;
+          const updated = prodRes.value.find(item => item.id === previous.product.id);
+          return updated ? { ...previous, product: updated } : previous;
+        });
         setProductsError(null);
       } else {
         const msg = errorText(prodRes.reason);
@@ -422,16 +430,17 @@ function InventoryContent() {
 
   const loadAll = useCallback(
     async (signal?: AbortSignal) => {
+      const generation = ++loadGeneration.current;
       try {
         const results = await Promise.allSettled([
           getStock(signal),
           getPreparedToppings(signal),
           getProductsCatalog(signal),
         ]);
-        if (signal?.aborted) return;
+        if (signal?.aborted || generation !== loadGeneration.current) return;
         applySettledLoad(results);
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (!signal?.aborted && generation === loadGeneration.current) setLoading(false);
       }
     },
     [applySettledLoad],
@@ -439,17 +448,18 @@ function InventoryContent() {
 
   useEffect(() => {
     const controller = new AbortController();
+    const generation = ++loadGeneration.current;
     Promise.allSettled([
       getStock(controller.signal),
       getPreparedToppings(controller.signal),
       getProductsCatalog(controller.signal),
     ])
       .then((results) => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || generation !== loadGeneration.current) return;
         applySettledLoad(results);
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && generation === loadGeneration.current) setLoading(false);
       });
     return () => controller.abort();
   }, [applySettledLoad]);
@@ -1000,6 +1010,14 @@ function InventoryContent() {
                       Số ly khả dụng tính trực tiếp từ nguyên liệu khả dụng và công thức từng size. Bấm vào món để cấu hình S / M / L.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal({ type: "add-product" })}
+                    disabled={loading || Boolean(toppingsError)}
+                    className={`${primaryBtnClass} shrink-0`}
+                  >
+                    + Thêm món
+                  </button>
                 </div>
                 <input
                   type="search"
@@ -1053,7 +1071,10 @@ function InventoryContent() {
                         void handleToggleProductStatus(product)
                       }
                       onOpenRecipe={() =>
-                        setActiveModal({ type: "recipe", product })
+                        setActiveModal({
+                          type: "recipe", product,
+                          setup: product.availability?.some(entry => entry.reason === "RECIPE_UNAVAILABLE"),
+                        })
                       }
                     />
                   ))}
@@ -1133,9 +1154,31 @@ function InventoryContent() {
       )}
 
       {/* MODAL 6: CÔNG THỨC SẢN PHẨM */}
+      {activeModal?.type === "add-product" && (
+        <AddProductModal
+          toppings={toppings}
+          categories={products.map(product => product.category)}
+          onClose={() => { setActiveModal(null); void loadAll(); }}
+          onCreated={(created) => {
+            const product: Product = {
+              ...created,
+              inventoryMode: "INGREDIENT",
+              availability: SIZES.map(size => ({ size, maxQuantity: 0, reason: "RECIPE_UNAVAILABLE" })),
+              inStock: false,
+            };
+            setProducts(previous => [product, ...previous.filter(item => item.id !== product.id)]);
+            setProductsError(null);
+            setProductSearch("");
+            setNotice(`Đã tạo món "${product.name}". Chọn các size muốn bán để gán công thức.`);
+            setActiveModal({ type: "recipe", product, setup: true });
+            void loadAll();
+          }}
+        />
+      )}
       {activeModal?.type === "recipe" && (
         <ProductRecipeModal
           product={activeModal.product}
+          setup={activeModal.setup}
           stockRows={stockRows}
           stockById={stockById}
           onClose={() => setActiveModal(null)}
@@ -1257,7 +1300,7 @@ function ProductRecipeCard({
       >
         {SIZES.map((size) => {
           const entry = product.availability?.find((a) => a.size === size);
-          const unconfigured = entry?.reason === "RECIPE_UNAVAILABLE";
+          const unconfigured = !entry || entry.reason === "RECIPE_UNAVAILABLE";
           const isPausedIngredient = entry?.reason === "INGREDIENT_PAUSED";
           const shortage = entry?.reason === "INSUFFICIENT_INGREDIENTS";
           const cups = entry?.maxQuantity ?? 0;
@@ -1278,9 +1321,9 @@ function ProductRecipeCard({
               <div className="text-[10px] font-bold uppercase opacity-80">
                 Size {size}
               </div>
-              <div className="font-mono font-extrabold text-xs truncate">
+              <div className={unconfigured ? "text-[10px] font-semibold leading-snug" : "font-mono font-extrabold text-xs truncate"}>
                 {unconfigured
-                  ? "Chưa có CT"
+                  ? "Chưa có công thức"
                   : isPausedIngredient
                     ? "Tạm dừng NL"
                     : shortage || cups <= 0
@@ -2297,12 +2340,14 @@ function AddToppingModal({
  */
 function ProductRecipeModal({
   product,
+  setup = false,
   stockRows,
   stockById,
   onClose,
   onSaved,
 }: {
   product: Product;
+  setup?: boolean;
   stockRows: StockRow[];
   stockById: Map<number, StockRow>;
   onClose: () => void;
@@ -2312,6 +2357,7 @@ function ProductRecipeModal({
   const [lines, setLines] = useState<
     Array<{ ingredientId: number; quantity: string }>
   >([]);
+  const [savedLines, setSavedLines] = useState<typeof lines>([]);
   const [loadingRecipe, setLoadingRecipe] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
@@ -2329,12 +2375,12 @@ function ProductRecipeModal({
     getProductRecipe(product.id, selectedSize, controller.signal)
       .then((recipe) => {
         if (controller.signal.aborted) return;
-        setLines(
-          recipe.ingredients.map((item) => ({
-            ingredientId: item.ingredientId,
-            quantity: String(Number(item.quantity)),
-          })),
-        );
+        const loaded = recipe.ingredients.map((item) => ({
+          ingredientId: item.ingredientId,
+          quantity: String(Number(item.quantity)),
+        }));
+        setLines(loaded);
+        setSavedLines(loaded);
         setLoadError(null);
       })
       .catch((err) => {
@@ -2350,6 +2396,13 @@ function ProductRecipeModal({
     () => calculateRecipeCups(lines, stockById, lines.length > 0),
     [lines, stockById],
   );
+  const dirty = JSON.stringify(lines) !== JSON.stringify(savedLines);
+
+  function requestClose() {
+    if (saving) return;
+    if (dirty && !window.confirm("Định lượng đang sửa chưa được lưu. Đóng cửa sổ? Món và các công thức đã lưu vẫn được giữ để mở lại.")) return;
+    onClose();
+  }
 
   function addIngredientRow() {
     const used = new Set(lines.map((l) => l.ingredientId));
@@ -2370,6 +2423,7 @@ function ProductRecipeModal({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (saving || loadingRecipe || loadError) return;
     setError(null);
     setSavedBanner(null);
 
@@ -2400,13 +2454,16 @@ function ProductRecipeModal({
 
     setSaving(true);
     try {
-      await saveProductRecipe(product.id, selectedSize, {
+      const saved = await saveProductRecipe(product.id, selectedSize, {
         ingredients: lines.map((l) => ({
           ingredientId: l.ingredientId,
           quantity: sanitizePositiveInput(l.quantity).trim(),
         })),
         isActive: lines.length > 0,
       });
+      const committed = saved.ingredients.map(item => ({ ingredientId: item.ingredientId, quantity: String(Number(item.quantity)) }));
+      setLines(committed);
+      setSavedLines(committed);
       const msg =
         lines.length > 0
           ? `Đã lưu công thức ${product.name} (Size ${selectedSize}).`
@@ -2421,7 +2478,7 @@ function ProductRecipeModal({
   }
 
   return (
-    <Modal onClose={onClose} labelledBy="recipe-modal-title">
+    <Modal onClose={requestClose} labelledBy="recipe-modal-title">
       <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-[#181310] p-5 md:p-6 shadow-2xl text-stone-900 dark:text-stone-100">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-stone-200 dark:border-stone-800 pb-4">
@@ -2435,13 +2492,21 @@ function ProductRecipeModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
+            disabled={saving}
             className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 text-lg font-bold cursor-pointer"
             aria-label="Đóng"
           >
             ✕
           </button>
         </div>
+
+        {setup && (
+          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-xs text-amber-900 dark:text-amber-200">
+            <p className="font-bold">✓ Bước 1: Tạo món · Bước 2: Gán công thức</p>
+            <p className="mt-1">Món đã được tạo. Chỉ lưu công thức cho các size muốn bán; bạn có thể đóng và mở lại món để cấu hình tiếp.</p>
+          </div>
+        )}
 
         {/* Chọn Size S / M / L */}
         <div className="grid grid-cols-3 gap-2.5 py-4 border-b border-stone-200/80 dark:border-stone-800">
@@ -2455,7 +2520,7 @@ function ProductRecipeModal({
             const unconfigured =
               active && !loadingRecipe
                 ? !calculation.configured
-                : entry?.reason === "RECIPE_UNAVAILABLE";
+                : !entry || entry.reason === "RECIPE_UNAVAILABLE";
             const isPausedIngredient =
               active && !loadingRecipe
                 ? calculation.hasPausedIngredient
@@ -2465,8 +2530,12 @@ function ProductRecipeModal({
               <button
                 key={sz}
                 type="button"
+                disabled={saving}
+                aria-label={`Công thức size ${sz}`}
+                aria-pressed={active}
                 onClick={() => {
                   if (sz !== selectedSize) {
+                    if (dirty && !window.confirm(`Size ${selectedSize} còn thay đổi chưa lưu. Chuyển size và bỏ thay đổi này?`)) return;
                     setLoadingRecipe(true);
                     setLoadError(null);
                     setError(null);
@@ -2489,7 +2558,7 @@ function ProductRecipeModal({
                   }`}
                 >
                   {unconfigured
-                    ? "Chưa cấu hình"
+                    ? "Chưa có công thức"
                     : isPausedIngredient
                       ? "Tạm dừng NL"
                       : `${displayQuantity(cups)} ly khả dụng`}
@@ -2498,6 +2567,12 @@ function ProductRecipeModal({
             );
           })}
         </div>
+
+        {dirty && !loadingRecipe && (
+          <p role="status" className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-400">
+            Định lượng đang chỉnh sửa, chưa áp dụng. Bấm Lưu công thức Size {selectedSize} để cập nhật số ly khả dụng.
+          </p>
+        )}
 
         {/* Trạng thái công thức & cảnh báo thiếu nguyên liệu */}
         {!loadingRecipe && !loadError && (
@@ -2635,6 +2710,7 @@ function ProductRecipeModal({
                       <div className="sm:col-span-6">
                         <CustomSelect
                           label={`Nguyên liệu dòng ${idx + 1}`}
+                          disabled={saving}
                           value={String(line.ingredientId)}
                           options={rowOptions}
                           onChange={(nextId) => {
@@ -2665,6 +2741,7 @@ function ProductRecipeModal({
                       <div className="sm:col-span-4 flex items-center gap-1.5">
                         <input
                           aria-label={`Định lượng ${st?.name ?? ""}`}
+                          disabled={saving}
                           inputMode="decimal"
                           value={line.quantity}
                           onChange={(e) => {
@@ -2685,6 +2762,7 @@ function ProductRecipeModal({
                       <div className="sm:col-span-2 text-right">
                         <button
                           type="button"
+                          disabled={saving}
                           onClick={() =>
                             setLines((prev) => prev.filter((_, i) => i !== idx))
                           }
@@ -2724,6 +2802,7 @@ function ProductRecipeModal({
             <button
               type="button"
               onClick={addIngredientRow}
+              disabled={saving || loadingRecipe || Boolean(loadError)}
               className={secondaryBtnClass}
             >
               + Thêm nguyên liệu vào công thức
@@ -2731,12 +2810,13 @@ function ProductRecipeModal({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
+                disabled={saving}
                 className={secondaryBtnClass}
               >
-                Đóng
+                {setup ? "Hoàn tất / Cấu hình sau" : "Đóng"}
               </button>
-              <button type="submit" disabled={saving} className={primaryBtnClass}>
+              <button type="submit" disabled={saving || loadingRecipe || Boolean(loadError)} className={primaryBtnClass}>
                 {saving
                   ? "Đang lưu…"
                   : `Lưu công thức Size ${selectedSize}`}

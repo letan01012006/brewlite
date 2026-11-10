@@ -85,7 +85,7 @@ demo; runtime luôn đọc quan hệ database, không suy diễn từ tên/categ
 | `POST /products/toppings` | BARISTA | `{ name, price }`, tên được trim, giá nguyên không âm; trùng tên trả 409 `TOPPING_ALREADY_EXISTS` |
 | `POST /products` | BARISTA | Nhận thêm `toppingIds` tùy chọn; bỏ qua tương đương `[]` |
 | `PATCH /products/:id/toppings` | BARISTA | `{ toppingIds: [...] }` thay thế chính xác; `[]` gỡ hết |
-| `GET/POST /toppings` | Như endpoint mới tương ứng | Alias tương thích, cùng ToppingsService |
+| `GET /toppings` | Public | Alias chỉ đọc, cùng ToppingsService; tạo mới chỉ qua `POST /products/toppings` |
 
 Các API public không trả `version` hoặc `isActive`. Route tĩnh topping được đăng
 ký trước `products/:id`. ID trùng, sai kiểu/ngoài miền Int, không tồn tại hoặc

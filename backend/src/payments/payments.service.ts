@@ -157,7 +157,8 @@ export class PaymentsService {
 
     let claim: PaymentClaim;
     try {
-      claim = await this.prisma.$transaction(
+      claim = await inventoryTransaction(
+        this.prisma,
         async (tx): Promise<PaymentClaim> => {
           await lockOrder(tx, dto.orderId);
           const raced = await this.findPayment(idempotencyKey, tx);

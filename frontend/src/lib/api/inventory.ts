@@ -253,6 +253,27 @@ export function updateProductStatus(productId: number, isActive: boolean) {
   });
 }
 
+export interface CreateProductInput {
+  name: string;
+  price: number;
+  imageUrl: string;
+  category: string;
+  toppingIds: number[];
+}
+
+export function createProduct(body: CreateProductInput) {
+  return apiFetch<Product>('/products', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: body.name.trim(),
+      price: body.price,
+      imageUrl: body.imageUrl.trim(),
+      category: body.category.trim(),
+      toppingIds: body.toppingIds,
+    }),
+  });
+}
+
 export async function getProductRecipe(
   productId: number,
   size: Size,
