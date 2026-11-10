@@ -7,13 +7,17 @@ import {
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   Prisma,
+  type Ingredient,
   type IngredientUnit,
   type OrderItem,
   type Size,
 } from '../generated/prisma/client.js';
 import type { PricingItemInput } from '../common/pricing/pricing.service.js';
 import { quantity } from './quantity.js';
-import { inventoryTransaction } from './transaction.js';
+import {
+  inventoryTransaction,
+  InventoryVersionConflict,
+} from './transaction.js';
 import type { StockAdjustmentDto } from './dto/stock-adjustment.dto.js';
 
 type Db = Prisma.TransactionClient;
@@ -342,10 +346,16 @@ export class InventoryService {
         quantity: row.amount.toFixed(3),
       }));
   }
-  private async balance(tx: Db, needs: IngredientAmount[]) {
-    const rows = await tx.ingredient.findMany({
-      where: { id: { in: needs.map((n) => n.ingredientId) } },
-    });
+  private async balance(
+    tx: Db,
+    needs: IngredientAmount[],
+    snapshot?: Ingredient[],
+  ) {
+    const rows =
+      snapshot ??
+      (await tx.ingredient.findMany({
+        where: { id: { in: needs.map((n) => n.ingredientId) } },
+      }));
     return needs.map((need) => {
       const row = rows.find((r) => r.id === need.ingredientId);
       const available =
@@ -535,11 +545,11 @@ export class InventoryService {
         qty: items[i].qty,
       })),
     );
-    await this.lockIngredients(
-      tx,
-      needs.map((n) => n.ingredientId),
-    );
-    const balance = await this.balance(tx, needs);
+    // Optimistic read: do not lock Ingredient rows before checking stock.
+    const ingredients = await tx.ingredient.findMany({
+      where: { id: { in: needs.map((n) => n.ingredientId) } },
+    });
+    const balance = await this.balance(tx, needs, ingredients);
     if (balance.some((b) => !b.sufficient))
       throw new InsufficientIngredients(balance.filter((b) => !b.sufficient));
     const reservation = await tx.inventoryReservation.create({
@@ -555,13 +565,28 @@ export class InventoryService {
       },
     });
     for (const need of needs) {
-      await tx.ingredient.update({
-        where: { id: need.ingredientId },
+      const ingredient = ingredients.find(
+        (row) => row.id === need.ingredientId,
+      )!;
+      const updated = await tx.ingredient.updateMany({
+        where: {
+          id: need.ingredientId,
+          version: ingredient.version,
+          isActive: true,
+          unit: need.unit,
+          reservedQuantity: {
+            lte: ingredient.stockQuantity.minus(need.quantity),
+          },
+        },
         data: {
           reservedQuantity: { increment: need.quantity },
           version: { increment: 1 },
         },
       });
+      // Do not report a shortage here: callers may persist failed payments.
+      // The retry wrapper must roll back this reservation and any earlier
+      // ingredient updates, then reread all balances in a new transaction.
+      if (updated.count !== 1) throw new InventoryVersionConflict();
       await tx.inventoryMovement.create({
         data: {
           eventKey: `order:${orderId}:hold:${need.ingredientId}`,

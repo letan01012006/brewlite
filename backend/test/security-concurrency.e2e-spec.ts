@@ -353,7 +353,7 @@ describe.skipIf(!databaseUrl)(
       return Promise.all(running);
     }
 
-    it.each(['/products', '/products/toppings', '/toppings'])(
+    it.each(['/products', '/products/toppings'])(
       '%s creation requires BARISTA, while its menu stays public',
       async (path) => {
         const body = {
@@ -1163,13 +1163,24 @@ describe.skipIf(!databaseUrl)(
       expect((await patch({ toppingIds: [] }, baristaToken).expect(200)).body.toppings).toEqual([]);
     });
 
-    it.each(['/products/toppings', '/toppings'])('%s validates names/integer prices and handles duplicate names as 409', async (path) => {
+    it.each(['/products/toppings'])('%s validates names/integer prices and handles duplicate names as 409', async (path) => {
       for (const body of [{ name: '  ', price: 0 }, { name: randomUUID(), price: -1 }, { name: randomUUID(), price: 1.5 }, { name: randomUUID(), price: 2147483648 }])
         await post(path, baristaToken, body).expect(400);
       const name = randomUUID();
       await post(path, baristaToken, { name: ` ${name} `, price: 0 }).expect(201);
       const duplicate = await post(path, baristaToken, { name, price: 0 }).expect(409);
       expect(duplicate.body.code).toBe('TOPPING_ALREADY_EXISTS');
+    });
+
+    it('retired topping creation alias returns 404 without writing, while the read alias remains available', async () => {
+      const before = await db.topping.count();
+      for (const token of [undefined, customerToken, baristaToken]) {
+        await post('/toppings', token, { name: randomUUID(), price: 5000 }).expect(404);
+      }
+      expect(await db.topping.count()).toBe(before);
+      const canonical = await request(app.getHttpServer()).get('/api/products/toppings').expect(200);
+      const legacy = await request(app.getHttpServer()).get('/api/toppings').expect(200);
+      expect(legacy.body).toEqual(canonical.body);
     });
 
     it('accepts only one of two simultaneous barista status changes', async () => {
