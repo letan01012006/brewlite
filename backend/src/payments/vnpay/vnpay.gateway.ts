@@ -72,9 +72,10 @@ export class DefaultVnpayGateway extends VnpayGateway {
     this.config = {
       tmnCode: this.configService.get<string>('VNPAY_TMN_CODE', '').trim(),
       hashSecret: this.configService.get<string>('VNPAY_HASH_SECRET', '').trim(),
-      payUrl: this.configService.get<string>(
-        'VNPAY_PAY_URL',
-        'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+      payUrl: (
+        this.configService.get<string>('VNPAY_PAYMENT_URL') ||
+        this.configService.get<string>('VNPAY_PAY_URL') ||
+        'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'
       ).trim(),
       apiUrl: this.configService.get<string>(
         'VNPAY_API_URL',

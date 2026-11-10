@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller.js';
@@ -12,9 +14,18 @@ import { HealthModule } from './health/health.module.js';
 import { PricingModule } from './common/pricing/pricing.module.js';
 import { RecipesModule } from './inventory/recipes.module.js';
 
+const envFilePath = [
+  path.resolve(process.cwd(), 'backend/.env'),
+  path.resolve(process.cwd(), '.env'),
+  fileURLToPath(new URL('../.env', import.meta.url)),
+];
+
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath,
+    }),
     PrismaModule,
     PricingModule,
     RecipesModule,

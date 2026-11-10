@@ -972,7 +972,7 @@ export class PaymentsService {
           rawPayload: rawPayload as Prisma.InputJsonObject,
         },
       });
-      return { RspCode: '97', Message: 'Invalid signature' };
+      return { RspCode: '97', Message: 'Invalid Checksum' };
     }
 
     // 2. Tìm payment theo gatewayTxnRef

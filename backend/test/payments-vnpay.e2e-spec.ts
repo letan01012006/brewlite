@@ -104,8 +104,8 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
   let fakeGateway: FakeVnpayGateway;
   let customerToken: string;
   let baristaToken: string;
-  let customerUser: { id: number; email: string };
-  let baristaUser: { id: number; email: string };
+  let customerUser: { id: number; email: string | null };
+  let baristaUser: { id: number; email: string | null };
   let testProduct: { id: number; price: number };
 
   beforeAll(async () => {
