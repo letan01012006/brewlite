@@ -269,7 +269,7 @@ test("late VNPAY responses and callbacks cannot replace a newer checkout", async
   flow.beginCart(1);
   await flow.prepare(1, "cart-2", {});
   pending.resolve({
-    payment: { method: "VNPAY", paymentUrl: "https://vnpay.test/1" },
+    payment: { method: "VNPAY", status: "PROCESSING", paymentUrl: "https://vnpay.test/1" },
     order: { ...order, id: 1 },
   });
   await payment;

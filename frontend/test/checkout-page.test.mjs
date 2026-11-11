@@ -376,3 +376,19 @@ test("a delayed payment success does not empty a newer identical basket", async 
   await payment;
   assert.equal(h.store.getState().items.length, 1);
 });
+
+
+test("an unconfirmed VNPAY response without a URL does not render checkout success", async () => {
+  const fullOrder = { ...order, total: 50000, discountAmount: 0 };
+  const h = harness(async (path) => path === "/payments"
+    ? { payment: { method: "VNPAY", status: "PROCESSING" }, order: fullOrder }
+    : fullOrder);
+  h.store.getState().addItem(item);
+  await h.mount();
+  await payButton(h.render()).props.onClick();
+  const { CheckoutFlow } = h.load("src/lib/checkout-flow.ts");
+  assert.equal(new CheckoutFlow(h.storage).read(1).phase, "paying");
+  assert.ok(payButton(h.render()));
+  assert.equal(h.authState.refreshed, undefined);
+  assert.equal(h.redirects.length, 0);
+});

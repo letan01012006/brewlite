@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   buildPaymentUrl,
@@ -43,7 +40,12 @@ export abstract class VnpayGateway {
     ipAddr: string;
     orderInfo?: string;
     bankCode?: string;
-  }): { paymentUrl: string; txnRef: string; vnpCreateDate: string; expiresAt: Date };
+  }): {
+    paymentUrl: string;
+    txnRef: string;
+    vnpCreateDate: string;
+    expiresAt: Date;
+  };
 
   abstract verifySignature(params: Record<string, unknown>): boolean;
 
@@ -71,33 +73,54 @@ export class DefaultVnpayGateway extends VnpayGateway {
     super();
     this.config = {
       tmnCode: this.configService.get<string>('VNPAY_TMN_CODE', '').trim(),
-      hashSecret: this.configService.get<string>('VNPAY_HASH_SECRET', '').trim(),
-      payUrl: this.configService.get<string>(
-        'VNPAY_PAY_URL',
-        'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
-      ).trim(),
-      apiUrl: this.configService.get<string>(
-        'VNPAY_API_URL',
-        'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction',
-      ).trim(),
-      returnUrl: this.configService.get<string>(
-        'VNPAY_RETURN_URL',
-        'http://localhost:3000/payment/vnpay-return',
-      ).trim(),
-      expireMinutes: Number(this.configService.get<number>('PAYMENT_EXPIRE_MINUTES', 15)),
-      defaultBankCode: this.configService.get<string>('VNPAY_DEFAULT_BANKCODE', '').trim(),
+      hashSecret: this.configService
+        .get<string>('VNPAY_HASH_SECRET', '')
+        .trim(),
+      payUrl: this.configService
+        .get<string>(
+          'VNPAY_PAY_URL',
+          'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+        )
+        .trim(),
+      apiUrl: this.configService
+        .get<string>(
+          'VNPAY_API_URL',
+          'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction',
+        )
+        .trim(),
+      returnUrl: this.configService
+        .get<string>(
+          'VNPAY_RETURN_URL',
+          'http://localhost:3000/payment/vnpay-return',
+        )
+        .trim(),
+      expireMinutes: Number(
+        this.configService.get<number>('PAYMENT_EXPIRE_MINUTES', 15),
+      ),
+      defaultBankCode: this.configService
+        .get<string>('VNPAY_DEFAULT_BANKCODE', '')
+        .trim(),
     };
   }
 
   isConfigured(): boolean {
-    return Boolean(this.config.tmnCode && this.config.hashSecret);
+    const isCredential = (value: string) =>
+      Boolean(value) &&
+      !/^(?:sandbox[_-]|test[_-]|your[_-]|replace|change|example|placeholder|<)/i.test(
+        value,
+      ) &&
+      !/^(?:tmn[_-]?code|hash[_-]?secret)$/i.test(value);
+    return (
+      isCredential(this.config.tmnCode) && isCredential(this.config.hashSecret)
+    );
   }
 
   private assertConfigured() {
     if (!this.isConfigured()) {
       throw new ServiceUnavailableException({
         code: 'VNPAY_NOT_CONFIGURED',
-        message: 'Cổng thanh toán VNPAY chưa được cấu hình đầy đủ (thiếu TMN Code hoặc Hash Secret)',
+        message:
+          'Cổng thanh toán VNPAY chưa được cấu hình đầy đủ (thiếu TMN Code hoặc Hash Secret)',
       });
     }
   }
@@ -165,10 +188,16 @@ export class DefaultVnpayGateway extends VnpayGateway {
         transactionNo: data['vnp_TransactionNo']
           ? String(data['vnp_TransactionNo'])
           : undefined,
-        bankCode: data['vnp_BankCode'] ? String(data['vnp_BankCode']) : undefined,
-        cardType: data['vnp_CardType'] ? String(data['vnp_CardType']) : undefined,
+        bankCode: data['vnp_BankCode']
+          ? String(data['vnp_BankCode'])
+          : undefined,
+        cardType: data['vnp_CardType']
+          ? String(data['vnp_CardType'])
+          : undefined,
         payDate: data['vnp_PayDate'] ? String(data['vnp_PayDate']) : undefined,
-        amount: data['vnp_Amount'] ? Number(data['vnp_Amount']) / 100 : undefined,
+        amount: data['vnp_Amount']
+          ? Number(data['vnp_Amount']) / 100
+          : undefined,
         success: isSuccess,
         message: data['vnp_Message'] ? String(data['vnp_Message']) : undefined,
       };
@@ -177,7 +206,8 @@ export class DefaultVnpayGateway extends VnpayGateway {
         raw: {},
         responseCode: '99',
         success: false,
-        message: error instanceof Error ? error.message : 'Lỗi kết nối cổng VNPAY',
+        message:
+          error instanceof Error ? error.message : 'Lỗi kết nối cổng VNPAY',
       };
     }
   }
@@ -239,9 +269,9 @@ export class DefaultVnpayGateway extends VnpayGateway {
         raw: {},
         responseCode: '99',
         success: false,
-        failureReason: error instanceof Error ? error.message : 'Lỗi kết nối cổng VNPAY',
+        failureReason:
+          error instanceof Error ? error.message : 'Lỗi kết nối cổng VNPAY',
       };
     }
   }
 }
-

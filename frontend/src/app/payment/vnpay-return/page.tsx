@@ -71,7 +71,12 @@ function VnpayReturnContent() {
         if (!active) return;
         setResult(data);
 
-        if (data.payment.status === "SUCCESS") {
+        if (
+          data.payment.status === "SUCCESS" &&
+          ["PAID", "PREPARING", "READY", "COMPLETED"].includes(
+            data.order.status,
+          )
+        ) {
           if (userId) {
             new CheckoutFlow(window.sessionStorage).clear(
               userId,
@@ -125,7 +130,9 @@ function VnpayReturnContent() {
     );
   }
 
-  const isSuccess = result?.payment.status === "SUCCESS";
+  const isSuccess =
+    result?.payment.status === "SUCCESS" &&
+    ["PAID", "PREPARING", "READY", "COMPLETED"].includes(result.order.status);
 
   return (
     <div className="max-w-xl mx-auto px-4 py-12 text-center animate-fadeIn">

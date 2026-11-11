@@ -117,7 +117,9 @@ export class CheckoutFlow {
         ? "paid"
         : order.status === "PAYMENT_FAILED"
           ? "failed"
-          : (existing?.phase ?? "ready"),
+          : existing?.phase === "paid"
+            ? "ready"
+            : (existing?.phase ?? "ready"),
       ...(order.status === "PAYMENT_FAILED"
         ? { attempt: undefined, paymentUrl: undefined }
         : {}),
@@ -257,7 +259,7 @@ export class CheckoutFlow {
         body: JSON.stringify(attempt),
       });
 
-      if (result.payment.paymentUrl) {
+      if (result.payment.status === "PROCESSING" && result.payment.paymentUrl) {
         return this.save(
           userId,
           {
@@ -267,6 +269,12 @@ export class CheckoutFlow {
             paymentUrl: result.payment.paymentUrl,
           },
           this.read(userId)?.order?.id === order.id,
+        );
+      }
+
+      if (!paidStatuses.includes(result.order.status)) {
+        throw new Error(
+          "Đơn hàng chưa được xác nhận thanh toán. Vui lòng kiểm tra lại sau.",
         );
       }
 

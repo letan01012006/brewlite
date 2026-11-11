@@ -104,8 +104,8 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
   let fakeGateway: FakeVnpayGateway;
   let customerToken: string;
   let baristaToken: string;
-  let customerUser: { id: number; email: string };
-  let baristaUser: { id: number; email: string };
+  let customerUser: { id: number; email: string | null };
+  let baristaUser: { id: number; email: string | null };
   let testProduct: { id: number; price: number };
 
   beforeAll(async () => {
@@ -520,56 +520,32 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     }
   });
 
-  it('B6: Late IPN on CANCELLED order transitions to NEEDS_REFUND and creates PaymentRefund', async () => {
+  it('B6: IPN after real cancellation queues one refund and preserves CANCELLED on duplicate deliveries', async () => {
     const order = await createOrder(50000);
     const payRes = await request(app.getHttpServer())
-      .post('/api/payments')
-      .auth(customerToken, { type: 'bearer' })
+      .post('/api/payments').auth(customerToken, { type: 'bearer' })
       .set('Idempotency-Key', randomUUID())
-      .send({ orderId: order.id, method: 'VNPAY' })
-      .expect(201);
-
-    const payment = await db.payment.findUniqueOrThrow({
-      where: { id: payRes.body.payment.id },
-    });
-
-    // Mark payment EXPIRED so order can be cancelled
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { status: 'EXPIRED' },
-    });
-
-    // Cancel order
-    await request(app.getHttpServer())
-      .post(`/api/orders/${order.id}/cancel`)
-      .auth(customerToken, { type: 'bearer' })
-      .expect(200);
-
-    // Reset payment to PROCESSING to simulate late IPN arriving
-    await db.payment.update({
-      where: { id: payment.id },
-      data: { status: 'PROCESSING' },
-    });
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 }).expect(201);
+    const payment = await db.payment.findUniqueOrThrow({ where: { id: payRes.body.payment.id } });
+    await request(app.getHttpServer()).post(`/api/orders/${order.id}/cancel`)
+      .auth(customerToken, { type: 'bearer' }).expect(200);
+    expect((await db.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('CANCELLED');
 
     const lateIpn = signVnpayParams({
-      vnp_Amount: '5000000',
-      vnp_TxnRef: payment.gatewayTxnRef!,
-      vnp_ResponseCode: '00',
-      vnp_TransactionNo: '888888',
-      vnp_TmnCode: testConfig.tmnCode,
+      vnp_Amount: '4500000', vnp_TxnRef: payment.gatewayTxnRef!,
+      vnp_ResponseCode: '00', vnp_TransactionStatus: '00',
+      vnp_TransactionNo: '888888', vnp_TmnCode: testConfig.tmnCode,
     });
-
-    await request(app.getHttpServer())
-      .get('/api/payments/vnpay/ipn')
-      .query(lateIpn)
-      .expect(200);
-
-    const paymentAfter = await db.payment.findUniqueOrThrow({ where: { id: payment.id } });
-    expect(paymentAfter.status).toBe('NEEDS_REFUND');
-
-    const refund = await db.paymentRefund.findUnique({ where: { paymentId: payment.id } });
-    expect(refund).not.toBeNull();
-    expect(refund!.status).toBe('PENDING');
+    const responses = await Promise.all(Array.from({ length: 3 }, () =>
+      request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(lateIpn).expect(200)));
+    expect(responses.map(r => String(r.body.RspCode)).sort((a, b) => a.localeCompare(b))).toEqual(['00', '02', '02']);
+    expect(await db.payment.findUniqueOrThrow({ where: { id: payment.id } }))
+      .toMatchObject({ status: 'NEEDS_REFUND', providerRef: '888888' });
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('CANCELLED');
+    expect(await db.paymentRefund.findMany({ where: { paymentId: payment.id } }))
+      .toMatchObject([{ status: 'PENDING', amount: 45000 }]);
+    expect(await db.loyaltyTransaction.count({ where: { paymentId: payment.id, type: 'REFUND' } })).toBe(1);
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(WELCOME_POINTS);
   });
 
   it('B7: Return URL triggers querydr, verifies payment and hides paymentUrl from barista in GET :id', async () => {
@@ -927,43 +903,95 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(await db.payment.findUniqueOrThrow({ where: { id: legacyPayment.id } })).toEqual(legacyPayment);
   });
 
-  it('B13: Retrying payment on order with abandoned PROCESSING payment cancels old and creates new payment', async () => {
-    await db.user.update({
-      where: { id: customerUser.id },
-      data: { loyaltyPoints: 500 },
-    });
-
+  it.each([100, 200])('B13: two concurrent keys for one order keep one session and one points hold (%s points)', async (secondPoints) => {
     const order = await createOrder(50000);
-    // First payment attempt (abandoned)
-    const firstPayRes = await request(app.getHttpServer())
-      .post('/api/payments')
-      .auth(customerToken, { type: 'bearer' })
-      .set('Idempotency-Key', randomUUID())
-      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 })
-      .expect(201);
+    const keys = [randomUUID(), randomUUID()];
+    const responses = await Promise.all(keys.map((key, index) =>
+      request(app.getHttpServer()).post('/api/payments')
+        .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', key)
+        .send({ orderId: order.id, method: 'VNPAY', pointsUsed: index ? secondPoints : 100 })));
+    expect(responses.map(r => r.status).sort((a, b) => a - b)).toEqual([201, 409]);
+    const winner = responses.find(r => r.status === 201)!;
+    expect(responses.find(r => r.status === 409)!.body.code).toBe('PAYMENT_IN_PROGRESS');
+    const payments = await db.payment.findMany({ where: { orderId: order.id } });
+    expect(payments).toHaveLength(1);
+    expect(payments[0].status).toBe('PROCESSING');
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints)
+      .toBe(WELCOME_POINTS - winner.body.payment.pointsUsed);
+    expect(await db.loyaltyTransaction.count({ where: { orderId: order.id, type: 'REFUND' } })).toBe(0);
+    const replay = await request(app.getHttpServer()).post('/api/payments')
+      .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', payments[0].idempotencyKey)
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: payments[0].pointsUsed }).expect(201);
+    expect(replay.body.payment.paymentUrl).toBe(winner.body.payment.paymentUrl);
+  });
 
-    const firstPaymentId = firstPayRes.body.payment.id;
+  it('B16: missing configuration returns 503 on the same key without holding points; recovery reuses the key', async () => {
+    const order = await createOrder(50000);
+    const key = randomUUID();
+    const configured = vi.spyOn(fakeGateway, 'isConfigured').mockReturnValue(false);
+    const pay = () => request(app.getHttpServer()).post('/api/payments')
+      .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', key)
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await pay().expect(503);
+      expect(res.body.code).toBe('VNPAY_NOT_CONFIGURED');
+    }
+    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(0);
+    expect(await db.loyaltyTransaction.count({ where: { orderId: order.id } })).toBe(0);
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(WELCOME_POINTS);
+    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: 'PENDING', total: 50000 });
+    configured.mockReturnValue(true);
+    const created = await pay().expect(201);
+    configured.mockReturnValue(false);
+    await pay().expect(503); // Preflight applies to existing-key replay too.
+    configured.mockReturnValue(true);
+    const replay = await pay().expect(201);
+    expect(replay.body.payment.id).toBe(created.body.payment.id);
+    expect(await db.payment.count({ where: { orderId: order.id } })).toBe(1);
+  });
 
-    // Second payment attempt ("Thanh toán tiếp") with NEW idempotency key
-    const secondPayRes = await request(app.getHttpServer())
-      .post('/api/payments')
-      .auth(customerToken, { type: 'bearer' })
-      .set('Idempotency-Key', randomUUID())
-      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 200 })
-      .expect(201);
+  it('B17: link creation failure terminates the session and refunds points exactly once', async () => {
+    const order = await createOrder(50000);
+    const key = randomUUID();
+    const createUrl = vi.spyOn(fakeGateway, 'createPaymentUrl').mockImplementationOnce(() => { throw new Error('link failure'); });
+    const pay = (paymentKey: string) => request(app.getHttpServer()).post('/api/payments')
+      .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', paymentKey)
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 });
+    await pay(key).expect(503);
+    const payment = await db.payment.findUniqueOrThrow({ where: { idempotencyKey: key } });
+    expect(payment.status).toBe('FAILED');
+    expect(await db.order.findUniqueOrThrow({ where: { id: order.id } }))
+      .toMatchObject({ status: 'PAYMENT_FAILED', total: 50000, discountAmount: 0 });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await pay(key).expect(402);
+      expect(res.body.payment.status).toBe('FAILED');
+      expect(res.body.payment.paymentUrl).toBeNull();
+    }
+    expect(createUrl).toHaveBeenCalledTimes(1);
+    expect(await db.loyaltyTransaction.count({ where: { paymentId: payment.id, type: 'REFUND' } })).toBe(1);
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(WELCOME_POINTS);
+    await pay(randomUUID()).expect(201);
+  });
 
-    expect(secondPayRes.body.payment.id).not.toBe(firstPaymentId);
-    expect(secondPayRes.body.payment.status).toBe('PROCESSING');
-    expect(secondPayRes.body.payment.pointsUsed).toBe(200);
-    expect(secondPayRes.body.payment.amount).toBe(40000); // 50k - 10k
-
-    // First payment is CANCELLED
-    const firstPayment = await db.payment.findUniqueOrThrow({ where: { id: firstPaymentId } });
-    expect(firstPayment.status).toBe('CANCELLED');
-
-    // Customer balance: 500 - 100 (first) + 100 (refunded) - 200 (second) = 300
-    const customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(customer.loyaltyPoints).toBe(300);
+  it('B18: a successful IPN for an older cancelled session cannot pay a newer session', async () => {
+    const order = await createOrder(50000);
+    const pay = () => request(app.getHttpServer()).post('/api/payments')
+      .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 });
+    const first = await pay().expect(201);
+    const oldPayment = await db.payment.findUniqueOrThrow({ where: { id: first.body.payment.id } });
+    const ipn = (code: string) => signVnpayParams({
+      vnp_Amount: '4500000', vnp_TxnRef: oldPayment.gatewayTxnRef!, vnp_ResponseCode: code,
+      vnp_TransactionNo: 'OLDCHARGE', vnp_TmnCode: testConfig.tmnCode,
+    });
+    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('24')).expect(200);
+    const second = await pay().expect(201);
+    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('00')).expect(200);
+    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('00')).expect(200);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('PENDING');
+    expect((await db.payment.findUniqueOrThrow({ where: { id: oldPayment.id } })).status).toBe('NEEDS_REFUND');
+    expect((await db.payment.findUniqueOrThrow({ where: { id: second.body.payment.id } })).status).toBe('PROCESSING');
+    expect(await db.paymentRefund.count({ where: { paymentId: oldPayment.id } })).toBe(1);
+    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(WELCOME_POINTS - 100);
   });
 });
-

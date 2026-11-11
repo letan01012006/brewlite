@@ -460,7 +460,11 @@ function CheckoutContent() {
         return;
       }
 
-      if (paid.order && useAuthStore.getState().token === token) {
+      if (
+        paid.phase === "paid" &&
+        paid.order &&
+        useAuthStore.getState().token === token
+      ) {
         setSuccessOrder(paid.order);
         setPaymentMethod(paid.paidMethod ?? effectiveMethod);
         flow.clear(user.id, paid.order.id);

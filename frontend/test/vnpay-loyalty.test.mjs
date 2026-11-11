@@ -159,7 +159,7 @@ test("restored VNPAY attempts drop the legacy mock field without changing the ke
     sent = JSON.parse(options.body);
     assert.equal(options.headers["Idempotency-Key"], "existing-vnpay-key");
     return {
-      payment: { method: "VNPAY", paymentUrl: "https://vnpay.test/pay" },
+      payment: { method: "VNPAY", status: "PROCESSING", paymentUrl: "https://vnpay.test/pay" },
       order,
     };
   });
@@ -305,4 +305,48 @@ test("checkout flow: new cart after cancelled order creates fresh order without 
   const s2 = await flow.prepare(1, "cart-2", {});
   assert.equal(s2.order.id, 102);
   assert.notEqual(s2.order.id, 101);
+});
+
+
+test("VNPAY without a payment URL waits for backend confirmation and keeps its retry key", async () => {
+  const order = { id: 203, status: "PENDING", total: 50000, payments: [] };
+  const keys = [];
+  let confirmed = false;
+  const flow = new CheckoutFlow(memoryStorage(), async (path, options) => {
+    if (path !== "/payments") return order;
+    keys.push(options.headers["Idempotency-Key"]);
+    return {
+      payment: { method: "VNPAY", status: confirmed ? "SUCCESS" : "PROCESSING" },
+      order: { ...order, status: confirmed ? "PAID" : "PENDING" },
+    };
+  });
+  await flow.prepare(1, "cart-vnpay", {});
+  await assert.rejects(flow.pay(1, "VNPAY"));
+  assert.equal(flow.read(1).phase, "paying");
+  confirmed = true;
+  assert.equal((await flow.pay(1, "VNPAY")).phase, "paid");
+  assert.equal(keys[0], keys[1]);
+});
+
+for (const [paymentStatus, orderStatus] of [
+  ["SUCCESS", "PENDING"], ["NEEDS_REFUND", "CANCELLED"],
+  ["FAILED", "PAYMENT_FAILED"], ["PROCESSING", "PENDING"],
+]) {
+  test(`VNPAY ${paymentStatus}/${orderStatus} never reports checkout success`, async () => {
+    const order = { id: 204, status: "PENDING", total: 50000, payments: [] };
+    const flow = new CheckoutFlow(memoryStorage(), async (path) => path === "/payments"
+      ? { payment: { method: "VNPAY", status: paymentStatus }, order: { ...order, status: orderStatus } }
+      : order);
+    await flow.prepare(1, "cart-unconfirmed", {});
+    await assert.rejects(flow.pay(1, "VNPAY"));
+    assert.notEqual(flow.read(1).phase, "paid");
+  });
+}
+
+
+test("resuming checkout replaces a stale paid phase with the backend order status", () => {
+  const flow = new CheckoutFlow(memoryStorage());
+  flow.save(1, { cartKey: "stale-paid", phase: "paid", order: { id: 205, status: "PAID" } });
+  const session = flow.startOrder(1, { id: 205, status: "PENDING" });
+  assert.equal(session.phase, "ready");
 });
