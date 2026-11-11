@@ -975,23 +975,317 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
 
   it('B18: a successful IPN for an older cancelled session cannot pay a newer session', async () => {
     const order = await createOrder(50000);
-    const pay = () => request(app.getHttpServer()).post('/api/payments')
-      .auth(customerToken, { type: 'bearer' }).set('Idempotency-Key', randomUUID())
-      .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 });
+    const pay = () =>
+      request(app.getHttpServer())
+        .post('/api/payments')
+        .auth(customerToken, { type: 'bearer' })
+        .set('Idempotency-Key', randomUUID())
+        .send({ orderId: order.id, method: 'VNPAY', pointsUsed: 100 });
     const first = await pay().expect(201);
-    const oldPayment = await db.payment.findUniqueOrThrow({ where: { id: first.body.payment.id } });
-    const ipn = (code: string) => signVnpayParams({
-      vnp_Amount: '4500000', vnp_TxnRef: oldPayment.gatewayTxnRef!, vnp_ResponseCode: code,
-      vnp_TransactionNo: 'OLDCHARGE', vnp_TmnCode: testConfig.tmnCode,
+    const oldPayment = await db.payment.findUniqueOrThrow({
+      where: { id: first.body.payment.id },
     });
-    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('24')).expect(200);
+    const ipn = (code: string) =>
+      signVnpayParams({
+        vnp_Amount: '4500000',
+        vnp_TxnRef: oldPayment.gatewayTxnRef!,
+        vnp_ResponseCode: code,
+        vnp_TransactionNo: 'OLDCHARGE',
+        vnp_TmnCode: testConfig.tmnCode,
+      });
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(ipn('24'))
+      .expect(200);
     const second = await pay().expect(201);
-    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('00')).expect(200);
-    await request(app.getHttpServer()).get('/api/payments/vnpay/ipn').query(ipn('00')).expect(200);
-    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('PENDING');
-    expect((await db.payment.findUniqueOrThrow({ where: { id: oldPayment.id } })).status).toBe('NEEDS_REFUND');
-    expect((await db.payment.findUniqueOrThrow({ where: { id: second.body.payment.id } })).status).toBe('PROCESSING');
-    expect(await db.paymentRefund.count({ where: { paymentId: oldPayment.id } })).toBe(1);
-    expect((await db.user.findUniqueOrThrow({ where: { id: customerUser.id } })).loyaltyPoints).toBe(WELCOME_POINTS - 100);
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(ipn('00'))
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(ipn('00'))
+      .expect(200);
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: order.id } })).status,
+    ).toBe('PENDING');
+    expect(
+      (await db.payment.findUniqueOrThrow({ where: { id: oldPayment.id } }))
+        .status,
+    ).toBe('NEEDS_REFUND');
+    expect(
+      (
+        await db.payment.findUniqueOrThrow({
+          where: { id: second.body.payment.id },
+        })
+      ).status,
+    ).toBe('PROCESSING');
+    expect(
+      await db.paymentRefund.count({ where: { paymentId: oldPayment.id } }),
+    ).toBe(1);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS - 100);
   });
+
+  async function paidVnpayOrder() {
+    const order = await createOrder(50000);
+    const response = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'VNPAY' })
+      .expect(201);
+    const payment = await db.payment.findUniqueOrThrow({
+      where: { id: response.body.payment.id },
+    });
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(
+        signVnpayParams({
+          vnp_Amount: '5000000',
+          vnp_TxnRef: payment.gatewayTxnRef!,
+          vnp_ResponseCode: '00',
+          vnp_TransactionNo: `PAID_${payment.id}`,
+          vnp_TmnCode: testConfig.tmnCode,
+        }),
+      )
+      .expect(200);
+    return { order, payment };
+  }
+  const refundRequest = (paymentId: number) =>
+    request(app.getHttpServer())
+      .post(`/api/payments/${paymentId}/refund`)
+      .auth(baristaToken, { type: 'bearer' });
+  const prepareRequest = (orderId: number) =>
+    request(app.getHttpServer())
+      .patch(`/api/orders/${orderId}/status`)
+      .auth(baristaToken, { type: 'bearer' })
+      .send({ status: 'PREPARING' });
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  }
+
+  it('R1: one concurrent refund command blocks preparation while pending and after full settlement', async () => {
+    const { order, payment } = await paidVnpayOrder();
+    const entered = deferred<void>();
+    const response = deferred<VnpayRefundResult>();
+    const refund = vi
+      .spyOn(fakeGateway, 'refund')
+      .mockImplementation(async () => {
+        entered.resolve();
+        return response.promise;
+      });
+    const first = refundRequest(payment.id).then((value) => value);
+    await entered.promise;
+    const second = await refundRequest(payment.id).expect(200);
+    expect(second.body.refund.status).toBe('PROCESSING');
+    expect(second.body.payment.refundedAt).toBeNull();
+    const detail = await request(app.getHttpServer())
+      .get(`/api/orders/${order.id}`)
+      .auth(customerToken, { type: 'bearer' })
+      .expect(200);
+    expect(detail.body.payments[0].refunds).toEqual([
+      { status: 'PROCESSING', confirmedAt: null },
+    ]);
+    const active = await request(app.getHttpServer())
+      .get('/api/orders/active')
+      .auth(baristaToken, { type: 'bearer' })
+      .expect(200);
+    expect(active.body.some((row: { id: number }) => row.id === order.id)).toBe(
+      false,
+    );
+    await prepareRequest(order.id).expect(409);
+    response.resolve(fakeGateway.refundResult);
+    expect((await first).body.refund.status).toBe('SUCCESS');
+    const settled = await request(app.getHttpServer())
+      .get(`/api/orders/${order.id}`)
+      .auth(customerToken, { type: 'bearer' })
+      .expect(200);
+    expect(settled.body.payments[0].refunds[0]).toMatchObject({
+      status: 'SUCCESS',
+      confirmedAt: expect.any(String),
+    });
+    await prepareRequest(order.id).expect(409);
+    await refundRequest(payment.id).expect(200);
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(
+      await db.paymentRefund.count({ where: { paymentId: payment.id } }),
+    ).toBe(1);
+    expect(
+      (
+        await db.inventoryReservation.findUniqueOrThrow({
+          where: { orderId: order.id },
+        })
+      ).status,
+    ).toBe('RELEASED');
+  });
+
+  it('R1: preparation winning the race prevents a later refund command', async () => {
+    const { order, payment } = await paidVnpayOrder();
+    const refund = vi.spyOn(fakeGateway, 'refund');
+    await prepareRequest(order.id).expect(200);
+    await refundRequest(payment.id).expect(409);
+    expect(refund).not.toHaveBeenCalled();
+    expect(
+      await db.paymentRefund.count({ where: { paymentId: payment.id } }),
+    ).toBe(0);
+  });
+
+  it('R1: simultaneous preparation/refund requests have only one winner', async () => {
+    const { order, payment } = await paidVnpayOrder();
+    const refund = vi.spyOn(fakeGateway, 'refund');
+    const [money, preparation] = await Promise.all([
+      refundRequest(payment.id),
+      prepareRequest(order.id),
+    ]);
+    expect([money.status, preparation.status].sort((a, b) => a - b)).toEqual([
+      200, 409,
+    ]);
+    const current = await db.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+    if (money.status === 200) {
+      expect(current.status).toBe('PAID');
+      expect(refund).toHaveBeenCalledTimes(1);
+      await prepareRequest(order.id).expect(409);
+    } else {
+      expect(current.status).toBe('PREPARING');
+      expect(refund).not.toHaveBeenCalled();
+    }
+  });
+
+  it('R2: timeout stays pending; concurrent retries reconcile once and do not send a second accepted refund', async () => {
+    const { payment } = await paidVnpayOrder();
+    const refund = vi
+      .spyOn(fakeGateway, 'refund')
+      .mockRejectedValueOnce(new Error('timeout'));
+    const first = await refundRequest(payment.id).expect(200);
+    expect(first.body.refund.status).toBe('PENDING');
+    expect(first.body.payment.refundedAt).toBeNull();
+    const entered = deferred<void>();
+    const response = deferred<VnpayQueryResult>();
+    const query = vi
+      .spyOn(fakeGateway, 'queryTransaction')
+      .mockImplementationOnce(async () => {
+        entered.resolve();
+        return response.promise;
+      });
+    const retry = refundRequest(payment.id).then((value) => value);
+    await entered.promise;
+    await refundRequest(payment.id).expect(200);
+    response.resolve({
+      raw: {},
+      responseCode: '00',
+      transactionType: '02',
+      transactionStatus: '00',
+      transactionNo: 'SETTLED_REFUND',
+      amount: payment.amount,
+      success: true,
+    });
+    expect((await retry).body.payment.refundRef).toBe('SETTLED_REFUND');
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(refund).toHaveBeenCalledTimes(1);
+    await refundRequest(payment.id).expect(200);
+    expect(refund).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['05', '06', 'unknown'])(
+    'R2: reconciliation %s cannot send another refund',
+    async (status) => {
+      const { payment } = await paidVnpayOrder();
+      const refund = vi
+        .spyOn(fakeGateway, 'refund')
+        .mockResolvedValueOnce({ raw: {}, responseCode: '99', success: false });
+      await refundRequest(payment.id).expect(200);
+      const query = vi
+        .spyOn(fakeGateway, 'queryTransaction')
+        .mockResolvedValue({
+          raw: {},
+          responseCode: status === 'unknown' ? '99' : '00',
+          transactionStatus: status,
+          transactionType: '02',
+          amount: payment.amount,
+          success: false,
+        });
+      const response = await refundRequest(payment.id).expect(200);
+      expect(response.body.refund.status).toBe('PENDING');
+      expect(response.body.payment.refundedAt).toBeNull();
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(refund).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('R2: an explicit unrefunded payment is reconciled before retrying with the same gateway request ID', async () => {
+    const { payment } = await paidVnpayOrder();
+    const refund = vi
+      .spyOn(fakeGateway, 'refund')
+      .mockResolvedValueOnce({ raw: {}, responseCode: '99', success: false });
+    await refundRequest(payment.id).expect(200);
+    const query = vi.spyOn(fakeGateway, 'queryTransaction').mockResolvedValue({
+      raw: {},
+      responseCode: '00',
+      transactionType: '01',
+      transactionStatus: '00',
+      amount: payment.amount,
+      success: true,
+    });
+    const retried = await refundRequest(payment.id).expect(200);
+    expect(retried.body.refund.status).toBe('SUCCESS');
+    expect(query.mock.invocationCallOrder[0]).toBeLessThan(
+      refund.mock.invocationCallOrder[1],
+    );
+    expect(refund.mock.calls[0][0]).toMatchObject({
+      requestId: expect.any(String),
+    });
+    expect(refund.mock.calls[1][0]).toMatchObject({
+      requestId: (refund.mock.calls[0][0] as { requestId?: string }).requestId,
+    });
+  });
+
+  it('R3: points-only refunds restore the original points exactly once under concurrent requests and replay', async () => {
+    const order = await createOrder(50000);
+    const paid = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId: order.id, method: 'POINTS', pointsUsed: 1000 })
+      .expect(201);
+    const paymentId = paid.body.payment.id;
+    const gateway = vi.spyOn(fakeGateway, 'refund');
+    const refunds = await Promise.all([
+      refundRequest(paymentId),
+      refundRequest(paymentId),
+    ]);
+    expect(refunds.map((r) => r.status)).toEqual([200, 200]);
+    await refundRequest(paymentId).expect(200);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS);
+    expect(
+      await db.loyaltyTransaction.findMany({
+        where: { paymentId, type: 'REFUND' },
+      }),
+    ).toMatchObject([{ points: 1000, pointsAmount: 50000 }]);
+    expect(await db.paymentRefund.count({ where: { paymentId } })).toBe(0);
+    expect(
+      await db.payment.findUniqueOrThrow({ where: { id: paymentId } }),
+    ).toMatchObject({
+      refundedAt: expect.any(Date),
+      refundedAmount: 0,
+      refundRef: `POINTS_REFUND_${paymentId}`,
+    });
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+    ).toMatchObject({ total: 0, discountAmount: 50000 });
+    await prepareRequest(order.id).expect(409);
+    expect(gateway).not.toHaveBeenCalled();
+  });
+
 });

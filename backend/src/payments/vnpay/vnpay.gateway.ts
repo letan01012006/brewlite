@@ -12,6 +12,7 @@ export interface VnpayQueryResult {
   raw: Record<string, unknown>;
   responseCode: string;
   transactionStatus?: string;
+  transactionType?: string;
   transactionNo?: string;
   bankCode?: string;
   cardType?: string;
@@ -26,6 +27,7 @@ export interface VnpayRefundResult {
   responseCode: string;
   refundNo?: string;
   success: boolean;
+  pending?: boolean;
   failureReason?: string;
 }
 
@@ -56,6 +58,7 @@ export abstract class VnpayGateway {
   }): Promise<VnpayQueryResult>;
 
   abstract refund(params: {
+    requestId?: string;
     txnRef: string;
     amount: number;
     transactionDate: string;
@@ -185,6 +188,10 @@ export class DefaultVnpayGateway extends VnpayGateway {
         raw: data,
         responseCode,
         transactionStatus,
+        transactionType:
+          typeof data['vnp_TransactionType'] === 'string'
+            ? data['vnp_TransactionType']
+            : undefined,
         transactionNo: data['vnp_TransactionNo']
           ? String(data['vnp_TransactionNo'])
           : undefined,
@@ -213,6 +220,7 @@ export class DefaultVnpayGateway extends VnpayGateway {
   }
 
   async refund(params: {
+    requestId?: string;
     txnRef: string;
     amount: number;
     transactionDate: string;
@@ -221,7 +229,7 @@ export class DefaultVnpayGateway extends VnpayGateway {
     ipAddr?: string;
   }): Promise<VnpayRefundResult> {
     this.assertConfigured();
-    const requestId = `REF${Date.now()}`;
+    const requestId = params.requestId ?? `REF${Date.now()}`;
     const payload = buildRefundPayload(this.config, {
       requestId,
       txnRef: params.txnRef,
@@ -251,7 +259,8 @@ export class DefaultVnpayGateway extends VnpayGateway {
 
       const data = (await response.json()) as Record<string, unknown>;
       const responseCode = String(data['vnp_ResponseCode'] ?? '99');
-      const isSuccess = responseCode === '00';
+      const transactionStatus = String(data['vnp_TransactionStatus'] ?? '');
+      const isSuccess = responseCode === '00' && transactionStatus === '00';
 
       return {
         raw: data,
@@ -260,6 +269,7 @@ export class DefaultVnpayGateway extends VnpayGateway {
           ? String(data['vnp_TransactionNo'])
           : undefined,
         success: isSuccess,
+        pending: responseCode === '00' && !isSuccess,
         failureReason: isSuccess
           ? undefined
           : String(data['vnp_Message'] ?? `Mã lỗi phản hồi: ${responseCode}`),

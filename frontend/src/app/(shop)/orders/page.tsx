@@ -432,9 +432,16 @@ function OrdersContent() {
                   </h3>
                   <div className="space-y-1.5 text-[11px]">
                     {selectedOrder.payments.map((p) => {
-                      const isNeedsRefund = p.status === "NEEDS_REFUND";
+                      const isNeedsRefund =
+                        p.status === "NEEDS_REFUND" ||
+                        p.refunds?.some((refund) =>
+                          ["PENDING", "PROCESSING"].includes(refund.status),
+                        );
                       const isRefunded =
                         !!p.refundedAt ||
+                        p.refunds?.some(
+                          (refund) => refund.status === "SUCCESS",
+                        ) ||
                         (typeof p.refundedAmount === "number" &&
                           p.refundedAmount > 0);
                       return (
@@ -446,12 +453,16 @@ function OrdersContent() {
                             <span className="font-semibold block text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
                               {p.method === "VNPAY"
                                 ? "Cổng VNPAY"
-                                : p.method === "WALLET"
-                                  ? "Ví điện tử"
-                                  : "Thẻ ngân hàng"}
+                                : p.method === "POINTS"
+                                  ? "Điểm thưởng"
+                                  : p.method === "WALLET"
+                                    ? "Ví điện tử"
+                                    : "Thẻ ngân hàng"}
                             </span>
                             <span className="text-stone-400 dark:text-stone-500 font-mono light:text-cafe-muted ">
-                              {p.providerRef || p.gatewayTxnRef || `GD #${p.id}`}
+                              {p.providerRef ||
+                                p.gatewayTxnRef ||
+                                `GD #${p.id}`}
                             </span>
                           </div>
                           <div className="text-right">
@@ -472,7 +483,7 @@ function OrdersContent() {
                               </span>
                             ) : isNeedsRefund ? (
                               <span className="text-amber-600 dark:text-amber-400 font-semibold block text-[10px] animate-pulse">
-                                Đang hoàn tiền
+                                Đang chờ hoàn tiền
                               </span>
                             ) : null}
                           </div>

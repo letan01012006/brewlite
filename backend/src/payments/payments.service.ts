@@ -1240,137 +1240,258 @@ export class PaymentsService {
       });
     }
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: { refunds: true },
+    const claim = await inventoryTransaction(this.prisma, async (tx) => {
+      const identity = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { orderId: true },
+      });
+      if (!identity)
+        throw new NotFoundException({
+          code: 'PAYMENT_NOT_FOUND',
+          message: 'Không tìm thấy giao dịch',
+        });
+      await lockOrder(tx, identity.orderId);
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+        include: { order: true, refunds: true },
+      });
+      const existing = payment.refunds[0];
+      if (payment.refundedAt || existing?.status === 'SUCCESS') {
+        return { action: 'done' as const, payment, refund: existing ?? null };
+      }
+      if (!['SUCCESS', 'NEEDS_REFUND'].includes(payment.status)) {
+        throw new ConflictException({
+          code: 'INVALID_REFUND_STATE',
+          message: 'Giao dịch chưa thể hoàn tiền',
+        });
+      }
+      // The same order lock is taken by updateStatus: either refund or
+      // preparation wins. Never send money after preparation has won.
+      if (
+        payment.status === 'SUCCESS' &&
+        !['PENDING', 'PAYMENT_FAILED', 'PAID', 'CANCELLED'].includes(
+          payment.order.status,
+        )
+      ) {
+        throw new ConflictException({
+          code: 'ORDER_ALREADY_PREPARING',
+          message: 'Đơn đã được nhận pha chế, không thể hoàn tiền',
+        });
+      }
+      if (payment.method === 'POINTS') {
+        // PaymentRefund is a cash request (amount > 0). The loyalty ledger and
+        // Payment settlement evidence record a points-only refund atomically.
+        await this.restoreHeldPoints(tx, payment, payment.order, false);
+        const updated = await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            refundedAt: new Date(),
+            refundedAmount: 0,
+            refundRef: `POINTS_REFUND_${payment.id}`,
+          },
+        });
+        await this.inventory.finish(tx, payment.orderId, false);
+        return { action: 'done' as const, payment: updated, refund: null };
+      }
+      if (
+        existing?.status === 'PROCESSING' &&
+        Date.now() - existing.updatedAt.getTime() < 60000
+      ) {
+        return { action: 'pending' as const, payment, refund: existing };
+      }
+      if (payment.method === 'VNPAY' && !this.vnpayGateway.isConfigured()) {
+        throw new ServiceUnavailableException({ code: 'VNPAY_NOT_CONFIGURED' });
+      }
+      const reconcile = Boolean(
+        existing &&
+        (existing.gatewayResponseCode !== null ||
+          existing.status === 'PROCESSING'),
+      );
+      const refund = await tx.paymentRefund.upsert({
+        where: { paymentId },
+        create: {
+          paymentId,
+          amount: payment.amount,
+          idempotencyKey: `payment:${payment.id}:refund`,
+          status: 'PROCESSING',
+        },
+        update: { status: 'PROCESSING', confirmedAt: null },
+      });
+      return {
+        action: reconcile ? ('reconcile' as const) : ('send' as const),
+        payment,
+        refund,
+      };
     });
-
-    if (!payment) {
-      throw new NotFoundException({
-        code: 'PAYMENT_NOT_FOUND',
-        message: `Không tìm thấy giao dịch #${paymentId}`,
-      });
-    }
-
-    if (payment.status !== 'SUCCESS' && payment.status !== 'NEEDS_REFUND') {
-      throw new ConflictException({
-        code: 'INVALID_REFUND_STATE',
-        message: `Chỉ giao dịch SUCCESS hoặc NEEDS_REFUND mới có thể hoàn tiền (hiện tại: ${payment.status})`,
-      });
-    }
-
-    // Đã có bản ghi hoàn tiền SUCCESS chưa
-    const existingSuccess = payment.refunds.find((r) => r.status === 'SUCCESS');
-    if (existingSuccess || payment.refundedAt) {
+    if (claim.action === 'done')
       return {
         message: 'Giao dịch đã được hoàn tiền trước đó',
-        refund: existingSuccess,
-        payment,
+        payment: claim.payment,
+        refund: claim.refund,
       };
-    }
+    if (claim.action === 'pending')
+      return {
+        message: 'Đang chờ hoàn tiền',
+        payment: claim.payment,
+        refund: claim.refund,
+      };
+    const { payment, refund } = claim;
+    const transactionDate =
+      payment.vnpCreateDate ||
+      payment.createdAt
+        .toISOString()
+        .replace(/[-:T.Z]/g, '')
+        .slice(0, 14);
 
-    // Upsert bản ghi PaymentRefund ở trạng thái PROCESSING
-    const refundRecord = await this.prisma.paymentRefund.upsert({
-      where: { paymentId: payment.id },
-      create: {
-        paymentId: payment.id,
-        amount: payment.amount,
-        idempotencyKey: `payment:${payment.id}:refund`,
-        status: 'PROCESSING',
-      },
-      update: {
-        status: 'PROCESSING',
-      },
-    });
-
-    if (payment.method === 'VNPAY') {
-      const vnpTransactionDate =
-        payment.vnpCreateDate ||
-        payment.createdAt
-          .toISOString()
-          .replace(/[-:T.Z]/g, '')
-          .slice(0, 14);
-
-      const refundResult = await this.vnpayGateway.refund({
-        txnRef: payment.gatewayTxnRef!,
-        amount: payment.amount,
-        transactionDate: vnpTransactionDate,
-        transactionNo: payment.providerRef || '0',
-        createBy: `BARISTA_${adminId}`,
-        ipAddr: clientIp,
-      });
-
-      if (refundResult.success) {
-        return this.prisma.$transaction(async (tx) => {
-          const now = new Date();
-          const updatedRefund = await tx.paymentRefund.update({
-            where: { id: refundRecord.id },
-            data: {
-              status: 'SUCCESS',
-              confirmedAt: now,
-              gatewayRefundNo: refundResult.refundNo,
-            },
+    // Finish under the order lock. A lease reclaimed after a process crash
+    // invalidates the old worker, so a delayed reply cannot overwrite it.
+    const finish = async (
+      status: 'SUCCESS' | 'PENDING' | 'FAILED',
+      code: string,
+      ref?: string,
+      reason?: string,
+    ) =>
+      inventoryTransaction(this.prisma, async (tx) => {
+        await lockOrder(tx, payment.orderId);
+        const current = await tx.paymentRefund.findUniqueOrThrow({
+          where: { id: refund.id },
+        });
+        if (
+          current.status !== 'PROCESSING' ||
+          current.updatedAt.getTime() !== refund.updatedAt.getTime()
+        ) {
+          return {
+            message: 'Đang chờ hoàn tiền',
+            refund: current,
+            payment: await tx.payment.findUniqueOrThrow({
+              where: { id: payment.id },
+            }),
+          };
+        }
+        const now = new Date();
+        const updatedRefund = await tx.paymentRefund.update({
+          where: { id: refund.id },
+          data: {
+            status,
+            confirmedAt: status === 'SUCCESS' ? now : null,
+            gatewayResponseCode: code,
+            gatewayRefundNo: ref,
+            failureReason: reason ?? null,
+          },
+        });
+        let updatedPayment = await tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        });
+        if (status === 'SUCCESS') {
+          const order = await tx.order.findUniqueOrThrow({
+            where: { id: payment.orderId },
           });
-
-          const updatedPayment = await tx.payment.update({
+          await this.restoreHeldPoints(tx, updatedPayment, order, false);
+          updatedPayment = await tx.payment.update({
             where: { id: payment.id },
             data: {
               refundedAt: now,
               refundedAmount: payment.amount,
-              refundRef: refundResult.refundNo || `VNPAY_REFUND_${payment.id}`,
+              refundRef: ref || `REFUND_${payment.id}`,
             },
           });
-
-          return {
-            message: 'Hoàn tiền VNPAY thành công',
-            refund: updatedRefund,
-            payment: updatedPayment,
-          };
-        });
-      } else {
-        await this.prisma.paymentRefund.update({
-          where: { id: refundRecord.id },
-          data: {
-            status: 'FAILED',
-            failureReason: refundResult.failureReason,
-            gatewayResponseCode: refundResult.responseCode,
-          },
-        });
-
-        throw new BadRequestException({
-          code: 'REFUND_FAILED',
-          message: refundResult.failureReason || 'Cổng VNPAY từ chối hoàn tiền',
-        });
-      }
-    } else {
-      // Phương thức Mock (WALLET / CARD)
-      const mockResult = await this.mockPaymentService.refund(payment.amount);
-      return this.prisma.$transaction(async (tx) => {
-        const now = new Date();
-        const updatedRefund = await tx.paymentRefund.update({
-          where: { id: refundRecord.id },
-          data: {
-            status: 'SUCCESS',
-            confirmedAt: now,
-            gatewayRefundNo: mockResult.refundRef,
-          },
-        });
-
-        const updatedPayment = await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            refundedAt: now,
-            refundedAmount: payment.amount,
-            refundRef: mockResult.refundRef,
-          },
-        });
-
+          // A late extra charge does not release stock for the successful tender.
+          if (payment.status === 'SUCCESS')
+            await this.inventory.finish(tx, payment.orderId, false);
+        }
         return {
-          message: 'Hoàn tiền mock thành công',
+          message: status === 'SUCCESS' ? 'Đã hoàn tiền' : 'Đang chờ hoàn tiền',
           refund: updatedRefund,
           payment: updatedPayment,
         };
       });
+
+    if (payment.method !== 'VNPAY') {
+      const result = await this.mockPaymentService.refund(payment.amount);
+      return finish('SUCCESS', '00', result.refundRef);
+    }
+    if (claim.action === 'reconcile') {
+      let query: VnpayQueryResult | null = null;
+      try {
+        query = await this.vnpayGateway.queryTransaction({
+          txnRef: payment.gatewayTxnRef!,
+          transactionDate,
+          ipAddr: clientIp,
+        });
+      } catch {
+        /* Keep an ambiguous result pending; do not send another refund. */
+      }
+      const matched =
+        query?.responseCode === '00' && query.amount === payment.amount;
+      if (
+        matched &&
+        query &&
+        query.transactionType === '02' &&
+        query.transactionStatus === '00'
+      ) {
+        return finish('SUCCESS', '00', query.transactionNo);
+      }
+      // 05/06 means VNPAY/bank is processing the refund. Only an explicit
+      // original successful payment or rejected refund allows another attempt.
+      if (
+        !matched ||
+        !query ||
+        !(
+          (query.transactionType === '01' &&
+            query.transactionStatus === '00') ||
+          query.transactionStatus === '09'
+        )
+      ) {
+        return finish(
+          'PENDING',
+          '99',
+          undefined,
+          'Refund outcome requires reconciliation',
+        );
+      }
+    }
+    try {
+      const result = await this.vnpayGateway.refund({
+        txnRef: payment.gatewayTxnRef!,
+        amount: payment.amount,
+        transactionDate,
+        transactionNo: payment.providerRef || '0',
+        createBy: `BARISTA_${adminId}`,
+        ipAddr: clientIp,
+        requestId: crypto
+          .createHash('sha256')
+          .update(refund.idempotencyKey)
+          .digest('hex')
+          .slice(0, 32),
+      });
+      if (result.success)
+        return finish('SUCCESS', result.responseCode, result.refundNo);
+      if (result.pending || result.responseCode === '99') {
+        return finish(
+          'PENDING',
+          result.responseCode,
+          undefined,
+          result.failureReason,
+        );
+      }
+      await finish(
+        'FAILED',
+        result.responseCode,
+        undefined,
+        result.failureReason,
+      );
+      throw new BadRequestException({
+        code: 'REFUND_FAILED',
+        message: result.failureReason,
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      return finish(
+        'PENDING',
+        '99',
+        undefined,
+        'Refund outcome requires reconciliation',
+      );
     }
   }
 
@@ -1436,7 +1557,10 @@ export class PaymentsService {
         if (current.status !== 'PROCESSING') return;
         await tx.payment.update({
           where: { id: current.id },
-          data: { status: 'EXPIRED', failureReason: 'Giao dịch hết hạn thanh toán' },
+          data: {
+            status: 'EXPIRED',
+            failureReason: 'Giao dịch hết hạn thanh toán',
+          },
         });
         await this.restoreHeldPoints(tx, current, current.order);
       });
@@ -1449,6 +1573,7 @@ export class PaymentsService {
     tx: Prisma.TransactionClient,
     payment: Payment,
     order: Order,
+    restoreOrderTotals = true,
   ) {
     if (payment.pointsUsed > 0) {
       const existingRefund = await tx.loyaltyTransaction.findFirst({
@@ -1477,13 +1602,14 @@ export class PaymentsService {
           },
         });
 
-        await tx.order.update({
-          where: { id: order.id },
-          data: {
-            discountAmount: order.discountAmount - payment.pointsAmount,
-            total: order.total + payment.pointsAmount,
-          },
-        });
+        if (restoreOrderTotals)
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              discountAmount: order.discountAmount - payment.pointsAmount,
+              total: order.total + payment.pointsAmount,
+            },
+          });
       }
     }
   }
@@ -1531,7 +1657,8 @@ export class PaymentsService {
           if (refreshed?.status === 'EXPIRED') {
             throw new ConflictException({
               code: 'PAYMENT_EXPIRED',
-              message: 'Giao dịch đã hết hạn thanh toán. Vui lòng thanh toán lại với khóa mới',
+              message:
+                'Giao dịch đã hết hạn thanh toán. Vui lòng thanh toán lại với khóa mới',
             });
           }
           if (refreshed) payment = refreshed;

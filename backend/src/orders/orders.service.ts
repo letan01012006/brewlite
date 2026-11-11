@@ -268,7 +268,24 @@ export class OrdersService {
     // One query across all active states: history and offset pagination cannot
     // hide an older unfinished order. Oldest orders are served first.
     return this.prisma.order.findMany({
-      where: { status: { in: ['PAID', 'PREPARING', 'READY'] } },
+      where: {
+        status: { in: ['PAID', 'PREPARING', 'READY'] },
+        payments: {
+          none: {
+            status: 'SUCCESS',
+            OR: [
+              { refundedAt: { not: null } },
+              {
+                refunds: {
+                  some: {
+                    status: { in: ['PENDING', 'PROCESSING', 'SUCCESS'] },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       include: {
         items: true,
@@ -331,6 +348,7 @@ export class OrdersService {
             pointsAmount: true,
             paymentUrl: true,
             providerRef: true,
+            refunds: { select: { status: true, confirmedAt: true } },
             refundedAt: true,
             refundedAmount: true,
             refundRef: true,
@@ -666,6 +684,26 @@ export class OrdersService {
       }
 
       // Kiểm tra State Machine xem có nhảy cóc sai trạng thái không
+      const refunding = await tx.payment.findFirst({
+        where: {
+          orderId,
+          status: 'SUCCESS',
+          OR: [
+            { refundedAt: { not: null } },
+            {
+              refunds: {
+                some: { status: { in: ['PENDING', 'PROCESSING', 'SUCCESS'] } },
+              },
+            },
+          ],
+        },
+      });
+      if (refunding)
+        throw new ConflictException({
+          code: 'ORDER_REFUND_IN_PROGRESS',
+          message:
+            'Đơn đang chờ hoàn tiền hoặc đã hoàn tiền, không thể nhận pha chế',
+        });
       assertTransition(order.status as OrderStatus, newStatus);
       if (newStatus === 'PREPARING')
         await this.inventory.finish(tx, orderId, true);
