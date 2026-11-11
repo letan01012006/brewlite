@@ -431,16 +431,46 @@ export class OrdersService {
       const processingPayment = order.payments.find(
         (p) => p.status === 'PROCESSING',
       );
+      let releaseInventory = true;
       if (processingPayment) {
         if (processingPayment.method === 'VNPAY') {
+          // Query while holding the order lock: cancellation, IPN and expiry
+          // cannot decide ownership of the same reservation concurrently.
+          const result =
+            await this.paymentsService.queryVnpayPayment(processingPayment);
+          const paid = result?.success === true;
+          releaseInventory =
+            !processingPayment.gatewayTxnRef ||
+            paid ||
+            this.paymentsService.isConfirmedUnpaid(result);
           // Khách chủ động hủy đơn khi giao dịch VNPAY bị bỏ dở (Vấn đề 3)
           await tx.payment.update({
             where: { id: processingPayment.id },
             data: {
-              status: 'CANCELLED',
+              status: paid ? 'NEEDS_REFUND' : 'CANCELLED',
+              ...(paid
+                ? {
+                    providerRef: result.transactionNo,
+                    paidAt: new Date(),
+                    vnpPayDate: result.payDate,
+                    gatewayResponseCode: result.responseCode,
+                    gatewayTransactionStatus: result.transactionStatus,
+                  }
+                : {}),
               failureReason: 'Khách hàng hủy đơn khi đang chờ thanh toán VNPAY',
             },
           });
+          if (paid)
+            await tx.paymentRefund.upsert({
+              where: { paymentId: processingPayment.id },
+              create: {
+                paymentId: processingPayment.id,
+                amount: processingPayment.amount,
+                idempotencyKey: `payment:${processingPayment.id}:refund`,
+                status: 'PENDING',
+              },
+              update: {},
+            });
 
           // Hoàn lại điểm thưởng nếu phiên thanh toán này có giữ điểm
           if (processingPayment.pointsUsed > 0) {
@@ -494,7 +524,7 @@ export class OrdersService {
 
       // 1. Gộp và khóa sản phẩm cùng thứ tự với luồng tạo đơn để tránh deadlock.
       const qtyByProduct = new Map<number, number>();
-      await this.inventory.finish(tx, orderId, false);
+      if (releaseInventory) await this.inventory.finish(tx, orderId, false);
       for (const item of order.items.filter(
         (item) => item.recipeSnapshot === null,
       )) {

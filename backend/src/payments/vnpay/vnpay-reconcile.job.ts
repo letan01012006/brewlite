@@ -56,8 +56,15 @@ export class VnpayReconcileJob implements OnModuleInit, OnModuleDestroy {
     const expiredPayments = await this.prisma.payment.findMany({
       where: {
         method: 'VNPAY',
-        status: 'PROCESSING',
-        expiresAt: { lte: now },
+        OR: [
+          { status: 'PROCESSING', expiresAt: { lte: now } },
+          // A cancellation with an unknown gateway outcome keeps its hold
+          // until reconciliation confirms where the money went.
+          {
+            status: 'CANCELLED',
+            order: { inventoryReservation: { status: 'HELD' } },
+          },
+        ],
       },
       select: { id: true, gatewayTxnRef: true },
       take: 20,
@@ -75,4 +82,3 @@ export class VnpayReconcileJob implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
-

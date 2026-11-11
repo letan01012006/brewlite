@@ -1915,6 +1915,7 @@ export const InventoryMovementScalarFieldEnum = {
   stockDelta: 'stockDelta',
   reservedDelta: 'reservedDelta',
   reservationId: 'reservationId',
+  reservationVersion: 'reservationVersion',
   orderId: 'orderId',
   actorId: 'actorId',
   reason: 'reason',

@@ -32,6 +32,7 @@ export type InventoryMovementAvgAggregateOutputType = {
   stockDelta: runtime.Decimal | null
   reservedDelta: runtime.Decimal | null
   reservationId: number | null
+  reservationVersion: number | null
   orderId: number | null
   actorId: number | null
 }
@@ -42,6 +43,7 @@ export type InventoryMovementSumAggregateOutputType = {
   stockDelta: runtime.Decimal | null
   reservedDelta: runtime.Decimal | null
   reservationId: number | null
+  reservationVersion: number | null
   orderId: number | null
   actorId: number | null
 }
@@ -55,6 +57,7 @@ export type InventoryMovementMinAggregateOutputType = {
   stockDelta: runtime.Decimal | null
   reservedDelta: runtime.Decimal | null
   reservationId: number | null
+  reservationVersion: number | null
   orderId: number | null
   actorId: number | null
   reason: string | null
@@ -70,6 +73,7 @@ export type InventoryMovementMaxAggregateOutputType = {
   stockDelta: runtime.Decimal | null
   reservedDelta: runtime.Decimal | null
   reservationId: number | null
+  reservationVersion: number | null
   orderId: number | null
   actorId: number | null
   reason: string | null
@@ -85,6 +89,7 @@ export type InventoryMovementCountAggregateOutputType = {
   stockDelta: number
   reservedDelta: number
   reservationId: number
+  reservationVersion: number
   orderId: number
   actorId: number
   reason: number
@@ -99,6 +104,7 @@ export type InventoryMovementAvgAggregateInputType = {
   stockDelta?: true
   reservedDelta?: true
   reservationId?: true
+  reservationVersion?: true
   orderId?: true
   actorId?: true
 }
@@ -109,6 +115,7 @@ export type InventoryMovementSumAggregateInputType = {
   stockDelta?: true
   reservedDelta?: true
   reservationId?: true
+  reservationVersion?: true
   orderId?: true
   actorId?: true
 }
@@ -122,6 +129,7 @@ export type InventoryMovementMinAggregateInputType = {
   stockDelta?: true
   reservedDelta?: true
   reservationId?: true
+  reservationVersion?: true
   orderId?: true
   actorId?: true
   reason?: true
@@ -137,6 +145,7 @@ export type InventoryMovementMaxAggregateInputType = {
   stockDelta?: true
   reservedDelta?: true
   reservationId?: true
+  reservationVersion?: true
   orderId?: true
   actorId?: true
   reason?: true
@@ -152,6 +161,7 @@ export type InventoryMovementCountAggregateInputType = {
   stockDelta?: true
   reservedDelta?: true
   reservationId?: true
+  reservationVersion?: true
   orderId?: true
   actorId?: true
   reason?: true
@@ -254,6 +264,7 @@ export type InventoryMovementGroupByOutputType = {
   stockDelta: runtime.Decimal
   reservedDelta: runtime.Decimal
   reservationId: number | null
+  reservationVersion: number
   orderId: number | null
   actorId: number | null
   reason: string | null
@@ -292,6 +303,7 @@ export type InventoryMovementWhereInput = {
   stockDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
+  reservationVersion?: Prisma.IntFilter<"InventoryMovement"> | number
   orderId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   actorId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   reason?: Prisma.StringNullableFilter<"InventoryMovement"> | string | null
@@ -312,6 +324,7 @@ export type InventoryMovementOrderByWithRelationInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrderInput | Prisma.SortOrder
   actorId?: Prisma.SortOrderInput | Prisma.SortOrder
   reason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -326,7 +339,7 @@ export type InventoryMovementOrderByWithRelationInput = {
 export type InventoryMovementWhereUniqueInput = Prisma.AtLeast<{
   id?: number
   eventKey?: string
-  reservationId_ingredientId_kind?: Prisma.InventoryMovementReservationIdIngredientIdKindCompoundUniqueInput
+  reservationId_ingredientId_kind_reservationVersion?: Prisma.InventoryMovementReservationIdIngredientIdKindReservationVersionCompoundUniqueInput
   AND?: Prisma.InventoryMovementWhereInput | Prisma.InventoryMovementWhereInput[]
   OR?: Prisma.InventoryMovementWhereInput[]
   NOT?: Prisma.InventoryMovementWhereInput | Prisma.InventoryMovementWhereInput[]
@@ -336,6 +349,7 @@ export type InventoryMovementWhereUniqueInput = Prisma.AtLeast<{
   stockDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
+  reservationVersion?: Prisma.IntFilter<"InventoryMovement"> | number
   orderId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   actorId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   reason?: Prisma.StringNullableFilter<"InventoryMovement"> | string | null
@@ -345,7 +359,7 @@ export type InventoryMovementWhereUniqueInput = Prisma.AtLeast<{
   reservationItem?: Prisma.XOR<Prisma.InventoryReservationItemNullableScalarRelationFilter, Prisma.InventoryReservationItemWhereInput> | null
   order?: Prisma.XOR<Prisma.OrderNullableScalarRelationFilter, Prisma.OrderWhereInput> | null
   actor?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
-}, "id" | "eventKey" | "reservationId_ingredientId_kind">
+}, "id" | "eventKey" | "reservationId_ingredientId_kind_reservationVersion">
 
 export type InventoryMovementOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -356,6 +370,7 @@ export type InventoryMovementOrderByWithAggregationInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrderInput | Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrderInput | Prisma.SortOrder
   actorId?: Prisma.SortOrderInput | Prisma.SortOrder
   reason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -379,6 +394,7 @@ export type InventoryMovementScalarWhereWithAggregatesInput = {
   stockDelta?: Prisma.DecimalWithAggregatesFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalWithAggregatesFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.IntNullableWithAggregatesFilter<"InventoryMovement"> | number | null
+  reservationVersion?: Prisma.IntWithAggregatesFilter<"InventoryMovement"> | number
   orderId?: Prisma.IntNullableWithAggregatesFilter<"InventoryMovement"> | number | null
   actorId?: Prisma.IntNullableWithAggregatesFilter<"InventoryMovement"> | number | null
   reason?: Prisma.StringNullableWithAggregatesFilter<"InventoryMovement"> | string | null
@@ -390,6 +406,7 @@ export type InventoryMovementCreateInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   ingredient: Prisma.IngredientCreateNestedOneWithoutMovementsInput
@@ -408,6 +425,7 @@ export type InventoryMovementUncheckedCreateInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -419,6 +437,7 @@ export type InventoryMovementUpdateInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   ingredient?: Prisma.IngredientUpdateOneRequiredWithoutMovementsNestedInput
@@ -437,6 +456,7 @@ export type InventoryMovementUncheckedUpdateInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -452,6 +472,7 @@ export type InventoryMovementCreateManyInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -463,6 +484,7 @@ export type InventoryMovementUpdateManyMutationInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -476,6 +498,7 @@ export type InventoryMovementUncheckedUpdateManyInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -492,10 +515,11 @@ export type InventoryMovementOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
-export type InventoryMovementReservationIdIngredientIdKindCompoundUniqueInput = {
+export type InventoryMovementReservationIdIngredientIdKindReservationVersionCompoundUniqueInput = {
   reservationId: number
   ingredientId: number
   kind: $Enums.InventoryMovementKind
+  reservationVersion: number
 }
 
 export type InventoryMovementCountOrderByAggregateInput = {
@@ -507,6 +531,7 @@ export type InventoryMovementCountOrderByAggregateInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
   reason?: Prisma.SortOrder
@@ -519,6 +544,7 @@ export type InventoryMovementAvgOrderByAggregateInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
 }
@@ -532,6 +558,7 @@ export type InventoryMovementMaxOrderByAggregateInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
   reason?: Prisma.SortOrder
@@ -547,6 +574,7 @@ export type InventoryMovementMinOrderByAggregateInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
   reason?: Prisma.SortOrder
@@ -559,6 +587,7 @@ export type InventoryMovementSumOrderByAggregateInput = {
   stockDelta?: Prisma.SortOrder
   reservedDelta?: Prisma.SortOrder
   reservationId?: Prisma.SortOrder
+  reservationVersion?: Prisma.SortOrder
   orderId?: Prisma.SortOrder
   actorId?: Prisma.SortOrder
 }
@@ -782,6 +811,7 @@ export type InventoryMovementCreateWithoutActorInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   ingredient: Prisma.IngredientCreateNestedOneWithoutMovementsInput
@@ -799,6 +829,7 @@ export type InventoryMovementUncheckedCreateWithoutActorInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -842,6 +873,7 @@ export type InventoryMovementScalarWhereInput = {
   stockDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFilter<"InventoryMovement"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
+  reservationVersion?: Prisma.IntFilter<"InventoryMovement"> | number
   orderId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   actorId?: Prisma.IntNullableFilter<"InventoryMovement"> | number | null
   reason?: Prisma.StringNullableFilter<"InventoryMovement"> | string | null
@@ -853,6 +885,7 @@ export type InventoryMovementCreateWithoutOrderInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   ingredient: Prisma.IngredientCreateNestedOneWithoutMovementsInput
@@ -870,6 +903,7 @@ export type InventoryMovementUncheckedCreateWithoutOrderInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   actorId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -906,6 +940,7 @@ export type InventoryMovementCreateWithoutIngredientInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   reservation?: Prisma.InventoryReservationCreateNestedOneWithoutMovementsInput
@@ -921,6 +956,7 @@ export type InventoryMovementUncheckedCreateWithoutIngredientInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -958,6 +994,7 @@ export type InventoryMovementCreateWithoutReservationInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   ingredient: Prisma.IngredientCreateNestedOneWithoutMovementsInput
@@ -974,6 +1011,7 @@ export type InventoryMovementUncheckedCreateWithoutReservationInput = {
   unit: $Enums.IngredientUnit
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   actorId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -1010,6 +1048,7 @@ export type InventoryMovementCreateWithoutReservationItemInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   reason?: string | null
   createdAt?: Date | string
   ingredient: Prisma.IngredientCreateNestedOneWithoutMovementsInput
@@ -1024,6 +1063,7 @@ export type InventoryMovementUncheckedCreateWithoutReservationItemInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -1065,6 +1105,7 @@ export type InventoryMovementCreateManyActorInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -1075,6 +1116,7 @@ export type InventoryMovementUpdateWithoutActorInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   ingredient?: Prisma.IngredientUpdateOneRequiredWithoutMovementsNestedInput
@@ -1092,6 +1134,7 @@ export type InventoryMovementUncheckedUpdateWithoutActorInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1106,6 +1149,7 @@ export type InventoryMovementUncheckedUpdateManyWithoutActorInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1120,6 +1164,7 @@ export type InventoryMovementCreateManyOrderInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   actorId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -1130,6 +1175,7 @@ export type InventoryMovementUpdateWithoutOrderInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   ingredient?: Prisma.IngredientUpdateOneRequiredWithoutMovementsNestedInput
@@ -1147,6 +1193,7 @@ export type InventoryMovementUncheckedUpdateWithoutOrderInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1161,6 +1208,7 @@ export type InventoryMovementUncheckedUpdateManyWithoutOrderInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1173,6 +1221,7 @@ export type InventoryMovementCreateManyIngredientInput = {
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: number | null
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -1184,6 +1233,7 @@ export type InventoryMovementUpdateWithoutIngredientInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   reservation?: Prisma.InventoryReservationUpdateOneWithoutMovementsNestedInput
@@ -1199,6 +1249,7 @@ export type InventoryMovementUncheckedUpdateWithoutIngredientInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1212,6 +1263,7 @@ export type InventoryMovementUncheckedUpdateManyWithoutIngredientInput = {
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservationId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1226,6 +1278,7 @@ export type InventoryMovementCreateManyReservationInput = {
   unit: $Enums.IngredientUnit
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   actorId?: number | null
   reason?: string | null
   createdAt?: Date | string
@@ -1236,6 +1289,7 @@ export type InventoryMovementUpdateWithoutReservationInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   ingredient?: Prisma.IngredientUpdateOneRequiredWithoutMovementsNestedInput
@@ -1252,6 +1306,7 @@ export type InventoryMovementUncheckedUpdateWithoutReservationInput = {
   unit?: Prisma.EnumIngredientUnitFieldUpdateOperationsInput | $Enums.IngredientUnit
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1265,6 +1320,7 @@ export type InventoryMovementUncheckedUpdateManyWithoutReservationInput = {
   unit?: Prisma.EnumIngredientUnitFieldUpdateOperationsInput | $Enums.IngredientUnit
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1276,6 +1332,7 @@ export type InventoryMovementCreateManyReservationItemInput = {
   kind: $Enums.InventoryMovementKind
   stockDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta: runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: number
   orderId?: number | null
   actorId?: number | null
   reason?: string | null
@@ -1287,6 +1344,7 @@ export type InventoryMovementUpdateWithoutReservationItemInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   ingredient?: Prisma.IngredientUpdateOneRequiredWithoutMovementsNestedInput
@@ -1301,6 +1359,7 @@ export type InventoryMovementUncheckedUpdateWithoutReservationItemInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1313,6 +1372,7 @@ export type InventoryMovementUncheckedUpdateManyWithoutReservationItemInput = {
   kind?: Prisma.EnumInventoryMovementKindFieldUpdateOperationsInput | $Enums.InventoryMovementKind
   stockDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
   reservedDelta?: Prisma.DecimalFieldUpdateOperationsInput | runtime.Decimal | runtime.DecimalJsLike | number | string
+  reservationVersion?: Prisma.IntFieldUpdateOperationsInput | number
   orderId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   actorId?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   reason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1330,6 +1390,7 @@ export type InventoryMovementSelect<ExtArgs extends runtime.Types.Extensions.Int
   stockDelta?: boolean
   reservedDelta?: boolean
   reservationId?: boolean
+  reservationVersion?: boolean
   orderId?: boolean
   actorId?: boolean
   reason?: boolean
@@ -1350,6 +1411,7 @@ export type InventoryMovementSelectCreateManyAndReturn<ExtArgs extends runtime.T
   stockDelta?: boolean
   reservedDelta?: boolean
   reservationId?: boolean
+  reservationVersion?: boolean
   orderId?: boolean
   actorId?: boolean
   reason?: boolean
@@ -1370,6 +1432,7 @@ export type InventoryMovementSelectUpdateManyAndReturn<ExtArgs extends runtime.T
   stockDelta?: boolean
   reservedDelta?: boolean
   reservationId?: boolean
+  reservationVersion?: boolean
   orderId?: boolean
   actorId?: boolean
   reason?: boolean
@@ -1390,13 +1453,14 @@ export type InventoryMovementSelectScalar = {
   stockDelta?: boolean
   reservedDelta?: boolean
   reservationId?: boolean
+  reservationVersion?: boolean
   orderId?: boolean
   actorId?: boolean
   reason?: boolean
   createdAt?: boolean
 }
 
-export type InventoryMovementOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "eventKey" | "kind" | "ingredientId" | "unit" | "stockDelta" | "reservedDelta" | "reservationId" | "orderId" | "actorId" | "reason" | "createdAt", ExtArgs["result"]["inventoryMovement"]>
+export type InventoryMovementOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "eventKey" | "kind" | "ingredientId" | "unit" | "stockDelta" | "reservedDelta" | "reservationId" | "reservationVersion" | "orderId" | "actorId" | "reason" | "createdAt", ExtArgs["result"]["inventoryMovement"]>
 export type InventoryMovementInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   ingredient?: boolean | Prisma.IngredientDefaultArgs<ExtArgs>
   reservation?: boolean | Prisma.InventoryMovement$reservationArgs<ExtArgs>
@@ -1437,6 +1501,7 @@ export type $InventoryMovementPayload<ExtArgs extends runtime.Types.Extensions.I
     stockDelta: runtime.Decimal
     reservedDelta: runtime.Decimal
     reservationId: number | null
+    reservationVersion: number
     orderId: number | null
     actorId: number | null
     reason: string | null
@@ -1877,6 +1942,7 @@ export interface InventoryMovementFieldRefs {
   readonly stockDelta: Prisma.FieldRef<"InventoryMovement", 'Decimal'>
   readonly reservedDelta: Prisma.FieldRef<"InventoryMovement", 'Decimal'>
   readonly reservationId: Prisma.FieldRef<"InventoryMovement", 'Int'>
+  readonly reservationVersion: Prisma.FieldRef<"InventoryMovement", 'Int'>
   readonly orderId: Prisma.FieldRef<"InventoryMovement", 'Int'>
   readonly actorId: Prisma.FieldRef<"InventoryMovement", 'Int'>
   readonly reason: Prisma.FieldRef<"InventoryMovement", 'String'>

@@ -211,15 +211,11 @@ before(
       select: { id: true },
     });
     oldProductId = product.id;
-    const user = await legacy.user.create({
-      data: {
-        email: 'legacy-inventory@test.example',
-        fullName: 'Legacy',
-        passwordHash: 'unchanged-hash',
-        loyaltyPoints: 321,
-      },
-      select: { id: true },
-    });
+    // Current Prisma inserts auth defaults absent from this historical schema.
+    const [user] = await legacy.$queryRaw<Array<{ id: number }>>`
+      INSERT INTO "User" (email, "fullName", "passwordHash", "loyaltyPoints")
+      VALUES ('legacy-inventory@test.example', 'Legacy', 'unchanged-hash', 321)
+      RETURNING id`;
     oldUserId = user.id;
     await legacy.promoCode.create({
       data: {

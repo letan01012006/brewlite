@@ -300,8 +300,9 @@ export class PaymentsService {
             });
           }
 
-          // Nếu thanh toán 100% bằng POINTS: chuyển order sang PAID ngay
-          if (dto.method === 'POINTS') {
+          // Reserve before any VNPAY URL can escape. The reservation and points
+          // hold roll back together when another order wins the last stock.
+          if (dto.method === 'VNPAY' || dto.method === 'POINTS') {
             try {
               await this.inventory.hold(tx, order.id);
             } catch (error) {
@@ -314,7 +315,10 @@ export class PaymentsService {
               }
               throw error;
             }
+          }
 
+          // Nếu thanh toán 100% bằng POINTS: chuyển order sang PAID ngay
+          if (dto.method === 'POINTS') {
             await tx.order.update({
               where: { id: order.id },
               data: { status: 'PAID' },
@@ -466,7 +470,7 @@ export class PaymentsService {
           gatewayResult: {
             success: false,
             responseCode: '99',
-            source: 'QUERY',
+            source: 'CREATE',
             message: 'Không thể khởi tạo liên kết thanh toán VNPAY',
           },
         });
@@ -586,7 +590,7 @@ export class PaymentsService {
       cardType?: string;
       payDate?: string;
       amount?: number;
-      source: 'IPN' | 'RETURN' | 'QUERY' | 'REFUND';
+      source: 'IPN' | 'RETURN' | 'QUERY' | 'REFUND' | 'CREATE';
       requestId?: string;
       rawPayload?: Record<string, unknown>;
       message?: string;
@@ -643,7 +647,34 @@ export class PaymentsService {
       }
 
       const order = payment.order;
-      const { gatewayResult } = params;
+      let { gatewayResult } = params;
+      // A lost database acknowledgement may leave a URL visible to a replay.
+      // Only a never-published URL can be cleaned up without querying VNPAY.
+      if (gatewayResult.source === 'CREATE' && payment.gatewayTxnRef) {
+        const result = await this.queryVnpayPayment(payment);
+        if (result?.success) {
+          gatewayResult = { ...gatewayResult, ...result, source: 'QUERY' };
+        } else if (!this.isConfirmedUnpaid(result)) {
+          return {
+            status: payment.status,
+            message: 'Đang chờ đối soát kết quả thanh toán',
+          };
+        }
+      }
+      if (
+        !gatewayResult.success &&
+        gatewayResult.source !== 'CREATE' &&
+        (gatewayResult.responseCode === '99' ||
+          (gatewayResult.responseCode === '00' &&
+            !['02', '08', '11'].includes(
+              gatewayResult.transactionStatus ?? '',
+            )))
+      ) {
+        return {
+          status: payment.status,
+          message: 'Đang chờ đối soát kết quả thanh toán',
+        };
+      }
 
       // 1. CỔNG BÁO THÀNH CÔNG (00)
       if (gatewayResult.success) {
@@ -809,6 +840,7 @@ export class PaymentsService {
           });
 
           await this.restoreHeldPoints(tx, payment, order);
+          await this.releaseUnusedHold(tx, payment);
           await tx.paymentRefund.upsert({
             where: { paymentId: payment.id },
             create: {
@@ -873,6 +905,7 @@ export class PaymentsService {
 
       // Hoàn lại điểm thưởng nếu giao dịch thất bại / hủy
       await this.restoreHeldPoints(tx, payment, order);
+      await this.releaseUnusedHold(tx, payment);
 
       const otherActive = await tx.payment.findFirst({
         where: {
@@ -1073,7 +1106,12 @@ export class PaymentsService {
         querydrResult = null;
       }
 
-      if (querydrResult && querydrResult.responseCode !== '99') {
+      if (
+        querydrResult?.responseCode === '00' &&
+        (querydrResult.success ||
+          (this.isConfirmedUnpaid(querydrResult) &&
+            querydrResult.transactionStatus !== '01'))
+      ) {
         await this.settlePayment({
           paymentId: payment.id,
           gatewayResult: {
@@ -1504,7 +1542,7 @@ export class PaymentsService {
     });
     if (
       !payment ||
-      payment.status !== 'PROCESSING' ||
+      !['PROCESSING', 'CANCELLED'].includes(payment.status) ||
       payment.method !== 'VNPAY'
     ) {
       return;
@@ -1512,20 +1550,7 @@ export class PaymentsService {
 
     if (!payment.gatewayTxnRef) return;
 
-    let querydrResult: VnpayQueryResult | null = null;
-    try {
-      querydrResult = await this.vnpayGateway.queryTransaction({
-        txnRef: payment.gatewayTxnRef,
-        transactionDate:
-          payment.vnpCreateDate ||
-          payment.createdAt
-            .toISOString()
-            .replace(/[-:T.Z]/g, '')
-            .slice(0, 14),
-      });
-    } catch {
-      querydrResult = null;
-    }
+    const querydrResult = await this.queryVnpayPayment(payment);
 
     if (querydrResult && querydrResult.responseCode !== '99') {
       if (querydrResult.success) {
@@ -1547,24 +1572,78 @@ export class PaymentsService {
     }
 
     // Nếu querydr xác nhận chưa thanh toán hoặc thất bại, và đã quá hạn
-    if (payment.expiresAt && payment.expiresAt <= new Date()) {
-      await this.prisma.$transaction(async (tx) => {
+    if (
+      this.isConfirmedUnpaid(querydrResult) &&
+      ((payment.expiresAt && payment.expiresAt <= new Date()) ||
+        payment.status === 'CANCELLED')
+    ) {
+      await inventoryTransaction(this.prisma, async (tx) => {
         await lockOrder(tx, payment.orderId);
         const current = await tx.payment.findUniqueOrThrow({
           where: { id: payment.id },
           include: { order: true },
         });
-        if (current.status !== 'PROCESSING') return;
+        if (!['PROCESSING', 'CANCELLED'].includes(current.status)) return;
         await tx.payment.update({
           where: { id: current.id },
           data: {
-            status: 'EXPIRED',
+            status: current.status === 'CANCELLED' ? 'CANCELLED' : 'EXPIRED',
             failureReason: 'Giao dịch hết hạn thanh toán',
           },
         });
         await this.restoreHeldPoints(tx, current, current.order);
+        await this.releaseUnusedHold(tx, current);
       });
     }
+  }
+
+  async queryVnpayPayment(payment: Payment): Promise<VnpayQueryResult | null> {
+    if (!payment.gatewayTxnRef) return null;
+    try {
+      const result = await this.vnpayGateway.queryTransaction({
+        txnRef: payment.gatewayTxnRef,
+        transactionDate:
+          payment.vnpCreateDate ||
+          payment.createdAt
+            .toISOString()
+            .replace(/[-:T.Z]/g, '')
+            .slice(0, 14),
+      });
+      return result.amount !== undefined && result.amount !== payment.amount
+        ? null
+        : result;
+    } catch {
+      return null;
+    }
+  }
+
+  isConfirmedUnpaid(result: VnpayQueryResult | null): boolean {
+    return Boolean(
+      result &&
+      result.responseCode === '00' &&
+      !result.success &&
+      ['01', '02', '08', '11'].includes(result.transactionStatus ?? ''),
+    );
+  }
+
+  // Call with the order locked. An older session must not release a retry's hold.
+  private async releaseUnusedHold(
+    tx: Prisma.TransactionClient,
+    payment: Payment,
+  ) {
+    const other = await tx.payment.findFirst({
+      where: {
+        orderId: payment.orderId,
+        id: { not: payment.id },
+        status: { in: ['PROCESSING', 'SUCCESS'] },
+      },
+    });
+    if (other) return;
+    const reservation = await tx.inventoryReservation.findUnique({
+      where: { orderId: payment.orderId },
+    });
+    if (reservation?.status === 'HELD')
+      await this.inventory.finish(tx, payment.orderId, false);
   }
 
   // Call only while holding the order lock. The ledger's unique payment/type
@@ -1659,6 +1738,12 @@ export class PaymentsService {
               code: 'PAYMENT_EXPIRED',
               message:
                 'Giao dịch đã hết hạn thanh toán. Vui lòng thanh toán lại với khóa mới',
+            });
+          }
+          if (refreshed?.status === 'PROCESSING') {
+            throw new ConflictException({
+              code: 'PAYMENT_AWAITING_RECONCILIATION',
+              message: 'Đang chờ đối soát phiên thanh toán hết hạn',
             });
           }
           if (refreshed) payment = refreshed;
