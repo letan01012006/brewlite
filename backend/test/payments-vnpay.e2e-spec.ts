@@ -4,6 +4,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import request from 'supertest';
@@ -457,7 +458,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(badAmountRes.body.RspCode).toBe('04');
   });
 
-  it('B5: Successful IPN transitions Order to PAID without adding loyalty points; duplicate IPN is safe', async () => {
+  it('B5: Successful IPN awards loyalty points atomically at PAID; duplicate IPN is safe', async () => {
     const order = await createOrder(50000);
     const payRes = await request(app.getHttpServer())
       .post('/api/payments')
@@ -489,18 +490,29 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(ipnRes1.body.RspCode).toBe('00');
 
     // Order should be PAID
-    const orderAfter = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+    const orderAfter = await db.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
     expect(orderAfter.status).toBe('PAID');
+    expect(orderAfter.pointsEarned).toBe(50);
 
     // Payment should be SUCCESS
-    const paymentAfter = await db.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    const paymentAfter = await db.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+    });
     expect(paymentAfter.status).toBe('SUCCESS');
     expect(paymentAfter.providerRef).toBe('99887766');
 
-    // Crucial: Loyalty points must NOT be added at payment time!
-    const userAfter = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(userAfter.loyaltyPoints).toBe(WELCOME_POINTS);
-    expect(await db.loyaltyTransaction.count({ where: { orderId: order.id } })).toBe(0);
+    // Points are available immediately after payment commits.
+    const userAfter = await db.user.findUniqueOrThrow({
+      where: { id: customerUser.id },
+    });
+    expect(userAfter.loyaltyPoints).toBe(WELCOME_POINTS + 50);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toBe(1);
 
     // Duplicate IPN -> returns 02 (already confirmed)
     const ipnRes2 = await request(app.getHttpServer())
@@ -508,9 +520,20 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       .query(ipnQuery)
       .expect(200);
     expect(ipnRes2.body.RspCode).toBe('02');
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toBe(1);
 
     // PaymentWebhookLog must not contain vnp_SecureHash
-    const logs = await db.paymentWebhookLog.findMany({ where: { paymentId: payment.id } });
+    const logs = await db.paymentWebhookLog.findMany({
+      where: { paymentId: payment.id },
+    });
     for (const log of logs) {
       const payloadStr = JSON.stringify(log.rawPayload);
       expect(payloadStr).not.toContain('vnp_SecureHash');
@@ -645,7 +668,7 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(refundRes2.body.message).toContain('trước đó');
   });
 
-  it('B9: Barista status updates to COMPLETED awards loyalty points once; legacy EARN is not re-awarded', async () => {
+  it('B9: COMPLETED and repeated callbacks do not award points again after PAID', async () => {
     const order = await createOrder(50000);
     const payRes = await request(app.getHttpServer())
       .post('/api/payments')
@@ -683,18 +706,22 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       .send({ status: 'READY' })
       .expect(200);
 
-    // Welcome points stay unchanged until COMPLETED.
-    let customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
-    expect(customer.loyaltyPoints).toBe(WELCOME_POINTS);
+    // Points have already been credited at PAID.
+    let customer = await db.user.findUniqueOrThrow({
+      where: { id: customerUser.id },
+    });
+    expect(customer.loyaltyPoints).toBe(WELCOME_POINTS + 50);
 
-    // COMPLETED -> earns 50 points (50000 / 1000 = 50)
+    // COMPLETED does not credit another 50 points.
     await request(app.getHttpServer())
       .patch(`/api/orders/${order.id}/status`)
       .auth(baristaToken, { type: 'bearer' })
       .send({ status: 'COMPLETED' })
       .expect(200);
 
-    customer = await db.user.findUniqueOrThrow({ where: { id: customerUser.id } });
+    customer = await db.user.findUniqueOrThrow({
+      where: { id: customerUser.id },
+    });
     expect(customer.loyaltyPoints).toBe(WELCOME_POINTS + 50);
 
     const earnTx = await db.loyaltyTransaction.findFirst({
@@ -703,6 +730,24 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     expect(earnTx).not.toBeNull();
     expect(earnTx!.points).toBe(50);
     expect(earnTx!.eventKey).toBe(`order:${order.id}:earn`);
+    await request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(ipnQuery)
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/orders/${order.id}/status`)
+      .auth(baristaToken, { type: 'bearer' })
+      .send({ status: 'COMPLETED' })
+      .expect(409);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toBe(1);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
   });
 
   it('B10: 100% points payment completes immediately without VNPAY', async () => {
@@ -1060,6 +1105,404 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
       .patch(`/api/orders/${orderId}/status`)
       .auth(baristaToken, { type: 'bearer' })
       .send({ status: 'PREPARING' });
+  const ipnFor = (
+    payment: { id: number; amount: number; gatewayTxnRef: string | null },
+    success = true,
+  ) =>
+    request(app.getHttpServer())
+      .get('/api/payments/vnpay/ipn')
+      .query(
+        signVnpayParams({
+          vnp_Amount: String(payment.amount * 100),
+          vnp_TxnRef: payment.gatewayTxnRef!,
+          vnp_ResponseCode: success ? '00' : '51',
+          vnp_TransactionStatus: success ? '00' : '02',
+          vnp_TransactionNo: `TASK10_${payment.id}`,
+          vnp_TmnCode: testConfig.tmnCode,
+        }),
+      );
+
+  const loyaltyVnpay = async (orderId: number, pointsUsed = 0) => {
+    const response = await request(app.getHttpServer())
+      .post('/api/payments')
+      .auth(customerToken, { type: 'bearer' })
+      .set('Idempotency-Key', randomUUID())
+      .send({ orderId, method: 'VNPAY', pointsUsed })
+      .expect(201);
+    return db.payment.findUniqueOrThrow({
+      where: { id: response.body.payment.id },
+    });
+  };
+
+  const completeOrder = async (orderId: number) => {
+    for (const status of ['PREPARING', 'READY', 'COMPLETED'])
+      await request(app.getHttpServer())
+        .patch(`/api/orders/${orderId}/status`)
+        .auth(baristaToken, { type: 'bearer' })
+        .send({ status })
+        .expect(200);
+  };
+
+  it('T10: partial-points VNPAY earns only the real amount, once under concurrent IPNs and COMPLETED', async () => {
+    const order = await createOrder(50000);
+    const payment = await loyaltyVnpay(order.id, 100);
+    const results = await Promise.all([
+      ipnFor(payment),
+      ipnFor(payment),
+      ipnFor(payment),
+    ]);
+    expect(results.map((r) => String(r.body.RspCode)).sort((a, b) => a.localeCompare(b))).toEqual([
+      '00',
+      '02',
+      '02',
+    ]);
+    expect(
+      await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+    ).toMatchObject({ status: 'PAID', pointsEarned: 45 });
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS - 100 + 45);
+    await completeOrder(order.id);
+    await ipnFor(payment).expect(200);
+    expect(
+      await db.loyaltyTransaction.findMany({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toMatchObject([{ points: 45, paymentId: payment.id }]);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS - 100 + 45);
+  });
+
+  it('T10: mocked payment credits floored points at PAID and replay does not credit again', async () => {
+    const config = app.get(ConfigService);
+    const readConfig = config.get.bind(config);
+    vi.spyOn(config, 'get').mockImplementation((key: string) =>
+      key === 'PAYMENT_MOCK_ENABLED' ? 'true' : readConfig(key),
+    );
+    await db.product.update({
+      where: { id: testProduct.id },
+      data: { price: 50999 },
+    });
+    const order = await createOrder(50000);
+    const key = randomUUID();
+    const pay = () =>
+      request(app.getHttpServer())
+        .post('/api/payments')
+        .auth(customerToken, { type: 'bearer' })
+        .set('Idempotency-Key', key)
+        .send({ orderId: order.id, method: 'WALLET', mockResult: 'SUCCESS' });
+    expect((await pay().expect(201)).body.order.pointsEarned).toBe(50);
+    await pay().expect(201);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toBe(1);
+  });
+
+  it('T10: a loyalty write failure rolls back PAID, payment settlement and balance together', async () => {
+    const order = await createOrder(50000);
+    const payment = await loyaltyVnpay(order.id);
+    await db.$executeRawUnsafe(`CREATE FUNCTION task10_reject_earn() RETURNS trigger AS $$
+      BEGIN IF NEW.type = 'EARN' THEN RAISE EXCEPTION 'Test loyalty write failure';
+      END IF; RETURN NEW; END; $$ LANGUAGE plpgsql`);
+    await db.$executeRawUnsafe(`CREATE TRIGGER task10_reject_earn BEFORE INSERT ON "LoyaltyTransaction"
+      FOR EACH ROW EXECUTE FUNCTION task10_reject_earn()`);
+    try {
+      await ipnFor(payment).expect(500);
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: order.id } })).status,
+      ).toBe('PENDING');
+      expect(
+        (await db.payment.findUniqueOrThrow({ where: { id: payment.id } }))
+          .status,
+      ).toBe('PROCESSING');
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+          .loyaltyPoints,
+      ).toBe(WELCOME_POINTS);
+      expect(
+        await db.loyaltyTransaction.count({ where: { orderId: order.id } }),
+      ).toBe(0);
+    } finally {
+      await db.$executeRawUnsafe(
+        'DROP TRIGGER task10_reject_earn ON "LoyaltyTransaction"',
+      );
+      await db.$executeRawUnsafe('DROP FUNCTION task10_reject_earn()');
+    }
+    await ipnFor(payment).expect(200);
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: order.id } })).status,
+    ).toBe('PAID');
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+  });
+
+  it.each([true, false])(
+    'T10: legacy order with existing EARN=%s is handled using the ledger',
+    async (existingEarn) => {
+      const { order, payment } = await paidVnpayOrder();
+      const earn = await db.loyaltyTransaction.findFirstOrThrow({
+        where: { orderId: order.id, type: 'EARN' },
+      });
+      if (existingEarn) {
+        // Legacy keys and amounts must be respected even if pointsEarned is stale.
+        await db.loyaltyTransaction.update({
+          where: { id: earn.id },
+          data: { eventKey: `legacy:loyalty:${earn.id}`, points: 25 },
+        });
+        await db.user.update({
+          where: { id: customerUser.id },
+          data: { loyaltyPoints: { decrement: 25 } },
+        });
+      } else {
+        await db.loyaltyTransaction.delete({ where: { id: earn.id } });
+        await db.user.update({
+          where: { id: customerUser.id },
+          data: { loyaltyPoints: { decrement: 50 } },
+        });
+      }
+      await db.order.update({
+        where: { id: order.id },
+        data: { pointsEarned: 0 },
+      });
+      await completeOrder(order.id);
+      await ipnFor(payment).expect(200);
+      expect(
+        await db.loyaltyTransaction.count({
+          where: { orderId: order.id, type: 'EARN' },
+        }),
+      ).toBe(1);
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+          .loyaltyPoints,
+      ).toBe(WELCOME_POINTS + (existingEarn ? 25 : 50));
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: order.id } }))
+          .pointsEarned,
+      ).toBe(existingEarn ? 25 : 50);
+      if (existingEarn)
+        expect(
+          (
+            await db.loyaltyTransaction.findUniqueOrThrow({
+              where: { id: earn.id },
+            })
+          ).eventKey,
+        ).toBe(`legacy:loyalty:${earn.id}`);
+    },
+  );
+
+  it('T10: a legacy SUCCESS callback backfills a missing EARN exactly once', async () => {
+    const { order, payment } = await paidVnpayOrder();
+    await db.loyaltyTransaction.deleteMany({
+      where: { orderId: order.id, type: 'EARN' },
+    });
+    await db.user.update({
+      where: { id: customerUser.id },
+      data: { loyaltyPoints: { decrement: 50 } },
+    });
+    await Promise.all([ipnFor(payment), ipnFor(payment)]);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'EARN' },
+      }),
+    ).toBe(1);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+  });
+
+  it('T10: points retry keeps the order ID and writes PAYMENT_FAILED -> PENDING -> PAID', async () => {
+    const order = await createOrder(50000);
+    const payment = await loyaltyVnpay(order.id);
+    await ipnFor(payment, false).expect(200);
+    await db.$executeRawUnsafe(
+      'CREATE TABLE "Task10Transitions" ("status" TEXT)',
+    );
+    await db.$executeRawUnsafe(`CREATE FUNCTION task10_track_status() RETURNS trigger AS $$
+      BEGIN IF OLD.status IS DISTINCT FROM NEW.status THEN
+        INSERT INTO "Task10Transitions" VALUES (NEW.status::text); END IF; RETURN NEW; END;
+      $$ LANGUAGE plpgsql`);
+    await db.$executeRawUnsafe(`CREATE TRIGGER task10_track_status AFTER UPDATE ON "Order"
+      FOR EACH ROW EXECUTE FUNCTION task10_track_status()`);
+    try {
+      const key = randomUUID();
+      const retry = () =>
+        request(app.getHttpServer())
+          .post('/api/payments')
+          .auth(customerToken, { type: 'bearer' })
+          .set('Idempotency-Key', key)
+          .send({ orderId: order.id, method: 'POINTS', pointsUsed: 1000 });
+      const result = await retry().expect(201);
+      expect(result.body.order).toMatchObject({
+        id: order.id,
+        status: 'PAID',
+        pointsEarned: 0,
+      });
+      await retry().expect(201);
+      expect(
+        await db.$queryRawUnsafe('SELECT "status" FROM "Task10Transitions"'),
+      ).toEqual([{ status: 'PENDING' }, { status: 'PAID' }]);
+      expect(await db.order.count({ where: { userId: customerUser.id } })).toBe(
+        1,
+      );
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+          .loyaltyPoints,
+      ).toBe(0);
+      expect(
+        await db.loyaltyTransaction.count({
+          where: { orderId: order.id, type: 'REDEEM' },
+        }),
+      ).toBe(1);
+      expect(
+        await db.loyaltyTransaction.findMany({
+          where: { orderId: order.id, type: 'EARN' },
+        }),
+      ).toMatchObject([{ points: 0 }]);
+    } finally {
+      await db.$executeRawUnsafe('DROP TRIGGER task10_track_status ON "Order"');
+      await db.$executeRawUnsafe('DROP FUNCTION task10_track_status()');
+      await db.$executeRawUnsafe('DROP TABLE "Task10Transitions"');
+    }
+  });
+
+  it.each(['balance', 'ingredients'])(
+    'T10: failed points retry (%s) keeps PAYMENT_FAILED and does not lose points',
+    async (reason) => {
+      const order = await createOrder(50000);
+      const payment = await loyaltyVnpay(order.id);
+      await ipnFor(payment, false).expect(200);
+      if (reason === 'balance')
+        await db.user.update({
+          where: { id: customerUser.id },
+          data: { loyaltyPoints: 500 },
+        });
+      else await db.ingredient.updateMany({ data: { stockQuantity: 0 } });
+      const key = randomUUID();
+      const retry = () =>
+        request(app.getHttpServer())
+          .post('/api/payments')
+          .auth(customerToken, { type: 'bearer' })
+          .set('Idempotency-Key', key)
+          .send({ orderId: order.id, method: 'POINTS', pointsUsed: 1000 });
+      await retry().expect(reason === 'balance' ? 400 : 422);
+      await retry().expect(reason === 'balance' ? 400 : 422);
+      expect(
+        await db.order.findUniqueOrThrow({ where: { id: order.id } }),
+      ).toMatchObject({
+        status: 'PAYMENT_FAILED',
+        total: 50000,
+        pointsEarned: 0,
+      });
+      expect(
+        await db.loyaltyTransaction.count({ where: { orderId: order.id } }),
+      ).toBe(0);
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+          .loyaltyPoints,
+      ).toBe(reason === 'balance' ? 500 : WELCOME_POINTS);
+      if (reason === 'balance')
+        await db.user.update({
+          where: { id: customerUser.id },
+          data: { loyaltyPoints: WELCOME_POINTS },
+        });
+      else await db.ingredient.updateMany({ data: { stockQuantity: 10000 } });
+      await retry().expect(201);
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: order.id } })).status,
+      ).toBe('PAID');
+    },
+  );
+
+  it.each(['cancel', 'refund', 'both'])(
+    'T10: %s revokes earned points and restores redeemed points exactly once',
+    async (action) => {
+      const order = await createOrder(50000);
+      const payment = await loyaltyVnpay(order.id, 100);
+      await ipnFor(payment).expect(200);
+      const cancel = () =>
+        request(app.getHttpServer())
+          .post(`/api/orders/${order.id}/cancel`)
+          .auth(customerToken, { type: 'bearer' });
+      if (action === 'cancel') {
+        await cancel().expect(200);
+        await cancel().expect(409);
+        expect(
+          (
+            await db.paymentRefund.findUniqueOrThrow({
+              where: { paymentId: payment.id },
+            })
+          ).status,
+        ).toBe('PENDING');
+      } else if (action === 'refund') {
+        await refundRequest(payment.id).expect(200);
+      } else {
+        const results = await Promise.all([
+          cancel(),
+          refundRequest(payment.id),
+        ]);
+        expect(results.map((result) => result.status)).toEqual([200, 200]);
+      }
+      await refundRequest(payment.id).expect(200);
+      await refundRequest(payment.id).expect(200);
+      await ipnFor(payment).expect(200);
+      expect(
+        await db.loyaltyTransaction.findMany({
+          where: { orderId: order.id, type: 'REVOKE' },
+        }),
+      ).toMatchObject([{ points: -45 }]);
+      expect(
+        await db.loyaltyTransaction.findMany({
+          where: { paymentId: payment.id, type: 'REFUND' },
+        }),
+      ).toMatchObject([{ points: 100 }]);
+      expect(
+        (
+          await db.loyaltyTransaction.findFirstOrThrow({
+            where: { orderId: order.id, type: 'EARN' },
+          })
+        ).reversedAt,
+      ).not.toBeNull();
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+          .loyaltyPoints,
+      ).toBe(WELCOME_POINTS);
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: order.id } }))
+          .pointsEarned,
+      ).toBe(0);
+    },
+  );
+
+  it('T10: an extra late charge refund does not revoke the successful tender reward', async () => {
+    const order = await createOrder(50000);
+    const oldPayment = await loyaltyVnpay(order.id);
+    await ipnFor(oldPayment, false).expect(200);
+    const payment = await loyaltyVnpay(order.id);
+    await ipnFor(payment).expect(200);
+    await ipnFor(oldPayment).expect(200);
+    await refundRequest(oldPayment.id).expect(200);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'REVOKE' },
+      }),
+    ).toBe(0);
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+  });
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((done) => {
@@ -1083,6 +1526,15 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     const second = await refundRequest(payment.id).expect(200);
     expect(second.body.refund.status).toBe('PROCESSING');
     expect(second.body.payment.refundedAt).toBeNull();
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS + 50);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'REVOKE' },
+      }),
+    ).toBe(0);
     const detail = await request(app.getHttpServer())
       .get(`/api/orders/${order.id}`)
       .auth(customerToken, { type: 'bearer' })
@@ -1100,6 +1552,15 @@ describe('VNPAY and Loyalty Points E2E Suite', () => {
     await prepareRequest(order.id).expect(409);
     response.resolve(fakeGateway.refundResult);
     expect((await first).body.refund.status).toBe('SUCCESS');
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: customerUser.id } }))
+        .loyaltyPoints,
+    ).toBe(WELCOME_POINTS);
+    expect(
+      await db.loyaltyTransaction.count({
+        where: { orderId: order.id, type: 'REVOKE' },
+      }),
+    ).toBe(1);
     const settled = await request(app.getHttpServer())
       .get(`/api/orders/${order.id}`)
       .auth(customerToken, { type: 'bearer' })

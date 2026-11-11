@@ -29,7 +29,7 @@ import {
   type BaristaAllowedStatus,
   type OrderStatus,
 } from './dto/update-order-status.dto.js';
-import { pointsEarnedFor } from '../promotions/voucher-rules.js';
+import { awardOrderPoints, revokeOrderPoints } from './order-loyalty.js';
 import { PaymentsService } from '../payments/payments.service.js';
 
 @Injectable()
@@ -502,7 +502,6 @@ export class OrdersService {
         include: {
           items: true,
           payments: true,
-          loyaltyTransactions: true,
         },
       });
 
@@ -649,47 +648,8 @@ export class OrdersService {
         });
       }
 
-      // 3. Nếu đơn đã PAID: Thu hồi điểm thưởng (nếu có EARN cũ) và ghi nhận hoàn tiền
+      // 3. Nếu đơn đã PAID: hoàn điểm đã dùng và ghi nhận hoàn tiền
       if (order.status === 'PAID') {
-        const earnTx = order.loyaltyTransactions.find(
-          (t) => t.type === 'EARN' && t.reversedAt === null,
-        );
-        const hasRevoke = order.loyaltyTransactions.some(
-          (t) => t.type === 'REVOKE' && t.relatedTransactionId === earnTx?.id,
-        );
-
-        if (earnTx && !hasRevoke) {
-          const user = await tx.user.findUniqueOrThrow({
-            where: { id: order.userId },
-          });
-          const pointsToRevoke = Math.min(user.loyaltyPoints, earnTx.points);
-          if (pointsToRevoke > 0) {
-            await tx.user.update({
-              where: { id: order.userId },
-              data: {
-                loyaltyPoints: { decrement: pointsToRevoke },
-              },
-            });
-          }
-
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: order.userId,
-              orderId: order.id,
-              points: -earnTx.points,
-              type: 'REVOKE',
-              eventKey: `loyalty:${earnTx.id}:revoke`,
-              relatedTransactionId: earnTx.id,
-              pointsAmount: 0,
-            },
-          });
-
-          await tx.loyaltyTransaction.update({
-            where: { id: earnTx.id },
-            data: { reversedAt: new Date() },
-          });
-        }
-
         const successfulPayment = order.payments.find(
           (p) => p.status === 'SUCCESS',
         );
@@ -773,6 +733,9 @@ export class OrdersService {
         }
       }
 
+      // Revoke after returning redeemed points, using the ledger for legacy orders too.
+      await revokeOrderPoints(tx, order);
+
       // 4. Chuyển trạng thái Order sang CANCELLED
       const cancelledOrder = await tx.order.update({
         where: { id: order.id },
@@ -835,52 +798,20 @@ export class OrdersService {
       if (newStatus === 'PREPARING')
         await this.inventory.finish(tx, orderId, true);
 
-      // Tích điểm khi hoàn tất đơn hàng (COMPLETED)
+      // Backfill legacy paid orders only; a prior EARN/REVOKE is never repeated.
+      let pointsEarned = order.pointsEarned;
       if (newStatus === 'COMPLETED') {
-        const existingEarn = await tx.loyaltyTransaction.findFirst({
-          where: { orderId, type: 'EARN' },
+        const successPayment = await tx.payment.findFirst({
+          where: { orderId, status: 'SUCCESS' },
         });
-
-        if (!existingEarn) {
-          const successPayment = await tx.payment.findFirst({
-            where: { orderId, status: 'SUCCESS' },
-          });
-          const realAmount = successPayment?.amount ?? order.total;
-          const points = pointsEarnedFor(realAmount);
-          if (points > 0) {
-            await tx.user.update({
-              where: { id: order.userId },
-              data: {
-                loyaltyPoints: { increment: points },
-              },
-            });
-
-            await tx.loyaltyTransaction.create({
-              data: {
-                userId: order.userId,
-                orderId: order.id,
-                paymentId: successPayment?.id ?? null,
-                points,
-                type: 'EARN',
-                eventKey: `order:${order.id}:earn`,
-                pointsAmount: 0,
-              },
-            });
-
-            await tx.order.update({
-              where: { id: order.id },
-              data: {
-                pointsEarned: points,
-              },
-            });
-          }
-        }
+        pointsEarned = await awardOrderPoints(tx, order, successPayment);
       }
 
       const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           status: newStatus,
+          pointsEarned,
         },
       });
 

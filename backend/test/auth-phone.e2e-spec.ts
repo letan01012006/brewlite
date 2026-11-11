@@ -40,7 +40,12 @@ describe('Phone auth, OTP concurrency, manager provisioning and legacy upgrade',
       expect(after.phone).toBeNull();
       expect(after.otpHash).toBeNull();
     }
-    expect(await f.db.$queryRawUnsafe(`SELECT * FROM "Order" ORDER BY id`)).toEqual(oldOrders);
+    const orders = await f.db.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "Order" ORDER BY id`);
+    expect(orders).toHaveLength(oldOrders.length);
+    for (const before of oldOrders) {
+      const after = orders.find(order => order.id === before.id)!;
+      for (const [key, value] of Object.entries(before)) expect(after[key]).toEqual(value);
+    }
   });
 
   it.each(['customer', 'barista'])('old %s still logs in by email and retains ID/role/points', async role => {

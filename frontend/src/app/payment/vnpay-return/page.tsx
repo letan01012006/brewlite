@@ -192,10 +192,9 @@ function VnpayReturnContent() {
                 </span>
               </div>
               <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400">
-                <span>⭐ Tích lũy điểm thưởng:</span>
+                <span>⭐ Điểm đã tích lũy:</span>
                 <span className="font-bold">
-                  +{Math.floor((result?.order.total ?? 0) / 1000)} điểm (cộng
-                  khi hoàn tất)
+                  +{result.order.pointsEarned ?? 0} điểm
                 </span>
               </div>
             </div>

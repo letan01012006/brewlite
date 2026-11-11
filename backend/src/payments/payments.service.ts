@@ -29,6 +29,11 @@ import {
   type PaymentStatus,
 } from '../generated/prisma/client.js';
 import { lockOrder } from '../orders/order-lock.js';
+import {
+  awardOrderPoints,
+  revokeOrderPoints,
+} from '../orders/order-loyalty.js';
+import { assertTransition } from '../orders/order-state.js';
 import { VnpayGateway, type VnpayQueryResult } from './vnpay/vnpay.gateway.js';
 import { parseVnpDate, sanitizeVnpayPayload } from './vnpay/vnpay.util.js';
 import {
@@ -38,7 +43,9 @@ import {
 
 type OwnedPayment = Prisma.PaymentGetPayload<{
   include: {
-    order: { select: { userId: true; status: true; total: true } };
+    order: {
+      select: { userId: true; status: true; total: true; pointsEarned: true };
+    };
     refunds: true;
   };
 }>;
@@ -265,7 +272,8 @@ export class PaymentsService {
             order.total = realAmount;
           }
 
-          if (order.status === 'PAYMENT_FAILED' && dto.method !== 'POINTS') {
+          if (order.status === 'PAYMENT_FAILED') {
+            assertTransition(order.status, 'PENDING');
             await tx.order.update({
               where: { id: order.id },
               data: { status: 'PENDING' },
@@ -319,9 +327,11 @@ export class PaymentsService {
 
           // Nếu thanh toán 100% bằng POINTS: chuyển order sang PAID ngay
           if (dto.method === 'POINTS') {
+            assertTransition(order.status, 'PAID');
+            const pointsEarned = await awardOrderPoints(tx, order, payment);
             await tx.order.update({
               where: { id: order.id },
-              data: { status: 'PAID' },
+              data: { status: 'PAID', pointsEarned },
             });
 
             const responsePayload: Prisma.JsonObject = {
@@ -339,7 +349,7 @@ export class PaymentsService {
                 code: `#${order.id}`,
                 status: 'PAID',
                 total: 0,
-                pointsEarned: 0,
+                pointsEarned,
               },
             };
 
@@ -520,6 +530,14 @@ export class PaymentsService {
         ? HttpStatus.CREATED
         : HttpStatus.PAYMENT_REQUIRED;
 
+      const pointsEarned = outcome.success
+        ? await awardOrderPoints(tx, order, payment)
+        : 0;
+      if (!outcome.success) {
+        await this.restoreHeldPoints(tx, payment, order);
+        await this.releaseUnusedHold(tx, payment);
+      }
+
       const response: Prisma.JsonObject = outcome.success
         ? {
             payment: {
@@ -535,7 +553,7 @@ export class PaymentsService {
               code: `#${order.id}`,
               status: 'PAID',
               total: order.total,
-              pointsEarned: 0,
+              pointsEarned,
             },
           }
         : {
@@ -566,6 +584,7 @@ export class PaymentsService {
         where: { id: order.id },
         data: {
           status: outcome.success ? 'PAID' : 'PAYMENT_FAILED',
+          pointsEarned,
         },
       });
 
@@ -618,6 +637,28 @@ export class PaymentsService {
 
       // A terminal unsuccessful session can still have collected real money.
       if (payment.status !== 'PROCESSING' && !lateSuccess) {
+        if (
+          payment.status === 'SUCCESS' &&
+          !payment.refundedAt &&
+          ['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(
+            payment.order.status,
+          )
+        ) {
+          const refund = await tx.paymentRefund.findUnique({
+            where: { paymentId: payment.id },
+          });
+          if (!refund || refund.status === 'FAILED') {
+            const pointsEarned = await awardOrderPoints(
+              tx,
+              payment.order,
+              payment,
+            );
+            await tx.order.update({
+              where: { id: payment.orderId },
+              data: { pointsEarned },
+            });
+          }
+        }
         // Ghi log nhật ký gọi lại (Duplicate/Idempotent event)
         if (params.gatewayResult.rawPayload) {
           await tx.paymentWebhookLog.create({
@@ -702,6 +743,14 @@ export class PaymentsService {
           }
 
           if (holdSuccess) {
+            if (order.status === 'PAYMENT_FAILED') {
+              assertTransition(order.status, 'PENDING');
+              await tx.order.update({
+                where: { id: order.id },
+                data: { status: 'PENDING' },
+              });
+            }
+            const pointsEarned = await awardOrderPoints(tx, order, payment);
             const paidAt = parseVnpDate(gatewayResult.payDate) || new Date();
             const responseSnapshot: Prisma.JsonObject = {
               payment: {
@@ -717,7 +766,7 @@ export class PaymentsService {
                 code: `#${order.id}`,
                 status: 'PAID',
                 total: order.total,
-                pointsEarned: 0,
+                pointsEarned,
               },
             };
 
@@ -740,7 +789,7 @@ export class PaymentsService {
 
             await tx.order.update({
               where: { id: order.id },
-              data: { status: 'PAID' },
+              data: { status: 'PAID', pointsEarned },
             });
 
             if (gatewayResult.rawPayload) {
@@ -1295,6 +1344,8 @@ export class PaymentsService {
       });
       const existing = payment.refunds[0];
       if (payment.refundedAt || existing?.status === 'SUCCESS') {
+        if (payment.status === 'SUCCESS')
+          await revokeOrderPoints(tx, payment.order);
         return { action: 'done' as const, payment, refund: existing ?? null };
       }
       if (!['SUCCESS', 'NEEDS_REFUND'].includes(payment.status)) {
@@ -1320,6 +1371,7 @@ export class PaymentsService {
         // PaymentRefund is a cash request (amount > 0). The loyalty ledger and
         // Payment settlement evidence record a points-only refund atomically.
         await this.restoreHeldPoints(tx, payment, payment.order, false);
+        await revokeOrderPoints(tx, payment.order);
         const updated = await tx.payment.update({
           where: { id: payment.id },
           data: {
@@ -1425,6 +1477,7 @@ export class PaymentsService {
             where: { id: payment.orderId },
           });
           await this.restoreHeldPoints(tx, updatedPayment, order, false);
+          if (payment.status === 'SUCCESS') await revokeOrderPoints(tx, order);
           updatedPayment = await tx.payment.update({
             where: { id: payment.id },
             data: {
@@ -1700,7 +1753,14 @@ export class PaymentsService {
     return db.payment.findUnique({
       where: { idempotencyKey: key },
       include: {
-        order: { select: { userId: true, status: true, total: true } },
+        order: {
+          select: {
+            userId: true,
+            status: true,
+            total: true,
+            pointsEarned: true,
+          },
+        },
         refunds: true,
       },
     });
@@ -1774,6 +1834,7 @@ export class PaymentsService {
                 code: `#${payment.orderId}`,
                 status: payment.order.status,
                 total: payment.order.total,
+                pointsEarned: payment.order.pointsEarned,
               },
             },
           };

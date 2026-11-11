@@ -7,7 +7,7 @@ describe('Order state machine', () => {
     ['PENDING', 'PAID'],
     ['PENDING', 'PAYMENT_FAILED'],
     ['PENDING', 'CANCELLED'],
-    ['PAYMENT_FAILED', 'PAID'],
+    ['PAYMENT_FAILED', 'PENDING'],
     ['PAYMENT_FAILED', 'CANCELLED'],
     ['PAID', 'PREPARING'],
     ['PAID', 'CANCELLED'],
@@ -24,6 +24,7 @@ describe('Order state machine', () => {
     ['PREPARING', 'CANCELLED'],
     ['READY', 'PREPARING'],
     ['PAID', 'PAID'],
+    ['PAYMENT_FAILED', 'PAID'],
   ])('rejects %s -> %s with a stable business error', (from, to) => {
     try {
       assertTransition(from, to);

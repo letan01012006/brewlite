@@ -4,7 +4,7 @@ import { type OrderStatus } from './dto/update-order-status.dto.js';
 /**
  * Ma trận chuyển đổi trạng thái đơn hàng chuẩn xác theo Mục 5 của tài liệu thiết kế:
  * PENDING -> PAID, PAYMENT_FAILED, CANCELLED
- * PAYMENT_FAILED -> PAID, CANCELLED
+ * PAYMENT_FAILED -> PENDING, CANCELLED
  * PAID -> PREPARING, CANCELLED
  * PREPARING -> READY
  * READY -> COMPLETED
@@ -12,7 +12,7 @@ import { type OrderStatus } from './dto/update-order-status.dto.js';
  */
 export const TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
-  PAYMENT_FAILED: ['PAID', 'CANCELLED'],
+  PAYMENT_FAILED: ['PENDING', 'CANCELLED'],
   PAID: ['PREPARING', 'CANCELLED'],
   PREPARING: ['READY'],
   READY: ['COMPLETED'],

@@ -273,9 +273,9 @@ function CheckoutContent() {
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
-              <span>⭐ Điểm tích lũy dự kiến:</span>
+              <span>⭐ Điểm đã tích lũy:</span>
               <span className="font-bold">
-                +{pointsEarned} điểm (cộng khi hoàn tất đơn)
+                +{pointsEarned} điểm
               </span>
             </div>
           </div>
@@ -865,7 +865,7 @@ function CheckoutContent() {
                 </div>
               )}
               <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
-                <span>⭐ Tích lũy điểm (khi hoàn tất):</span>
+                <span>⭐ Tích lũy điểm (khi thanh toán thành công):</span>
                 <span className="font-bold">+{pointsEarned} điểm</span>
               </div>
             </div>
