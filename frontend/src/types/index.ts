@@ -125,6 +125,10 @@ export interface Payment {
   refundRef?: string | null;
   refundReason?: string | null;
   refundedAt?: string | null;
+  refunds?: {
+    status: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED";
+    confirmedAt?: string | null;
+  }[];
   createdAt: string;
 }
 

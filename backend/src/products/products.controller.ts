@@ -26,6 +26,7 @@ import { UpdateProductToppingsDto } from './dto/update-product-toppings.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
+import { ProductVisibilityGuard } from './guards/product-visibility.guard.js';
 
 @ApiTags('products')
 @Controller('products')
@@ -88,7 +89,11 @@ export class ProductsController {
    * GET /api/products?search=...&category=...&page=1&limit=20
    */
   @Get()
+  @UseGuards(ProductVisibilityGuard)
+  @ApiBearerAuth()
   @ApiOperation({
+    description:
+      'Danh sách đang bán được xem công khai. includeInactive=true yêu cầu token BARISTA.',
     summary:
       'Lấy danh sách sản phẩm (hỗ trợ tìm kiếm, lọc danh mục và phân trang)',
   })
@@ -97,6 +102,14 @@ export class ProductsController {
     description: 'Lấy danh sách sản phẩm thành công',
   })
   @ApiResponse({ status: 400, description: 'Tham số query không hợp lệ' })
+  @ApiResponse({
+    status: 401,
+    description: 'includeInactive=true cần đăng nhập',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Chỉ BARISTA được xem sản phẩm đang tạm dừng bán',
+  })
   async findAll(@Query() query: QueryProductDto) {
     return this.productsService.findAll(query);
   }

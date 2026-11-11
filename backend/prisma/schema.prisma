@@ -186,12 +186,15 @@ model Order {
   id     Int         @id @default(autoincrement())
   userId Int
   status OrderStatus @default(PENDING)
+  creationKey         String?
+  creationRequestHash String?
 
   subtotal       Int
   discountAmount Int @default(0)
   total          Int
 
   promoCode    String?
+  promoReleasedAt DateTime?
   pointsEarned Int     @default(0)
 
   createdAt DateTime @default(now())
@@ -207,9 +210,11 @@ model Order {
   inventoryMovements   InventoryMovement[]
 
   @@unique([id, userId])
+  @@unique([userId, creationKey])
   @@unique([id, total])
   @@index([userId, createdAt])
   @@index([status])
+  @@index([status, createdAt])
 }
 
 // =========================
@@ -524,6 +529,8 @@ model InventoryMovement {
   stockDelta    Decimal               @db.Decimal(18, 3)
   reservedDelta Decimal               @db.Decimal(18, 3)
   reservationId Int?
+  // Reservation.version at the start of this hold/release cycle.
+  reservationVersion Int @default(0)
   orderId       Int?
   actorId       Int?
   reason        String?
@@ -535,7 +542,7 @@ model InventoryMovement {
   order           Order?                    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   actor           User?                     @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
-  @@unique([reservationId, ingredientId, kind])
+  @@unique([reservationId, ingredientId, kind, reservationVersion], map: "InventoryMovement_reservation_cycle_key")
   @@index([ingredientId, createdAt])
   @@index([orderId, createdAt])
   @@index([actorId])

@@ -20,6 +20,68 @@ function fixture(storage = memoryStorage(), apiFetch = async () => product) {
   return { store, storage, load };
 }
 
+test('settling a purchase keeps later additions and persists one receipt with the remaining quantities', () => {
+  const { store, storage } = fixture();
+  store.getState().hydrate(1);
+  store.getState().addItem({ ...input, quantity: 3 });
+  const purchase = store.getState().capturePurchase();
+  const id = store.getState().items[0].id;
+  store.getState().addItem({ ...input, quantity: 2 });
+  store.getState().updateQuantity(id, 4);
+  store.getState().addItem({ ...input, product: { ...product, id: 2 } });
+  store.getState().settleOrder(1, 7, purchase);
+  assert.equal(store.getState().items.find(item => item.id === id).quantity, 2);
+  assert.equal(store.getState().getTotalItemCount(), 3);
+  const saved = JSON.parse(storage.getItem('brewlite_cart_v1_1'));
+  assert.deepEqual(saved.completedOrderIds, [7]);
+  assert.equal(saved.items.reduce((sum, item) => sum + item.quantity, 0), 3);
+  const reloaded = fixture(storage).store;
+  reloaded.getState().hydrate(1);
+  reloaded.getState().settleOrder(1, 7, purchase);
+  assert.equal(reloaded.getState().getTotalItemCount(), 3);
+});
+
+test('removing and re-adding the same variant while waiting keeps the new items after payment', () => {
+  const { store } = fixture();
+  store.getState().hydrate(1);
+  store.getState().addItem(input);
+  const purchase = store.getState().capturePurchase();
+  store.getState().removeItem(store.getState().items[0].id);
+  store.getState().addItem(input);
+  store.getState().settleOrder(1, 7, purchase);
+  assert.equal(store.getState().getTotalItemCount(), 1);
+});
+
+test('a failed receipt write leaves quantities intact and can be retried exactly once', () => {
+  const storage = memoryStorage();
+  const { store } = fixture(storage);
+  store.getState().hydrate(1);
+  store.getState().addItem(input);
+  const purchase = store.getState().capturePurchase();
+  const write = storage.setItem;
+  storage.setItem = () => { throw new Error('Storage full'); };
+  assert.throws(() => store.getState().settleOrder(1, 7, purchase), /Storage full/);
+  assert.equal(store.getState().getTotalItemCount(), 1);
+  assert.equal(store.getState().completedOrderIds.length, 0);
+  storage.setItem = write;
+  store.getState().settleOrder(1, 7, purchase);
+  store.getState().addItem(input);
+  store.getState().settleOrder(1, 7, purchase);
+  assert.equal(store.getState().getTotalItemCount(), 1);
+});
+
+test('a delayed payment cannot subtract another account cart', () => {
+  const { store } = fixture();
+  store.getState().hydrate(1);
+  store.getState().addItem(input);
+  const purchase = store.getState().capturePurchase();
+  store.getState().hydrate(2);
+  store.getState().addItem(input);
+  assert.throws(() => store.getState().settleOrder(1, 7, purchase));
+  assert.equal(store.getState().getTotalItemCount(), 1);
+  assert.equal(store.getState().completedOrderIds.length, 0);
+});
+
 test("guest selections merge into a returning account without exceeding its limits", () => {
   const { store } = fixture();
   store.getState().hydrate(1);

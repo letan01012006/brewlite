@@ -71,6 +71,10 @@ function RegisterForm() {
       router.push(`/verify-otp?phone=${encodeURIComponent(phone)}&resendAfter=60&redirect=${encodeURIComponent(redirectPath)}`);
     } catch (err) {
       if (err instanceof ApiError) {
+        if (["SMS_NOT_CONFIGURED", "SMS_REJECTED", "SMS_UNAVAILABLE", "SMS_TIMEOUT"].includes(err.code)) {
+          router.push(`/verify-otp?phone=${encodeURIComponent(phone)}&deliveryFailed=1&redirect=${encodeURIComponent(redirectPath)}`);
+          return;
+        }
         setErrorMsg(err.message);
       } else {
         setErrorMsg("Không thể đăng ký tài khoản. Vui lòng thử lại sau.");

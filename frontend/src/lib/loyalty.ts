@@ -25,7 +25,7 @@ export function maxRedeemablePoints(balance: number, total: number): number {
 
 /**
  * Tính số điểm tích lũy dựa trên số tiền thực trả của đơn hàng (Order.total).
- * Quy tắc: 1.000đ = 1 điểm, làm tròn xuống (floor), chỉ cộng khi đơn hoàn thành (COMPLETED).
+ * Quy tắc: 1.000đ = 1 điểm, làm tròn xuống (floor), cộng khi đơn đã thanh toán (PAID).
  */
 export function pointsEarnedFor(total: number): number {
   if (!Number.isFinite(total) || total <= 0) return 0;

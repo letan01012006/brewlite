@@ -174,6 +174,8 @@ describe.skipIf(!databaseUrl)(
           `;
           legacyUserId = user.id;
           const order = await db.order.create({
+            // The idempotency columns are added by a later migration.
+            select: { id: true },
             data: {
               userId: user.id, subtotal: 50000, total: 50000,
               items: {
@@ -519,7 +521,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(500);
+        ).toBe(success ? 535 : 500);
       },
     );
 
@@ -555,20 +557,10 @@ describe.skipIf(!databaseUrl)(
     it('reverses stock, promo usage, points and payment only once for simultaneous PAID cancellations', async () => {
       const { orderId, product, promo } = await fixture(true);
       await pay(orderId).expect(201);
-      // Simulate legacy order with EARN to test points reversal
-      await db.user.update({
-        where: { id: userId },
-        data: { loyaltyPoints: 535 },
+      const earnTx = await db.loyaltyTransaction.findFirstOrThrow({
+        where: { orderId, type: 'EARN' },
       });
-      const earnTx = await db.loyaltyTransaction.create({
-        data: {
-          userId,
-          orderId,
-          points: 35,
-          type: 'EARN',
-          eventKey: `legacy:loyalty:${orderId}`,
-        },
-      });
+      expect(earnTx.points).toBe(34); // 35,000 VND less the 1,000 VND voucher.
       const results = await queuedRace(orderId, [
         () => post(`/orders/${orderId}/cancel`, customerToken),
         () => post(`/orders/${orderId}/cancel`, baristaToken),
@@ -626,7 +618,7 @@ describe.skipIf(!databaseUrl)(
           cancelFirst ? [cancel, prep] : [prep, cancel],
         );
         expect(results.map((response) => response.status)).toEqual([200, 409]);
-        expect(results[1].body.code).toBe('INVALID_TRANSITION');
+        expect(results[1].body.code).toBe(cancelFirst ? 'ORDER_REFUND_IN_PROGRESS' : 'INVALID_TRANSITION');
         expect(
           (await db.order.findUniqueOrThrow({ where: { id: orderId } })).status,
         ).toBe(cancelFirst ? 'CANCELLED' : 'PREPARING');
@@ -637,7 +629,7 @@ describe.skipIf(!databaseUrl)(
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(500);
+        ).toBe(cancelFirst ? 500 : 535);
         const payment = await db.payment.findFirstOrThrow({
           where: { orderId },
         });
@@ -850,11 +842,11 @@ describe.skipIf(!databaseUrl)(
         ).toHaveLength(4);
         expect(charge).toHaveBeenCalledTimes(1);
         expect(await db.payment.count({ where: { orderId } })).toBe(1);
-        expect(await db.loyaltyTransaction.count({ where: { orderId } })).toBe(0);
+        expect(await db.loyaltyTransaction.count({ where: { orderId, type: 'EARN' } })).toBe(mockResult === 'SUCCESS' ? 1 : 0);
         expect(
           (await db.user.findUniqueOrThrow({ where: { id: userId } }))
             .loyaltyPoints,
-        ).toBe(500);
+        ).toBe(mockResult === 'SUCCESS' ? 535 : 500);
         const saved = await db.payment.findUniqueOrThrow({
           where: { idempotencyKey: key },
         });
@@ -1014,20 +1006,10 @@ describe.skipIf(!databaseUrl)(
         items: [{ productId: product.id, size: 'S', quantity: 1 }],
       }).expect(201);
       await pay(order.body.id).expect(201);
-      // Giả lập đơn hàng cũ đã có điểm EARN để kiểm thử thu hồi
-      await db.user.update({
-        where: { id: userId },
-        data: { loyaltyPoints: 610 },
+      const earnTx = await db.loyaltyTransaction.findFirstOrThrow({
+        where: { orderId: order.body.id, type: 'EARN' },
       });
-      const earnTx = await db.loyaltyTransaction.create({
-        data: {
-          userId,
-          orderId: order.body.id,
-          points: 110,
-          type: 'EARN',
-          eventKey: `legacy:loyalty:${order.body.id}`,
-        },
-      });
+      expect(earnTx.points).toBe(110);
       await post(`/orders/${order.body.id}/cancel`, customerToken).expect(200);
       expect(
         (await db.user.findUniqueOrThrow({ where: { id: userId } }))

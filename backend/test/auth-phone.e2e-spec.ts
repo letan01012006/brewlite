@@ -40,7 +40,12 @@ describe('Phone auth, OTP concurrency, manager provisioning and legacy upgrade',
       expect(after.phone).toBeNull();
       expect(after.otpHash).toBeNull();
     }
-    expect(await f.db.$queryRawUnsafe(`SELECT * FROM "Order" ORDER BY id`)).toEqual(oldOrders);
+    const orders = await f.db.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM "Order" ORDER BY id`);
+    expect(orders).toHaveLength(oldOrders.length);
+    for (const before of oldOrders) {
+      const after = orders.find(order => order.id === before.id)!;
+      for (const [key, value] of Object.entries(before)) expect(after[key]).toEqual(value);
+    }
   });
 
   it.each(['customer', 'barista'])('old %s still logs in by email and retains ID/role/points', async role => {
@@ -148,10 +153,11 @@ describe('Phone auth, OTP concurrency, manager provisioning and legacy upgrade',
     } finally { spy.mockRestore(); }
   });
 
-  it('production rejects demo mode; normal production disables local SMS but permits service startup', () => {
+  it('production rejects demo mode; unconfigured SMS permits startup but fails delivery', async () => {
     expect(() => new OtpService(new ConfigService({ NODE_ENV: 'production', AUTH_OTP_DEMO: 'true' }))).toThrow(/development\/test/);
     const otp = new OtpService(new ConfigService({ NODE_ENV: 'production', AUTH_OTP_DEMO: 'false', OTP_HASH_SECRET: 'a'.repeat(32) }));
-    expect(() => otp.issue(phone())).toThrow(/production/);
+    const issued = otp.issue(phone());
+    await expect(otp.send(phone(), issued.code)).rejects.toMatchObject({ response: { code: 'SMS_NOT_CONFIGURED' } });
   });
 
   it('duplicate phone/email returns 409, including racing registrations', async () => {

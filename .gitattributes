@@ -1,0 +1,2 @@
+# The Linux entrypoint must remain executable after a Windows Git checkout.
+backend/docker-entrypoint.sh text eol=lf

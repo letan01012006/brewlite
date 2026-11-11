@@ -170,3 +170,29 @@ test("successful cancellation reloads server loyalty points as well as order his
   assert.equal(h.auth.refreshes, 1);
   assert.equal(calls.filter((path) => path.includes("/orders/me")).length, 2);
 });
+
+
+for (const [refundStatus, refundedAt, method, completed] of [
+  ["PENDING", null, "VNPAY", false],
+  ["PROCESSING", null, "VNPAY", false],
+  ["SUCCESS", "2026-11-11T10:00:00Z", "VNPAY", true],
+  [undefined, "2026-11-11T10:00:00Z", "POINTS", true],
+]) {
+  test(`order detail displays ${method} refund ${refundStatus ?? "points settled"} accurately`, async () => {
+    const h = harness(async (path) => path === "/orders/1" ? {
+      ...summary, subtotal: 50000, discountAmount: 0, pointsEarned: 0, items: [],
+      payments: [{ id: 10, status: "SUCCESS", method, refundedAt,
+        refundedAmount: completed && method === "VNPAY" ? 50000 : 0,
+        refunds: refundStatus ? [{ status: refundStatus }] : [] }],
+    } : result());
+    h.render();
+    const tree = await h.settle();
+    const detail = walk(tree, node => node.type === "button" &&
+      node.props.onClick?.toString().includes("handleViewOrderDetail"))[0];
+    await detail.props.onClick();
+    const content = text(h.render());
+    assert.equal(content.includes("\u0110ang ch\u1edd ho\u00e0n ti\u1ec1n"), !completed);
+    assert.equal(content.includes("\u0110\u00e3 ho\u00e0n ti\u1ec1n"), completed);
+    if (method === "POINTS") assert.ok(content.includes("\u0110i\u1ec3m th\u01b0\u1edfng"));
+  });
+}

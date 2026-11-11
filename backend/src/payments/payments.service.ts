@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -29,13 +30,12 @@ import {
 } from '../generated/prisma/client.js';
 import { lockOrder } from '../orders/order-lock.js';
 import {
-  VnpayGateway,
-  type VnpayQueryResult,
-} from './vnpay/vnpay.gateway.js';
-import {
-  parseVnpDate,
-  sanitizeVnpayPayload,
-} from './vnpay/vnpay.util.js';
+  awardOrderPoints,
+  revokeOrderPoints,
+} from '../orders/order-loyalty.js';
+import { assertTransition } from '../orders/order-state.js';
+import { VnpayGateway, type VnpayQueryResult } from './vnpay/vnpay.gateway.js';
+import { parseVnpDate, sanitizeVnpayPayload } from './vnpay/vnpay.util.js';
 import {
   POINTS_STEP,
   pointsToDiscountVnd,
@@ -43,7 +43,9 @@ import {
 
 type OwnedPayment = Prisma.PaymentGetPayload<{
   include: {
-    order: { select: { userId: true; status: true; total: true } };
+    order: {
+      select: { userId: true; status: true; total: true; pointsEarned: true };
+    };
     refunds: true;
   };
 }>;
@@ -108,7 +110,8 @@ export class PaymentsService {
     if (dto.method === 'POINTS' && pointsUsed === 0) {
       throw new BadRequestException({
         code: 'POINTS_REQUIRED',
-        message: 'Phương thức thanh toán bằng điểm yêu cầu cung cấp số điểm sử dụng',
+        message:
+          'Phương thức thanh toán bằng điểm yêu cầu cung cấp số điểm sử dụng',
       });
     }
 
@@ -116,7 +119,8 @@ export class PaymentsService {
       if (!this.isMockAllowed()) {
         throw new BadRequestException({
           code: 'PAYMENT_METHOD_NOT_SUPPORTED',
-          message: 'Phương thức thanh toán thử nghiệm (WALLET/CARD) hiện không khả dụng',
+          message:
+            'Phương thức thanh toán thử nghiệm (WALLET/CARD) hiện không khả dụng',
         });
       }
     }
@@ -149,6 +153,14 @@ export class PaymentsService {
       )
       .digest('hex');
 
+    // Validate before replay too, before persisting a session or holding points.
+    if (dto.method === 'VNPAY' && !this.vnpayGateway.isConfigured()) {
+      throw new ServiceUnavailableException({
+        code: 'VNPAY_NOT_CONFIGURED',
+        message: 'Cổng thanh toán VNPAY chưa được cấu hình đầy đủ',
+      });
+    }
+
     const deadline = Date.now() + REPLAY_WAIT_MS;
     const existing = await this.findPayment(idempotencyKey);
     if (existing) {
@@ -176,74 +188,22 @@ export class PaymentsService {
           if (order.userId !== userId) {
             throw new ForbiddenException({
               code: 'FORBIDDEN',
-              message: 'Bạn không có quyền thanh toán cho đơn hàng của người khác',
+              message:
+                'Bạn không có quyền thanh toán cho đơn hàng của người khác',
             });
           }
           this.assertPayable(order);
 
-          // Nếu đơn hàng đang có giao dịch PROCESSING cũ bị bỏ dở -> tự động hủy nếu là VNPAY
+          // Serialize claims across keys; an active session must be reused.
           const inProgress = await tx.payment.findFirst({
-            where: {
-              orderId: order.id,
-              status: 'PROCESSING',
-            },
+            where: { orderId: order.id, status: 'PROCESSING' },
           });
+          if (inProgress) throw this.inProgress();
 
-          if (inProgress) {
-            if (inProgress.method === 'VNPAY') {
-              // Phiên VNPAY cũ bị bỏ dở -> hủy phiên cũ và hoàn điểm (nếu có) để tạo phiên mới (Vấn đề 4)
-              await tx.payment.update({
-                where: { id: inProgress.id },
-                data: {
-                  status: 'CANCELLED',
-                  failureReason:
-                    'Hủy phiên thanh toán VNPAY cũ để khởi tạo phiên thanh toán mới',
-                },
-              });
-
-              if (inProgress.pointsUsed > 0) {
-                await tx.user.update({
-                  where: { id: userId },
-                  data: { loyaltyPoints: { increment: inProgress.pointsUsed } },
-                });
-
-                const oldRedeem = await tx.loyaltyTransaction.findFirst({
-                  where: { paymentId: inProgress.id, type: 'REDEEM' },
-                });
-
-                await tx.loyaltyTransaction.create({
-                  data: {
-                    userId,
-                    orderId: order.id,
-                    paymentId: inProgress.id,
-                    relatedTransactionId: oldRedeem?.id,
-                    points: inProgress.pointsUsed,
-                    pointsAmount: inProgress.pointsAmount,
-                    type: 'REFUND',
-                    eventKey: `payment:${inProgress.id}:refund:${Date.now()}`,
-                  },
-                });
-
-                await tx.order.update({
-                  where: { id: order.id },
-                  data: {
-                    discountAmount:
-                      order.discountAmount - inProgress.pointsAmount,
-                    total: order.total + inProgress.pointsAmount,
-                  },
-                });
-                order.discountAmount -= inProgress.pointsAmount;
-                order.total += inProgress.pointsAmount;
-              }
-            } else {
-              // Phương thức đồng bộ đang có request xử lý dở dang
-              throw this.inProgress();
-            }
-          }
-
-          // Kiểm tra điểm thưởng
           const pointsDiscountVnd = pointsToDiscountVnd(pointsUsed);
-          const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+          const user = await tx.user.findUniqueOrThrow({
+            where: { id: userId },
+          });
 
           if (pointsUsed > 0) {
             if (user.loyaltyPoints < pointsUsed) {
@@ -255,7 +215,8 @@ export class PaymentsService {
             if (pointsDiscountVnd > order.total) {
               throw new BadRequestException({
                 code: 'POINTS_EXCEED_ORDER_TOTAL',
-                message: 'Số điểm quy đổi vượt quá tổng tiền thanh toán của đơn hàng',
+                message:
+                  'Số điểm quy đổi vượt quá tổng tiền thanh toán của đơn hàng',
               });
             }
           }
@@ -266,14 +227,16 @@ export class PaymentsService {
             if (dto.method !== 'POINTS') {
               throw new BadRequestException({
                 code: 'INVALID_PAYMENT_METHOD',
-                message: 'Đơn hàng thanh toán 100% bằng điểm phải dùng phương thức POINTS',
+                message:
+                  'Đơn hàng thanh toán 100% bằng điểm phải dùng phương thức POINTS',
               });
             }
           } else {
             if (dto.method === 'POINTS') {
               throw new BadRequestException({
                 code: 'INVALID_PAYMENT_METHOD',
-                message: 'Số điểm chưa đủ để thanh toán 100% đơn hàng. Vui lòng thanh toán phần còn lại qua VNPAY',
+                message:
+                  'Số điểm chưa đủ để thanh toán 100% đơn hàng. Vui lòng thanh toán phần còn lại qua VNPAY',
               });
             }
             if (dto.method === 'VNPAY' && realAmount < VNPAY_MIN_AMOUNT) {
@@ -293,7 +256,8 @@ export class PaymentsService {
             if (updatedUser.count === 0) {
               throw new BadRequestException({
                 code: 'INSUFFICIENT_LOYALTY_POINTS',
-                message: 'Số dư điểm thưởng không đủ hoặc đã được sử dụng ở giao dịch khác',
+                message:
+                  'Số dư điểm thưởng không đủ hoặc đã được sử dụng ở giao dịch khác',
               });
             }
 
@@ -308,7 +272,8 @@ export class PaymentsService {
             order.total = realAmount;
           }
 
-          if (order.status === 'PAYMENT_FAILED' && dto.method !== 'POINTS') {
+          if (order.status === 'PAYMENT_FAILED') {
+            assertTransition(order.status, 'PENDING');
             await tx.order.update({
               where: { id: order.id },
               data: { status: 'PENDING' },
@@ -343,23 +308,30 @@ export class PaymentsService {
             });
           }
 
-          // Nếu thanh toán 100% bằng POINTS: chuyển order sang PAID ngay
-          if (dto.method === 'POINTS') {
+          // Reserve before any VNPAY URL can escape. The reservation and points
+          // hold roll back together when another order wins the last stock.
+          if (dto.method === 'VNPAY' || dto.method === 'POINTS') {
             try {
               await this.inventory.hold(tx, order.id);
             } catch (error) {
               if (error instanceof InsufficientIngredients) {
                 throw new UnprocessableEntityException({
                   code: 'INSUFFICIENT_INGREDIENTS',
-                  message: 'INSUFFICIENT_INGREDIENTS: Không đủ nguyên liệu để thanh toán đơn hàng.',
+                  message:
+                    'INSUFFICIENT_INGREDIENTS: Không đủ nguyên liệu để thanh toán đơn hàng.',
                 });
               }
               throw error;
             }
+          }
 
+          // Nếu thanh toán 100% bằng POINTS: chuyển order sang PAID ngay
+          if (dto.method === 'POINTS') {
+            assertTransition(order.status, 'PAID');
+            const pointsEarned = await awardOrderPoints(tx, order, payment);
             await tx.order.update({
               where: { id: order.id },
-              data: { status: 'PAID' },
+              data: { status: 'PAID', pointsEarned },
             });
 
             const responsePayload: Prisma.JsonObject = {
@@ -377,7 +349,7 @@ export class PaymentsService {
                 code: `#${order.id}`,
                 status: 'PAID',
                 total: 0,
-                pointsEarned: 0,
+                pointsEarned,
               },
             };
 
@@ -431,71 +403,96 @@ export class PaymentsService {
 
     // --- NHÁNH 1: THANH TOÁN VNPAY ---
     if (dto.method === 'VNPAY') {
-      const { paymentUrl, txnRef, vnpCreateDate, expiresAt } =
-        this.vnpayGateway.createPaymentUrl({
-          orderId: order.id,
-          paymentId: payment.id,
-          amount: payment.amount,
-          ipAddr: clientIp,
-          bankCode: dto.bankCode,
-        });
-
-      const responsePayload: Prisma.JsonObject = {
-        payment: {
-          id: payment.id,
-          orderId: order.id,
-          amount: payment.amount,
-          method: 'VNPAY',
-          status: 'PROCESSING',
-          pointsUsed: payment.pointsUsed,
-          pointsAmount: payment.pointsAmount,
-          paymentUrl,
-          expiresAt: expiresAt.toISOString(),
-        },
-        order: {
-          id: order.id,
-          code: `#${order.id}`,
-          status: order.status,
-          total: order.total,
-        },
-      };
-
-      await this.prisma.$transaction(async (tx) => {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            gatewayTxnRef: txnRef,
-            paymentUrl,
-            vnpCreateDate,
-            gatewayCreatedAt: new Date(),
-            expiresAt,
-            responseSnapshot: responsePayload,
-          },
-        });
-
-        await tx.paymentWebhookLog.create({
-          data: {
+      try {
+        const { paymentUrl, txnRef, vnpCreateDate, expiresAt } =
+          this.vnpayGateway.createPaymentUrl({
+            orderId: order.id,
             paymentId: payment.id,
-            source: 'CREATE',
-            result: 'RECEIVED',
-            gatewayTxnRef: txnRef,
             amount: payment.amount,
-            message: `Tạo link thanh toán VNPAY thành công cho đơn #${order.id}`,
-            rawPayload: {
-              orderId: order.id,
-              amount: payment.amount,
+            ipAddr: clientIp,
+            bankCode: dto.bankCode,
+          });
+
+        const responsePayload: Prisma.JsonObject = {
+          payment: {
+            id: payment.id,
+            orderId: order.id,
+            amount: payment.amount,
+            method: 'VNPAY',
+            status: 'PROCESSING',
+            pointsUsed: payment.pointsUsed,
+            pointsAmount: payment.pointsAmount,
+            paymentUrl,
+            expiresAt: expiresAt.toISOString(),
+          },
+          order: {
+            id: order.id,
+            code: `#${order.id}`,
+            status: order.status,
+            total: order.total,
+          },
+        };
+
+        await this.prisma.$transaction(async (tx) => {
+          await lockOrder(tx, order.id);
+          const current = await tx.payment.findUniqueOrThrow({
+            where: { id: payment.id },
+          });
+          if (current.status !== 'PROCESSING') throw this.inProgress();
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: {
+              gatewayTxnRef: txnRef,
+              paymentUrl,
               vnpCreateDate,
-              expiresAt: expiresAt.toISOString(),
+              gatewayCreatedAt: new Date(),
+              expiresAt,
+              responseSnapshot: responsePayload,
             },
+          });
+
+          await tx.paymentWebhookLog.create({
+            data: {
+              paymentId: payment.id,
+              source: 'CREATE',
+              result: 'RECEIVED',
+              gatewayTxnRef: txnRef,
+              amount: payment.amount,
+              message: `Tạo link thanh toán VNPAY thành công cho đơn #${order.id}`,
+              rawPayload: {
+                orderId: order.id,
+                amount: payment.amount,
+                vnpCreateDate,
+                expiresAt: expiresAt.toISOString(),
+              },
+            },
+          });
+        });
+
+        return {
+          isReplayed: false,
+          statusCode: HttpStatus.CREATED,
+          data: responsePayload,
+        };
+      } catch (error) {
+        await this.settlePayment({
+          paymentId: payment.id,
+          gatewayResult: {
+            success: false,
+            responseCode: '99',
+            source: 'CREATE',
+            message: 'Không thể khởi tạo liên kết thanh toán VNPAY',
           },
         });
-      });
-
-      return {
-        isReplayed: false,
-        statusCode: HttpStatus.CREATED,
-        data: responsePayload,
-      };
+        throw new ServiceUnavailableException(
+          {
+            code: 'VNPAY_INITIALIZATION_FAILED',
+            message:
+              'Không thể khởi tạo liên kết thanh toán VNPAY. Vui lòng thử lại.',
+          },
+          { cause: error },
+        );
+      }
     }
 
     // --- NHÁNH 2: THANH TOÁN MOCK (WALLET / CARD) ---
@@ -533,6 +530,14 @@ export class PaymentsService {
         ? HttpStatus.CREATED
         : HttpStatus.PAYMENT_REQUIRED;
 
+      const pointsEarned = outcome.success
+        ? await awardOrderPoints(tx, order, payment)
+        : 0;
+      if (!outcome.success) {
+        await this.restoreHeldPoints(tx, payment, order);
+        await this.releaseUnusedHold(tx, payment);
+      }
+
       const response: Prisma.JsonObject = outcome.success
         ? {
             payment: {
@@ -548,7 +553,7 @@ export class PaymentsService {
               code: `#${order.id}`,
               status: 'PAID',
               total: order.total,
-              pointsEarned: 0,
+              pointsEarned,
             },
           }
         : {
@@ -579,6 +584,7 @@ export class PaymentsService {
         where: { id: order.id },
         data: {
           status: outcome.success ? 'PAID' : 'PAYMENT_FAILED',
+          pointsEarned,
         },
       });
 
@@ -603,29 +609,56 @@ export class PaymentsService {
       cardType?: string;
       payDate?: string;
       amount?: number;
-      source: 'IPN' | 'RETURN' | 'QUERY' | 'REFUND';
+      source: 'IPN' | 'RETURN' | 'QUERY' | 'REFUND' | 'CREATE';
       requestId?: string;
       rawPayload?: Record<string, unknown>;
       message?: string;
     };
-  }): Promise<{ status: PaymentStatus; message: string }> {
+  }): Promise<{ status: PaymentStatus; message: string; duplicate?: boolean }> {
     return inventoryTransaction(this.prisma, async (tx) => {
-      const payment = await tx.payment.findUnique({
+      const identity = await tx.payment.findUnique({
         where: { id: params.paymentId },
-        include: { order: true },
+        select: { orderId: true },
       });
-
-      if (!payment) {
+      if (!identity) {
         throw new NotFoundException({
           code: 'PAYMENT_NOT_FOUND',
           message: `Không tìm thấy giao dịch #${params.paymentId}`,
         });
       }
+      await lockOrder(tx, identity.orderId);
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: params.paymentId },
+        include: { order: true },
+      });
+      const lateSuccess =
+        params.gatewayResult.success &&
+        ['CANCELLED', 'EXPIRED', 'FAILED'].includes(payment.status);
 
-      await lockOrder(tx, payment.orderId);
-
-      // Nếu giao dịch đã ở trạng thái kết thúc (terminal state)
-      if (payment.status !== 'PROCESSING') {
+      // A terminal unsuccessful session can still have collected real money.
+      if (payment.status !== 'PROCESSING' && !lateSuccess) {
+        if (
+          payment.status === 'SUCCESS' &&
+          !payment.refundedAt &&
+          ['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(
+            payment.order.status,
+          )
+        ) {
+          const refund = await tx.paymentRefund.findUnique({
+            where: { paymentId: payment.id },
+          });
+          if (!refund || refund.status === 'FAILED') {
+            const pointsEarned = await awardOrderPoints(
+              tx,
+              payment.order,
+              payment,
+            );
+            await tx.order.update({
+              where: { id: payment.orderId },
+              data: { pointsEarned },
+            });
+          }
+        }
         // Ghi log nhật ký gọi lại (Duplicate/Idempotent event)
         if (params.gatewayResult.rawPayload) {
           await tx.paymentWebhookLog.create({
@@ -640,19 +673,49 @@ export class PaymentsService {
               signatureValid: true,
               processed: true,
               message: `Sự kiện ${params.gatewayResult.source} đến khi giao dịch đã ở trạng thái ${payment.status}`,
-              rawPayload: sanitizeVnpayPayload(params.gatewayResult.rawPayload) as Prisma.InputJsonObject,
+              rawPayload: sanitizeVnpayPayload(
+                params.gatewayResult.rawPayload,
+              ) as Prisma.InputJsonObject,
               requestId: params.gatewayResult.requestId,
             },
           });
         }
         return {
           status: payment.status,
+          duplicate: true,
           message: `Giao dịch đã được chốt trước đó (${payment.status})`,
         };
       }
 
       const order = payment.order;
-      const { gatewayResult } = params;
+      let { gatewayResult } = params;
+      // A lost database acknowledgement may leave a URL visible to a replay.
+      // Only a never-published URL can be cleaned up without querying VNPAY.
+      if (gatewayResult.source === 'CREATE' && payment.gatewayTxnRef) {
+        const result = await this.queryVnpayPayment(payment);
+        if (result?.success) {
+          gatewayResult = { ...gatewayResult, ...result, source: 'QUERY' };
+        } else if (!this.isConfirmedUnpaid(result)) {
+          return {
+            status: payment.status,
+            message: 'Đang chờ đối soát kết quả thanh toán',
+          };
+        }
+      }
+      if (
+        !gatewayResult.success &&
+        gatewayResult.source !== 'CREATE' &&
+        (gatewayResult.responseCode === '99' ||
+          (gatewayResult.responseCode === '00' &&
+            !['02', '08', '11'].includes(
+              gatewayResult.transactionStatus ?? '',
+            )))
+      ) {
+        return {
+          status: payment.status,
+          message: 'Đang chờ đối soát kết quả thanh toán',
+        };
+      }
 
       // 1. CỔNG BÁO THÀNH CÔNG (00)
       if (gatewayResult.success) {
@@ -667,7 +730,7 @@ export class PaymentsService {
         });
 
         // 1.1. Đơn còn nhận thanh toán và chưa có giao dịch SUCCESS khác
-        if (isOrderPayable && !hasOtherSuccess) {
+        if (!lateSuccess && isOrderPayable && !hasOtherSuccess) {
           let holdSuccess = true;
           try {
             await this.inventory.hold(tx, order.id);
@@ -680,6 +743,14 @@ export class PaymentsService {
           }
 
           if (holdSuccess) {
+            if (order.status === 'PAYMENT_FAILED') {
+              assertTransition(order.status, 'PENDING');
+              await tx.order.update({
+                where: { id: order.id },
+                data: { status: 'PENDING' },
+              });
+            }
+            const pointsEarned = await awardOrderPoints(tx, order, payment);
             const paidAt = parseVnpDate(gatewayResult.payDate) || new Date();
             const responseSnapshot: Prisma.JsonObject = {
               payment: {
@@ -695,7 +766,7 @@ export class PaymentsService {
                 code: `#${order.id}`,
                 status: 'PAID',
                 total: order.total,
-                pointsEarned: 0,
+                pointsEarned,
               },
             };
 
@@ -718,7 +789,7 @@ export class PaymentsService {
 
             await tx.order.update({
               where: { id: order.id },
-              data: { status: 'PAID' },
+              data: { status: 'PAID', pointsEarned },
             });
 
             if (gatewayResult.rawPayload) {
@@ -734,7 +805,9 @@ export class PaymentsService {
                   signatureValid: true,
                   processed: true,
                   message: `Thanh toán thành công đơn hàng #${order.id}`,
-                  rawPayload: sanitizeVnpayPayload(gatewayResult.rawPayload) as Prisma.InputJsonObject,
+                  rawPayload: sanitizeVnpayPayload(
+                    gatewayResult.rawPayload,
+                  ) as Prisma.InputJsonObject,
                   requestId: gatewayResult.requestId,
                 },
               });
@@ -759,6 +832,7 @@ export class PaymentsService {
               },
             });
 
+            await this.restoreHeldPoints(tx, payment, order);
             await tx.paymentRefund.upsert({
               where: { paymentId: payment.id },
               create: {
@@ -783,7 +857,9 @@ export class PaymentsService {
                   signatureValid: true,
                   processed: true,
                   message: `Đơn #${order.id} thiếu nguyên liệu khi cổng đã thu tiền, chuyển sang NEEDS_REFUND`,
-                  rawPayload: sanitizeVnpayPayload(gatewayResult.rawPayload) as Prisma.InputJsonObject,
+                  rawPayload: sanitizeVnpayPayload(
+                    gatewayResult.rawPayload,
+                  ) as Prisma.InputJsonObject,
                   requestId: gatewayResult.requestId,
                 },
               });
@@ -791,7 +867,8 @@ export class PaymentsService {
 
             return {
               status: 'NEEDS_REFUND',
-              message: 'Cổng đã thu tiền nhưng đơn hàng thiếu nguyên liệu, cần hoàn tiền',
+              message:
+                'Cổng đã thu tiền nhưng đơn hàng thiếu nguyên liệu, cần hoàn tiền',
             };
           }
         } else {
@@ -811,6 +888,8 @@ export class PaymentsService {
             },
           });
 
+          await this.restoreHeldPoints(tx, payment, order);
+          await this.releaseUnusedHold(tx, payment);
           await tx.paymentRefund.upsert({
             where: { paymentId: payment.id },
             create: {
@@ -835,7 +914,9 @@ export class PaymentsService {
                 signatureValid: true,
                 processed: true,
                 message: `Đơn #${order.id} không còn hợp lệ (${order.status}), giao dịch chuyển NEEDS_REFUND`,
-                rawPayload: sanitizeVnpayPayload(gatewayResult.rawPayload) as Prisma.InputJsonObject,
+                rawPayload: sanitizeVnpayPayload(
+                  gatewayResult.rawPayload,
+                ) as Prisma.InputJsonObject,
                 requestId: gatewayResult.requestId,
               },
             });
@@ -843,7 +924,8 @@ export class PaymentsService {
 
           return {
             status: 'NEEDS_REFUND',
-            message: 'Đơn hàng không hợp lệ để nhận thanh toán, chuyển sang NEEDS_REFUND',
+            message:
+              'Đơn hàng không hợp lệ để nhận thanh toán, chuyển sang NEEDS_REFUND',
           };
         }
       }
@@ -871,44 +953,9 @@ export class PaymentsService {
       });
 
       // Hoàn lại điểm thưởng nếu giao dịch thất bại / hủy
-      if (payment.pointsUsed > 0) {
-        const existingRefund = await tx.loyaltyTransaction.findFirst({
-          where: { paymentId: payment.id, type: 'REFUND' },
-        });
-        if (!existingRefund) {
-          await tx.user.update({
-            where: { id: order.userId },
-            data: { loyaltyPoints: { increment: payment.pointsUsed } },
-          });
+      await this.restoreHeldPoints(tx, payment, order);
+      await this.releaseUnusedHold(tx, payment);
 
-          const redeemTx = await tx.loyaltyTransaction.findFirst({
-            where: { paymentId: payment.id, type: 'REDEEM' },
-          });
-
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: order.userId,
-              orderId: order.id,
-              paymentId: payment.id,
-              relatedTransactionId: redeemTx?.id,
-              points: payment.pointsUsed,
-              pointsAmount: payment.pointsAmount,
-              type: 'REFUND',
-              eventKey: `payment:${payment.id}:refund`,
-            },
-          });
-
-          await tx.order.update({
-            where: { id: order.id },
-            data: {
-              discountAmount: order.discountAmount - payment.pointsAmount,
-              total: order.total + payment.pointsAmount,
-            },
-          });
-        }
-      }
-
-      // Nếu không còn Payment PROCESSING nào khác trên đơn, chuyển đơn sang PAYMENT_FAILED
       const otherActive = await tx.payment.findFirst({
         where: {
           orderId: order.id,
@@ -937,7 +984,9 @@ export class PaymentsService {
             signatureValid: true,
             processed: true,
             message: failureReason,
-            rawPayload: sanitizeVnpayPayload(gatewayResult.rawPayload) as Prisma.InputJsonObject,
+            rawPayload: sanitizeVnpayPayload(
+              gatewayResult.rawPayload,
+            ) as Prisma.InputJsonObject,
             requestId: gatewayResult.requestId,
           },
         });
@@ -1017,39 +1066,25 @@ export class PaymentsService {
       return { RspCode: '04', Message: 'Invalid amount' };
     }
 
-    // 4. Kiểm tra trạng thái: nếu đã chốt rồi
-    if (payment.status !== 'PROCESSING') {
-      await this.prisma.paymentWebhookLog.create({
-        data: {
-          paymentId: payment.id,
-          source: 'IPN',
-          result: 'DUPLICATE',
-          gatewayTxnRef: txnRef,
-          amount: payment.amount,
-          signatureValid: true,
-          processed: true,
-          message: 'Đơn hàng đã được xác nhận trước đó',
-          rawPayload: rawPayload as Prisma.InputJsonObject,
-        },
-      });
-      return { RspCode: '02', Message: 'Order already confirmed' };
-    }
-
-    // 5. Chốt kết quả
+    // Settlement rechecks the current state while holding the order lock.
     const responseCode = String(query.vnp_ResponseCode ?? '99');
     const transactionStatus = query.vnp_TransactionStatus
       ? String(query.vnp_TransactionStatus)
       : undefined;
 
-    const isSuccess = responseCode === '00' && (!transactionStatus || transactionStatus === '00');
+    const isSuccess =
+      responseCode === '00' &&
+      (!transactionStatus || transactionStatus === '00');
 
-    await this.settlePayment({
+    const result = await this.settlePayment({
       paymentId: payment.id,
       gatewayResult: {
         success: isSuccess,
         responseCode,
         transactionStatus,
-        transactionNo: query.vnp_TransactionNo ? String(query.vnp_TransactionNo) : undefined,
+        transactionNo: query.vnp_TransactionNo
+          ? String(query.vnp_TransactionNo)
+          : undefined,
         bankCode: query.vnp_BankCode ? String(query.vnp_BankCode) : undefined,
         cardType: query.vnp_CardType ? String(query.vnp_CardType) : undefined,
         payDate: query.vnp_PayDate ? String(query.vnp_PayDate) : undefined,
@@ -1059,7 +1094,9 @@ export class PaymentsService {
       },
     });
 
-    return { RspCode: '00', Message: 'Confirm Success' };
+    return result.duplicate
+      ? { RspCode: '02', Message: 'Order already confirmed' }
+      : { RspCode: '00', Message: 'Confirm Success' };
   }
 
   /**
@@ -1107,13 +1144,23 @@ export class PaymentsService {
       try {
         querydrResult = await this.vnpayGateway.queryTransaction({
           txnRef: payment.gatewayTxnRef!,
-          transactionDate: payment.vnpCreateDate || payment.createdAt.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14),
+          transactionDate:
+            payment.vnpCreateDate ||
+            payment.createdAt
+              .toISOString()
+              .replace(/[-:T.Z]/g, '')
+              .slice(0, 14),
         });
       } catch {
         querydrResult = null;
       }
 
-      if (querydrResult && querydrResult.responseCode !== '99') {
+      if (
+        querydrResult?.responseCode === '00' &&
+        (querydrResult.success ||
+          (this.isConfirmedUnpaid(querydrResult) &&
+            querydrResult.transactionStatus !== '01'))
+      ) {
         await this.settlePayment({
           paymentId: payment.id,
           gatewayResult: {
@@ -1131,8 +1178,12 @@ export class PaymentsService {
       } else {
         // Nếu querydr không trả về hoặc timeout, sử dụng trực tiếp kết quả đã ký trên Return URL
         const returnResponseCode = String(query.vnp_ResponseCode ?? '99');
-        const returnTxnStatus = query.vnp_TransactionStatus ? String(query.vnp_TransactionStatus) : undefined;
-        const returnSuccess = returnResponseCode === '00' && (!returnTxnStatus || returnTxnStatus === '00');
+        const returnTxnStatus = query.vnp_TransactionStatus
+          ? String(query.vnp_TransactionStatus)
+          : undefined;
+        const returnSuccess =
+          returnResponseCode === '00' &&
+          (!returnTxnStatus || returnTxnStatus === '00');
 
         await this.settlePayment({
           paymentId: payment.id,
@@ -1140,9 +1191,15 @@ export class PaymentsService {
             success: returnSuccess,
             responseCode: returnResponseCode,
             transactionStatus: returnTxnStatus,
-            transactionNo: query.vnp_TransactionNo ? String(query.vnp_TransactionNo) : undefined,
-            bankCode: query.vnp_BankCode ? String(query.vnp_BankCode) : undefined,
-            cardType: query.vnp_CardType ? String(query.vnp_CardType) : undefined,
+            transactionNo: query.vnp_TransactionNo
+              ? String(query.vnp_TransactionNo)
+              : undefined,
+            bankCode: query.vnp_BankCode
+              ? String(query.vnp_BankCode)
+              : undefined,
+            cardType: query.vnp_CardType
+              ? String(query.vnp_CardType)
+              : undefined,
             payDate: query.vnp_PayDate ? String(query.vnp_PayDate) : undefined,
             source: 'RETURN',
             rawPayload: query,
@@ -1185,7 +1242,9 @@ export class PaymentsService {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
-        order: { select: { id: true, userId: true, total: true, status: true } },
+        order: {
+          select: { id: true, userId: true, total: true, status: true },
+        },
         refunds: true,
       },
     });
@@ -1218,14 +1277,18 @@ export class PaymentsService {
     const current = await this.prisma.payment.findUniqueOrThrow({
       where: { id: paymentId },
       include: {
-        order: { select: { id: true, userId: true, total: true, status: true } },
+        order: {
+          select: { id: true, userId: true, total: true, status: true },
+        },
         refunds: true,
       },
     });
 
     // Chỉ chủ đơn mới thấy paymentUrl, và chỉ khi PROCESSING chưa hết hạn
     const isOwner = current.order.userId === userId;
-    const isExpired = current.expiresAt ? current.expiresAt <= new Date() : false;
+    const isExpired = current.expiresAt
+      ? current.expiresAt <= new Date()
+      : false;
     const canSeeUrl = isOwner && current.status === 'PROCESSING' && !isExpired;
 
     return {
@@ -1264,134 +1327,262 @@ export class PaymentsService {
       });
     }
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: { refunds: true },
+    const claim = await inventoryTransaction(this.prisma, async (tx) => {
+      const identity = await tx.payment.findUnique({
+        where: { id: paymentId },
+        select: { orderId: true },
+      });
+      if (!identity)
+        throw new NotFoundException({
+          code: 'PAYMENT_NOT_FOUND',
+          message: 'Không tìm thấy giao dịch',
+        });
+      await lockOrder(tx, identity.orderId);
+      const payment = await tx.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+        include: { order: true, refunds: true },
+      });
+      const existing = payment.refunds[0];
+      if (payment.refundedAt || existing?.status === 'SUCCESS') {
+        if (payment.status === 'SUCCESS')
+          await revokeOrderPoints(tx, payment.order);
+        return { action: 'done' as const, payment, refund: existing ?? null };
+      }
+      if (!['SUCCESS', 'NEEDS_REFUND'].includes(payment.status)) {
+        throw new ConflictException({
+          code: 'INVALID_REFUND_STATE',
+          message: 'Giao dịch chưa thể hoàn tiền',
+        });
+      }
+      // The same order lock is taken by updateStatus: either refund or
+      // preparation wins. Never send money after preparation has won.
+      if (
+        payment.status === 'SUCCESS' &&
+        !['PENDING', 'PAYMENT_FAILED', 'PAID', 'CANCELLED'].includes(
+          payment.order.status,
+        )
+      ) {
+        throw new ConflictException({
+          code: 'ORDER_ALREADY_PREPARING',
+          message: 'Đơn đã được nhận pha chế, không thể hoàn tiền',
+        });
+      }
+      if (payment.method === 'POINTS') {
+        // PaymentRefund is a cash request (amount > 0). The loyalty ledger and
+        // Payment settlement evidence record a points-only refund atomically.
+        await this.restoreHeldPoints(tx, payment, payment.order, false);
+        await revokeOrderPoints(tx, payment.order);
+        const updated = await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            refundedAt: new Date(),
+            refundedAmount: 0,
+            refundRef: `POINTS_REFUND_${payment.id}`,
+          },
+        });
+        await this.inventory.finish(tx, payment.orderId, false);
+        return { action: 'done' as const, payment: updated, refund: null };
+      }
+      if (
+        existing?.status === 'PROCESSING' &&
+        Date.now() - existing.updatedAt.getTime() < 60000
+      ) {
+        return { action: 'pending' as const, payment, refund: existing };
+      }
+      if (payment.method === 'VNPAY' && !this.vnpayGateway.isConfigured()) {
+        throw new ServiceUnavailableException({ code: 'VNPAY_NOT_CONFIGURED' });
+      }
+      const reconcile = Boolean(
+        existing &&
+        (existing.gatewayResponseCode !== null ||
+          existing.status === 'PROCESSING'),
+      );
+      const refund = await tx.paymentRefund.upsert({
+        where: { paymentId },
+        create: {
+          paymentId,
+          amount: payment.amount,
+          idempotencyKey: `payment:${payment.id}:refund`,
+          status: 'PROCESSING',
+        },
+        update: { status: 'PROCESSING', confirmedAt: null },
+      });
+      return {
+        action: reconcile ? ('reconcile' as const) : ('send' as const),
+        payment,
+        refund,
+      };
     });
-
-    if (!payment) {
-      throw new NotFoundException({
-        code: 'PAYMENT_NOT_FOUND',
-        message: `Không tìm thấy giao dịch #${paymentId}`,
-      });
-    }
-
-    if (payment.status !== 'SUCCESS' && payment.status !== 'NEEDS_REFUND') {
-      throw new ConflictException({
-        code: 'INVALID_REFUND_STATE',
-        message: `Chỉ giao dịch SUCCESS hoặc NEEDS_REFUND mới có thể hoàn tiền (hiện tại: ${payment.status})`,
-      });
-    }
-
-    // Đã có bản ghi hoàn tiền SUCCESS chưa
-    const existingSuccess = payment.refunds.find((r) => r.status === 'SUCCESS');
-    if (existingSuccess || payment.refundedAt) {
+    if (claim.action === 'done')
       return {
         message: 'Giao dịch đã được hoàn tiền trước đó',
-        refund: existingSuccess,
-        payment,
+        payment: claim.payment,
+        refund: claim.refund,
       };
-    }
+    if (claim.action === 'pending')
+      return {
+        message: 'Đang chờ hoàn tiền',
+        payment: claim.payment,
+        refund: claim.refund,
+      };
+    const { payment, refund } = claim;
+    const transactionDate =
+      payment.vnpCreateDate ||
+      payment.createdAt
+        .toISOString()
+        .replace(/[-:T.Z]/g, '')
+        .slice(0, 14);
 
-    // Upsert bản ghi PaymentRefund ở trạng thái PROCESSING
-    const refundRecord = await this.prisma.paymentRefund.upsert({
-      where: { paymentId: payment.id },
-      create: {
-        paymentId: payment.id,
-        amount: payment.amount,
-        idempotencyKey: `payment:${payment.id}:refund`,
-        status: 'PROCESSING',
-      },
-      update: {
-        status: 'PROCESSING',
-      },
-    });
-
-    if (payment.method === 'VNPAY') {
-      const vnpTransactionDate =
-        payment.vnpCreateDate ||
-        payment.createdAt.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-
-      const refundResult = await this.vnpayGateway.refund({
-        txnRef: payment.gatewayTxnRef!,
-        amount: payment.amount,
-        transactionDate: vnpTransactionDate,
-        transactionNo: payment.providerRef || '0',
-        createBy: `BARISTA_${adminId}`,
-        ipAddr: clientIp,
-      });
-
-      if (refundResult.success) {
-        return this.prisma.$transaction(async (tx) => {
-          const now = new Date();
-          const updatedRefund = await tx.paymentRefund.update({
-            where: { id: refundRecord.id },
-            data: {
-              status: 'SUCCESS',
-              confirmedAt: now,
-              gatewayRefundNo: refundResult.refundNo,
-            },
+    // Finish under the order lock. A lease reclaimed after a process crash
+    // invalidates the old worker, so a delayed reply cannot overwrite it.
+    const finish = async (
+      status: 'SUCCESS' | 'PENDING' | 'FAILED',
+      code: string,
+      ref?: string,
+      reason?: string,
+    ) =>
+      inventoryTransaction(this.prisma, async (tx) => {
+        await lockOrder(tx, payment.orderId);
+        const current = await tx.paymentRefund.findUniqueOrThrow({
+          where: { id: refund.id },
+        });
+        if (
+          current.status !== 'PROCESSING' ||
+          current.updatedAt.getTime() !== refund.updatedAt.getTime()
+        ) {
+          return {
+            message: 'Đang chờ hoàn tiền',
+            refund: current,
+            payment: await tx.payment.findUniqueOrThrow({
+              where: { id: payment.id },
+            }),
+          };
+        }
+        const now = new Date();
+        const updatedRefund = await tx.paymentRefund.update({
+          where: { id: refund.id },
+          data: {
+            status,
+            confirmedAt: status === 'SUCCESS' ? now : null,
+            gatewayResponseCode: code,
+            gatewayRefundNo: ref,
+            failureReason: reason ?? null,
+          },
+        });
+        let updatedPayment = await tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        });
+        if (status === 'SUCCESS') {
+          const order = await tx.order.findUniqueOrThrow({
+            where: { id: payment.orderId },
           });
-
-          const updatedPayment = await tx.payment.update({
+          await this.restoreHeldPoints(tx, updatedPayment, order, false);
+          if (payment.status === 'SUCCESS') await revokeOrderPoints(tx, order);
+          updatedPayment = await tx.payment.update({
             where: { id: payment.id },
             data: {
               refundedAt: now,
               refundedAmount: payment.amount,
-              refundRef: refundResult.refundNo || `VNPAY_REFUND_${payment.id}`,
+              refundRef: ref || `REFUND_${payment.id}`,
             },
           });
-
-          return {
-            message: 'Hoàn tiền VNPAY thành công',
-            refund: updatedRefund,
-            payment: updatedPayment,
-          };
-        });
-      } else {
-        await this.prisma.paymentRefund.update({
-          where: { id: refundRecord.id },
-          data: {
-            status: 'FAILED',
-            failureReason: refundResult.failureReason,
-            gatewayResponseCode: refundResult.responseCode,
-          },
-        });
-
-        throw new BadRequestException({
-          code: 'REFUND_FAILED',
-          message: refundResult.failureReason || 'Cổng VNPAY từ chối hoàn tiền',
-        });
-      }
-    } else {
-      // Phương thức Mock (WALLET / CARD)
-      const mockResult = await this.mockPaymentService.refund(payment.amount);
-      return this.prisma.$transaction(async (tx) => {
-        const now = new Date();
-        const updatedRefund = await tx.paymentRefund.update({
-          where: { id: refundRecord.id },
-          data: {
-            status: 'SUCCESS',
-            confirmedAt: now,
-            gatewayRefundNo: mockResult.refundRef,
-          },
-        });
-
-        const updatedPayment = await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            refundedAt: now,
-            refundedAmount: payment.amount,
-            refundRef: mockResult.refundRef,
-          },
-        });
-
+          // A late extra charge does not release stock for the successful tender.
+          if (payment.status === 'SUCCESS')
+            await this.inventory.finish(tx, payment.orderId, false);
+        }
         return {
-          message: 'Hoàn tiền mock thành công',
+          message: status === 'SUCCESS' ? 'Đã hoàn tiền' : 'Đang chờ hoàn tiền',
           refund: updatedRefund,
           payment: updatedPayment,
         };
       });
+
+    if (payment.method !== 'VNPAY') {
+      const result = await this.mockPaymentService.refund(payment.amount);
+      return finish('SUCCESS', '00', result.refundRef);
+    }
+    if (claim.action === 'reconcile') {
+      let query: VnpayQueryResult | null = null;
+      try {
+        query = await this.vnpayGateway.queryTransaction({
+          txnRef: payment.gatewayTxnRef!,
+          transactionDate,
+          ipAddr: clientIp,
+        });
+      } catch {
+        /* Keep an ambiguous result pending; do not send another refund. */
+      }
+      const matched =
+        query?.responseCode === '00' && query.amount === payment.amount;
+      if (
+        matched &&
+        query &&
+        query.transactionType === '02' &&
+        query.transactionStatus === '00'
+      ) {
+        return finish('SUCCESS', '00', query.transactionNo);
+      }
+      // 05/06 means VNPAY/bank is processing the refund. Only an explicit
+      // original successful payment or rejected refund allows another attempt.
+      if (
+        !matched ||
+        !query ||
+        !(
+          (query.transactionType === '01' &&
+            query.transactionStatus === '00') ||
+          query.transactionStatus === '09'
+        )
+      ) {
+        return finish(
+          'PENDING',
+          '99',
+          undefined,
+          'Refund outcome requires reconciliation',
+        );
+      }
+    }
+    try {
+      const result = await this.vnpayGateway.refund({
+        txnRef: payment.gatewayTxnRef!,
+        amount: payment.amount,
+        transactionDate,
+        transactionNo: payment.providerRef || '0',
+        createBy: `BARISTA_${adminId}`,
+        ipAddr: clientIp,
+        requestId: crypto
+          .createHash('sha256')
+          .update(refund.idempotencyKey)
+          .digest('hex')
+          .slice(0, 32),
+      });
+      if (result.success)
+        return finish('SUCCESS', result.responseCode, result.refundNo);
+      if (result.pending || result.responseCode === '99') {
+        return finish(
+          'PENDING',
+          result.responseCode,
+          undefined,
+          result.failureReason,
+        );
+      }
+      await finish(
+        'FAILED',
+        result.responseCode,
+        undefined,
+        result.failureReason,
+      );
+      throw new BadRequestException({
+        code: 'REFUND_FAILED',
+        message: result.failureReason,
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      return finish(
+        'PENDING',
+        '99',
+        undefined,
+        'Refund outcome requires reconciliation',
+      );
     }
   }
 
@@ -1402,23 +1593,17 @@ export class PaymentsService {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
     });
-    if (!payment || payment.status !== 'PROCESSING' || payment.method !== 'VNPAY') {
+    if (
+      !payment ||
+      !['PROCESSING', 'CANCELLED'].includes(payment.status) ||
+      payment.method !== 'VNPAY'
+    ) {
       return;
     }
 
     if (!payment.gatewayTxnRef) return;
 
-    let querydrResult: VnpayQueryResult | null = null;
-    try {
-      querydrResult = await this.vnpayGateway.queryTransaction({
-        txnRef: payment.gatewayTxnRef,
-        transactionDate:
-          payment.vnpCreateDate ||
-          payment.createdAt.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14),
-      });
-    } catch {
-      querydrResult = null;
-    }
+    const querydrResult = await this.queryVnpayPayment(payment);
 
     if (querydrResult && querydrResult.responseCode !== '99') {
       if (querydrResult.success) {
@@ -1440,53 +1625,126 @@ export class PaymentsService {
     }
 
     // Nếu querydr xác nhận chưa thanh toán hoặc thất bại, và đã quá hạn
-    if (payment.expiresAt && payment.expiresAt <= new Date()) {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.payment.update({
+    if (
+      this.isConfirmedUnpaid(querydrResult) &&
+      ((payment.expiresAt && payment.expiresAt <= new Date()) ||
+        payment.status === 'CANCELLED')
+    ) {
+      await inventoryTransaction(this.prisma, async (tx) => {
+        await lockOrder(tx, payment.orderId);
+        const current = await tx.payment.findUniqueOrThrow({
           where: { id: payment.id },
+          include: { order: true },
+        });
+        if (!['PROCESSING', 'CANCELLED'].includes(current.status)) return;
+        await tx.payment.update({
+          where: { id: current.id },
           data: {
-            status: 'EXPIRED',
+            status: current.status === 'CANCELLED' ? 'CANCELLED' : 'EXPIRED',
             failureReason: 'Giao dịch hết hạn thanh toán',
+            gatewayResponseCode: querydrResult!.responseCode,
+            gatewayTransactionStatus: querydrResult!.transactionStatus,
+          },
+        });
+        await this.restoreHeldPoints(tx, current, current.order);
+        await this.releaseUnusedHold(tx, current);
+      });
+    }
+  }
+
+  async queryVnpayPayment(payment: Payment): Promise<VnpayQueryResult | null> {
+    if (!payment.gatewayTxnRef) return null;
+    try {
+      const result = await this.vnpayGateway.queryTransaction({
+        txnRef: payment.gatewayTxnRef,
+        transactionDate:
+          payment.vnpCreateDate ||
+          payment.createdAt
+            .toISOString()
+            .replace(/[-:T.Z]/g, '')
+            .slice(0, 14),
+      });
+      return result.amount !== undefined && result.amount !== payment.amount
+        ? null
+        : result;
+    } catch {
+      return null;
+    }
+  }
+
+  isConfirmedUnpaid(result: VnpayQueryResult | null): boolean {
+    return Boolean(
+      result &&
+      result.responseCode === '00' &&
+      !result.success &&
+      ['01', '02', '08', '11'].includes(result.transactionStatus ?? ''),
+    );
+  }
+
+  // Call with the order locked. An older session must not release a retry's hold.
+  private async releaseUnusedHold(
+    tx: Prisma.TransactionClient,
+    payment: Payment,
+  ) {
+    const other = await tx.payment.findFirst({
+      where: {
+        orderId: payment.orderId,
+        id: { not: payment.id },
+        status: { in: ['PROCESSING', 'SUCCESS'] },
+      },
+    });
+    if (other) return;
+    const reservation = await tx.inventoryReservation.findUnique({
+      where: { orderId: payment.orderId },
+    });
+    if (reservation?.status === 'HELD')
+      await this.inventory.finish(tx, payment.orderId, false);
+  }
+
+  // Call only while holding the order lock. The ledger's unique payment/type
+  // key also prevents a second refund if IPN, cancellation and retries race.
+  private async restoreHeldPoints(
+    tx: Prisma.TransactionClient,
+    payment: Payment,
+    order: Order,
+    restoreOrderTotals = true,
+  ) {
+    if (payment.pointsUsed > 0) {
+      const existingRefund = await tx.loyaltyTransaction.findFirst({
+        where: { paymentId: payment.id, type: 'REFUND' },
+      });
+      if (!existingRefund) {
+        await tx.user.update({
+          where: { id: order.userId },
+          data: { loyaltyPoints: { increment: payment.pointsUsed } },
+        });
+
+        const redeemTx = await tx.loyaltyTransaction.findFirst({
+          where: { paymentId: payment.id, type: 'REDEEM' },
+        });
+
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: order.userId,
+            orderId: order.id,
+            paymentId: payment.id,
+            relatedTransactionId: redeemTx?.id,
+            points: payment.pointsUsed,
+            pointsAmount: payment.pointsAmount,
+            type: 'REFUND',
+            eventKey: `payment:${payment.id}:refund`,
           },
         });
 
-        if (payment.pointsUsed > 0) {
-          const existingRefund = await tx.loyaltyTransaction.findFirst({
-            where: { paymentId: payment.id, type: 'REFUND' },
+        if (restoreOrderTotals)
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              discountAmount: order.discountAmount - payment.pointsAmount,
+              total: order.total + payment.pointsAmount,
+            },
           });
-          if (!existingRefund) {
-            const ord = await tx.order.findUniqueOrThrow({
-              where: { id: payment.orderId },
-            });
-            await tx.user.update({
-              where: { id: ord.userId },
-              data: { loyaltyPoints: { increment: payment.pointsUsed } },
-            });
-            const redeemTx = await tx.loyaltyTransaction.findFirst({
-              where: { paymentId: payment.id, type: 'REDEEM' },
-            });
-            await tx.loyaltyTransaction.create({
-              data: {
-                userId: ord.userId,
-                orderId: payment.orderId,
-                paymentId: payment.id,
-                relatedTransactionId: redeemTx?.id,
-                points: payment.pointsUsed,
-                pointsAmount: payment.pointsAmount,
-                type: 'REFUND',
-                eventKey: `payment:${payment.id}:expired-refund`,
-              },
-            });
-            await tx.order.update({
-              where: { id: payment.orderId },
-              data: {
-                discountAmount: ord.discountAmount - payment.pointsAmount,
-                total: ord.total + payment.pointsAmount,
-              },
-            });
-          }
-        }
-      });
+      }
     }
   }
 
@@ -1497,7 +1755,14 @@ export class PaymentsService {
     return db.payment.findUnique({
       where: { idempotencyKey: key },
       include: {
-        order: { select: { userId: true, status: true, total: true } },
+        order: {
+          select: {
+            userId: true,
+            status: true,
+            total: true,
+            pointsEarned: true,
+          },
+        },
         refunds: true,
       },
     });
@@ -1523,31 +1788,47 @@ export class PaymentsService {
       }
 
       if (payment.method === 'VNPAY') {
-        // Với VNPAY: nếu đang PROCESSING
-        if (payment.status === 'PROCESSING') {
-          // Kiểm tra nếu đã hết hạn
-          if (payment.expiresAt && payment.expiresAt <= new Date()) {
-            await this.reconcileSinglePayment(payment.id);
-            const refreshed = await this.findPayment(payment.idempotencyKey);
-            if (refreshed && refreshed.status === 'EXPIRED') {
-              throw new ConflictException({
-                code: 'PAYMENT_EXPIRED',
-                message: 'Giao dịch đã hết hạn thanh toán. Vui lòng thanh toán lại với khóa mới',
-              });
-            }
+        if (
+          payment.status === 'PROCESSING' &&
+          payment.expiresAt &&
+          payment.expiresAt <= new Date()
+        ) {
+          await this.reconcileSinglePayment(payment.id);
+          const refreshed = await this.findPayment(payment.idempotencyKey);
+          if (refreshed?.status === 'EXPIRED') {
+            throw new ConflictException({
+              code: 'PAYMENT_EXPIRED',
+              message:
+                'Giao dịch đã hết hạn thanh toán. Vui lòng thanh toán lại với khóa mới',
+            });
           }
-
+          if (refreshed?.status === 'PROCESSING') {
+            throw new ConflictException({
+              code: 'PAYMENT_AWAITING_RECONCILIATION',
+              message: 'Đang chờ đối soát phiên thanh toán hết hạn',
+            });
+          }
+          if (refreshed) payment = refreshed;
+        }
+        if (payment.status !== 'PROCESSING' || payment.paymentUrl) {
           return {
             isReplayed: true,
-            statusCode: HttpStatus.CREATED,
-            data: payment.responseSnapshot ?? {
+            statusCode: ['PROCESSING', 'SUCCESS'].includes(payment.status)
+              ? HttpStatus.CREATED
+              : HttpStatus.PAYMENT_REQUIRED,
+            data: {
               payment: {
                 id: payment.id,
                 orderId: payment.orderId,
                 amount: payment.amount,
                 method: payment.method,
                 status: payment.status,
-                paymentUrl: payment.paymentUrl,
+                pointsUsed: payment.pointsUsed,
+                pointsAmount: payment.pointsAmount,
+                providerRef: payment.providerRef,
+                failureReason: payment.failureReason,
+                paymentUrl:
+                  payment.status === 'PROCESSING' ? payment.paymentUrl : null,
                 expiresAt: payment.expiresAt?.toISOString(),
               },
               order: {
@@ -1555,20 +1836,9 @@ export class PaymentsService {
                 code: `#${payment.orderId}`,
                 status: payment.order.status,
                 total: payment.order.total,
+                pointsEarned: payment.order.pointsEarned,
               },
             },
-          };
-        }
-
-        // Nếu đã có snapshot và status !== PROCESSING
-        if (payment.responseSnapshot) {
-          return {
-            isReplayed: true,
-            statusCode:
-              payment.status === 'SUCCESS'
-                ? HttpStatus.CREATED
-                : HttpStatus.PAYMENT_REQUIRED,
-            data: payment.responseSnapshot,
           };
         }
       }

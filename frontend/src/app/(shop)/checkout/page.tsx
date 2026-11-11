@@ -48,7 +48,6 @@ function CheckoutContent() {
     isRefreshing,
     isHydrated,
     getSubtotal,
-    clearCart,
   } = useCartStore();
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
@@ -132,6 +131,8 @@ function CheckoutContent() {
             if (active && fetchedOrder) {
               const newSession = flow.startOrder(currentUser.id, fetchedOrder);
               setSession(newSession);
+              setSuccessOrder(newSession.phase === 'paid' ? fetchedOrder : null);
+              if (newSession.phase === 'paid') flow.clear(currentUser.id, fetchedOrder.id);
               setUseMaxPoints(
                 Boolean(
                   newSession.attempt?.pointsUsed ||
@@ -148,20 +149,10 @@ function CheckoutContent() {
           }
         }
 
-        let restored = flow.read(currentUser.id);
-        const currentCart = useCartStore.getState();
-        if (
-          restored?.order &&
-          currentCart.items.length &&
-          restored.cartKey !== cartKey(currentCart.items, currentCart.promoCode)
-        ) {
-          flow.beginCart(currentUser.id);
-          restored = null;
-        }
+        const restored = flow.read(currentUser.id);
         if (restored) {
           if (
-            restored.order?.status === "CANCELLED" ||
-            restored.order?.status === "COMPLETED"
+            restored.order?.status === "CANCELLED"
           ) {
             flow.clear(currentUser.id);
             setSession(null);
@@ -174,6 +165,7 @@ function CheckoutContent() {
               );
               if (!active) return;
               cleanSession = flow.startOrder(currentUser.id, latestOrder);
+              if (cleanSession.phase === 'paid') flow.clear(currentUser.id, latestOrder.id);
             }
             setSession(cleanSession);
             setUseMaxPoints(
@@ -261,7 +253,11 @@ function CheckoutContent() {
                 Phương thức:
               </span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "POINTS" ||
+                {successOrder.total === 0 &&
+                successOrder.promoCode &&
+                successOrder.discountAmount >= successOrder.subtotal
+                  ? 'Voucher (0đ)'
+                  : paymentMethod === "POINTS" ||
                 (successOrder.total === 0 &&
                   !successOrder.payments?.some((p) => p.method === "VNPAY"))
                   ? "Điểm thưởng (100%)"
@@ -281,9 +277,9 @@ function CheckoutContent() {
               </span>
             </div>
             <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400 light:border-cafe-line light:text-cafe-primary ">
-              <span>⭐ Điểm tích lũy dự kiến:</span>
+              <span>⭐ Điểm đã tích lũy:</span>
               <span className="font-bold">
-                +{pointsEarned} điểm (cộng khi hoàn tất đơn)
+                +{pointsEarned} điểm
               </span>
             </div>
           </div>
@@ -361,11 +357,29 @@ function CheckoutContent() {
       setErrorMsg(null);
       if (!user || useCartStore.getState().isValidatingPromo) return;
       const flow = checkoutFlow(token!);
+      const finishPaid = async (paid: CheckoutSession) => {
+        if (paid.phase !== 'paid' || !paid.order || useAuthStore.getState().token !== token)
+          return false;
+        setSuccessOrder(paid.order);
+        if (paid.paidMethod) setPaymentMethod(paid.paidMethod);
+        flow.clear(user.id, paid.order.id);
+        await useAuthStore.getState().refreshUser();
+        return true;
+      };
       let currentSession = flow.read(user.id);
       if (queryOrderId && currentSession?.order?.id !== Number(queryOrderId))
         throw new Error(
           "Không thể tải đúng đơn hàng cần thanh toán. Vui lòng mở lại từ lịch sử đơn hàng.",
         );
+
+      if (currentSession?.creation && !currentSession.order) {
+        const restored = await flow.retryCreation(user.id);
+        if (useAuthStore.getState().token !== token) return;
+        setSession(restored);
+        if (await finishPaid(restored)) return;
+        // Show the confirmed server total before the next payment click.
+        return;
+      }
 
       // Nếu chưa có session và không có queryOrderId: prepare đơn mới từ giỏ hàng
       if (!currentSession && !queryOrderId) {
@@ -397,14 +411,7 @@ function CheckoutContent() {
           },
         );
         setSession(currentSession);
-        // The confirmed order now owns these items. A later cart is a new order.
-        if (
-          cartKey(
-            useCartStore.getState().items,
-            useCartStore.getState().promoCode,
-          ) === currentSession.cartKey
-        )
-          clearCart();
+        if (await finishPaid(currentSession)) return;
         if (
           currentSession.order &&
           currentSession.order.total !== clientTotal
@@ -460,7 +467,11 @@ function CheckoutContent() {
         return;
       }
 
-      if (paid.order && useAuthStore.getState().token === token) {
+      if (
+        paid.phase === "paid" &&
+        paid.order &&
+        useAuthStore.getState().token === token
+      ) {
         setSuccessOrder(paid.order);
         setPaymentMethod(paid.paidMethod ?? effectiveMethod);
         flow.clear(user.id, paid.order.id);
@@ -707,6 +718,31 @@ function CheckoutContent() {
                     Xem các đơn đã đặt
                   </Link>
                 </>
+              ) : session.creation ? (
+                <>
+                  <p>
+                    Chưa nhận được kết quả tạo đơn. Bấm thử lại để tiếp tục yêu
+                    cầu vừa gửi.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={handlePayOrder}
+                    className="underline font-semibold"
+                  >
+                    Thử lại tạo đơn
+                  </button>
+                  <Link href="/orders" className="block underline">
+                    Xem các đơn đã đặt
+                  </Link>
+                  <Link
+                    href="/menu"
+                    onClick={() => user && checkoutFlow().beginCart(user.id)}
+                    className="block underline"
+                  >
+                    Đặt đơn mới
+                  </Link>
+                </>
               ) : (
                 <>
                   <p>
@@ -844,7 +880,7 @@ function CheckoutContent() {
                 </div>
               )}
               <div className="flex justify-between text-amber-700 dark:text-amber-400 pt-1 border-t border-dashed border-[#ede5dc] dark:border-[#2a221c] light:text-cafe-primary light:border-cafe-line ">
-                <span>⭐ Tích lũy điểm (khi hoàn tất):</span>
+                <span>⭐ Tích lũy điểm (khi thanh toán thành công):</span>
                 <span className="font-bold">+{pointsEarned} điểm</span>
               </div>
             </div>

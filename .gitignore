@@ -5,5 +5,5 @@ coverage
 .env
 .env.local
 .DS_Store
-.local-backups/
+.local-backups
 /backend/src/generated/prisma/*.tmp*

@@ -71,12 +71,16 @@ function VnpayReturnContent() {
         if (!active) return;
         setResult(data);
 
-        if (data.payment.status === "SUCCESS") {
+        if (
+          data.payment.status === "SUCCESS" &&
+          ["PAID", "PREPARING", "READY", "COMPLETED"].includes(
+            data.order.status,
+          )
+        ) {
           if (userId) {
-            new CheckoutFlow(window.sessionStorage).clear(
-              userId,
-              data.order.id,
-            );
+            const flow = new CheckoutFlow(window.sessionStorage);
+            flow.startOrder(userId, data.order, false);
+            flow.clear(userId, data.order.id);
           }
           await refreshUser();
         } else if (
@@ -125,7 +129,9 @@ function VnpayReturnContent() {
     );
   }
 
-  const isSuccess = result?.payment.status === "SUCCESS";
+  const isSuccess =
+    result?.payment.status === "SUCCESS" &&
+    ["PAID", "PREPARING", "READY", "COMPLETED"].includes(result.order.status);
 
   return (
     <div className="max-w-xl mx-auto px-4 py-12 text-center animate-fadeIn">
@@ -186,10 +192,9 @@ function VnpayReturnContent() {
                 </span>
               </div>
               <div className="flex justify-between pt-2 border-t border-stone-200 dark:border-stone-700 text-amber-800 dark:text-amber-400">
-                <span>⭐ Tích lũy điểm thưởng:</span>
+                <span>⭐ Điểm đã tích lũy:</span>
                 <span className="font-bold">
-                  +{Math.floor((result?.order.total ?? 0) / 1000)} điểm (cộng
-                  khi hoàn tất)
+                  +{result.order.pointsEarned ?? 0} điểm
                 </span>
               </div>
             </div>

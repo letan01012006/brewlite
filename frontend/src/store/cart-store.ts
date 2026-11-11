@@ -5,6 +5,7 @@ import { apiFetch, ApiError } from "@/lib/api/client";
 import { orderItems } from "@/lib/order-payload";
 import { makeItem, basketError, restoreItems, cartReviewKey } from "@/lib/cart-rules";
 import { checkInventory, shortageMessage } from '@/lib/api/inventory';
+import { reconcileBatches, subtractPurchase, type CartBatches, type CartPurchase } from '@/lib/cart-purchase';
 
 interface AddItemInput {
   product: Product;
@@ -16,6 +17,10 @@ interface AddItemInput {
 
 interface CartState {
   items: CartItem[];
+  batches: CartBatches;
+  completedOrderIds: number[];
+  capturePurchase: () => CartPurchase;
+  settleOrder: (ownerId: number, orderId: number, purchase?: CartPurchase) => void;
   ownerId: number | null;
   isHydrated: boolean;
   isRefreshing: boolean;
@@ -46,8 +51,40 @@ interface CartState {
   getTotalItemCount: () => number;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create<CartState>((setState, get) => {
+  const set = (update: Partial<CartState> | ((state: CartState) => Partial<CartState>)) => {
+    const next = typeof update === 'function' ? update(get()) : update;
+    setState(next.items && !next.batches
+      ? { ...next, batches: reconcileBatches(next.items, get().batches) }
+      : next);
+  };
+  return {
   items: [],
+  batches: {},
+  completedOrderIds: [],
+  capturePurchase: () => ({ batches: Object.fromEntries(Object.entries(get().batches)
+    .map(([id, batches]) => [id, batches.map(batch => ({ ...batch }))])) }),
+  settleOrder: (ownerId, orderId, purchase) => {
+    // Older checkout sessions cleared their cart at creation and have no snapshot.
+    if (!purchase) return;
+    const current = get();
+    if (!current.isHydrated || current.ownerId !== ownerId)
+      throw new Error('Vui lòng chờ khôi phục giỏ hàng để cập nhật các món đã thanh toán.');
+    if (current.completedOrderIds.includes(orderId)) return;
+    const remaining = subtractPurchase(current.items, current.batches, purchase);
+    const next = {
+      ...remaining,
+      completedOrderIds: [...current.completedOrderIds, orderId],
+      promoCode: remaining.items.length ? current.promoCode : null,
+      requiresReview: remaining.items.length ? current.requiresReview : false,
+    };
+    // Persist the quantities and receipt together before changing memory. A failed
+    // write leaves the checkout snapshot available for a safe retry after reload.
+    localStorage.setItem(storageKey(ownerId), JSON.stringify(next));
+    set({ ...next, discountAmount: 0, cartError: null, promoError: null,
+      promoRevision: current.promoRevision + 1, isValidatingPromo: false });
+    if (next.promoCode) void get().validatePromo(next.promoCode);
+  },
   ownerId: null,
   isHydrated: false,
   isRefreshing: false,
@@ -65,12 +102,17 @@ export const useCartStore = create<CartState>((set, get) => ({
     let promoCode: string | null = memoryGuest?.promoCode ?? null;
     let notice: string | null = null;
     let requiresReview = memoryGuest?.requiresReview ?? false;
+    let batches: CartBatches = {};
+    let completedOrderIds: number[] = [];
     try {
       if (typeof window !== "undefined") {
         const saved = localStorage.getItem(storageKey(ownerId));
         if (saved) {
           const parsed = JSON.parse(saved);
           items = restoreItems(parsed.items);
+          batches = parsed.batches && typeof parsed.batches === 'object' ? parsed.batches : {};
+          completedOrderIds = Array.isArray(parsed.completedOrderIds)
+            ? parsed.completedOrderIds.filter((id: unknown) => Number.isInteger(id)) : [];
           requiresReview = parsed.requiresReview === true;
           promoCode =
             items.length && typeof parsed.promoCode === "string"
@@ -133,6 +175,8 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
     set({
       items,
+      batches: reconcileBatches(items, batches),
+      completedOrderIds,
       promoCode,
       ownerId,
       discountAmount: 0,
@@ -149,6 +193,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   deactivate: () =>
     set({
       items: [],
+      batches: {},
+      completedOrderIds: [],
       promoCode: null,
       discountAmount: 0,
       isHydrated: false,
@@ -446,7 +492,8 @@ export const useCartStore = create<CartState>((set, get) => ({
   getTotalItemCount: () => {
     return get().items.reduce((sum, item) => sum + item.quantity, 0);
   },
-}));
+};
+});
 
 function storageKey(ownerId: number | null) {
   return `brewlite_cart_v1_${ownerId ?? "guest"}`;
@@ -455,6 +502,8 @@ useCartStore.subscribe((state, previous) => {
   if (!state.isHydrated || typeof window === "undefined") return;
   if (
     state.items === previous.items &&
+    state.batches === previous.batches &&
+    state.completedOrderIds === previous.completedOrderIds &&
     state.promoCode === previous.promoCode &&
     state.ownerId === previous.ownerId &&
     state.requiresReview === previous.requiresReview &&
@@ -464,7 +513,8 @@ useCartStore.subscribe((state, previous) => {
   try {
     localStorage.setItem(
       storageKey(state.ownerId),
-      JSON.stringify({ items: state.items, promoCode: state.promoCode, requiresReview: state.requiresReview }),
+      JSON.stringify({ items: state.items, batches: state.batches, completedOrderIds: state.completedOrderIds,
+        promoCode: state.promoCode, requiresReview: state.requiresReview }),
     );
   } catch {
     useCartStore.setState({

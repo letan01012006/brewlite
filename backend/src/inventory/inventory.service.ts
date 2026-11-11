@@ -479,10 +479,7 @@ export class InventoryService {
                 );
                 maxQuantity = Math.min(
                   maxQuantity,
-                  Math.max(
-                    0,
-                    available.div(entry.quantity).floor().toNumber(),
-                  ),
+                  Math.max(0, available.div(entry.quantity).floor().toNumber()),
                 );
               }
               return {
@@ -537,7 +534,8 @@ export class InventoryService {
     });
     if (previous) {
       if (previous.status === 'HELD') return;
-      throw new ConflictException('Reservation đã kết thúc.');
+      if (previous.status !== 'RELEASED')
+        throw new ConflictException('Reservation đã kết thúc.');
     }
     const needs = this.aggregate(
       snapshots.map((s, i) => ({
@@ -552,18 +550,32 @@ export class InventoryService {
     const balance = await this.balance(tx, needs, ingredients);
     if (balance.some((b) => !b.sufficient))
       throw new InsufficientIngredients(balance.filter((b) => !b.sufficient));
-    const reservation = await tx.inventoryReservation.create({
-      data: {
-        orderId,
-        eventKey: `order:${orderId}:hold`,
-        items: {
-          create: needs.map((n) => ({
-            ...n,
-            quantity: new Prisma.Decimal(n.quantity),
-          })),
-        },
-      },
-    });
+    const reservation = previous
+      ? await tx.inventoryReservation.update({
+          where: {
+            id: previous.id,
+            version: previous.version,
+            status: 'RELEASED',
+          },
+          data: {
+            status: 'HELD',
+            version: { increment: 1 },
+            releasedAt: null,
+            releaseReason: null,
+          },
+        })
+      : await tx.inventoryReservation.create({
+          data: {
+            orderId,
+            eventKey: `order:${orderId}:hold`,
+            items: {
+              create: needs.map((n) => ({
+                ...n,
+                quantity: new Prisma.Decimal(n.quantity),
+              })),
+            },
+          },
+        });
     for (const need of needs) {
       const ingredient = ingredients.find(
         (row) => row.id === need.ingredientId,
@@ -589,10 +601,11 @@ export class InventoryService {
       if (updated.count !== 1) throw new InventoryVersionConflict();
       await tx.inventoryMovement.create({
         data: {
-          eventKey: `order:${orderId}:hold:${need.ingredientId}`,
+          eventKey: `order:${orderId}:hold:${reservation.version}:${need.ingredientId}`,
           kind: 'HOLD',
           orderId,
           reservationId: reservation.id,
+          reservationVersion: reservation.version,
           ingredientId: need.ingredientId,
           unit: need.unit,
           stockDelta: 0,
@@ -632,10 +645,11 @@ export class InventoryService {
       });
       await tx.inventoryMovement.create({
         data: {
-          eventKey: `order:${orderId}:${status}:${item.ingredientId}`,
+          eventKey: `order:${orderId}:${status}:${reservation.version}:${item.ingredientId}`,
           kind: consume ? 'CONSUME' : 'RELEASE',
           orderId,
           reservationId: reservation.id,
+          reservationVersion: reservation.version,
           ingredientId: item.ingredientId,
           unit: item.unit,
           stockDelta: consume ? delta : 0,
