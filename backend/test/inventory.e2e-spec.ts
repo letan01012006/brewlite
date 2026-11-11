@@ -517,7 +517,7 @@ describe('Inventory lifecycle: real PostgreSQL transactions and HTTP', () => {
       publicCatalog.body.data.some((p: { id: number }) => p.id === p500.id),
     ).toBe(false);
     const baristaCatalog = await f
-      .api('get', '/products?limit=50&includeInactive=true')
+      .api('get', '/products?limit=50&includeInactive=true', f.barista.token)
       .expect(200);
     expect(
       baristaCatalog.body.data.find((p: { id: number }) => p.id === p500.id)

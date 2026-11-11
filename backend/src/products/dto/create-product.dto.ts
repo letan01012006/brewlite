@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
@@ -13,21 +14,31 @@ import {
 
 export class CreateProductDto {
   @ApiProperty({ description: 'Tên sản phẩm (unique)', example: 'Cà phê sữa' })
-  @IsString()
-  @IsNotEmpty({ message: 'Tên sản phẩm không được để trống' })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString({ message: 'name phải là chuỗi' })
+  @IsNotEmpty({ message: 'name: Tên sản phẩm không được để trống' })
   name: string;
 
   @ApiProperty({ description: 'Danh mục sản phẩm', example: 'Cà phê' })
-  @IsString()
-  @IsNotEmpty({ message: 'Danh mục sản phẩm không được để trống' })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString({ message: 'category phải là chuỗi' })
+  @IsNotEmpty({ message: 'category: Danh mục sản phẩm không được để trống' })
   category: string;
 
   @ApiProperty({
     description: 'Giá gốc sản phẩm (size S, VND)',
     example: 35000,
+    minimum: 0,
+    maximum: 2147483647,
+    type: 'integer',
   })
-  @IsInt()
-  @Min(0, { message: 'Giá sản phẩm phải lớn hơn hoặc bằng 0' })
+  @IsInt({ message: 'price phải là số nguyên' })
+  @Min(0, { message: 'price: Giá sản phẩm phải lớn hơn hoặc bằng 0' })
+  @Max(2147483647, { message: 'price không được vượt quá 2147483647' })
   price: number;
 
   @ApiPropertyOptional({
