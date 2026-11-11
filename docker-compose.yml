@@ -1,3 +1,5 @@
+name: brewlite
+
 services:
   db:
     image: postgres:16
@@ -7,5 +9,52 @@ services:
       POSTGRES_DB: brewlite
     ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      PORT: "4000"
+      # Keep credentials/database/schema from backend/.env; replace only host/port.
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+    ports: ["4000:4000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_API_URL: http://backend:4000/api
+    environment:
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      BACKEND_API_URL: http://backend:4000/api
+    ports: ["3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      start_period: 15s
+      retries: 20
+
 volumes:
   pgdata:
+    # Explicitly reuse the existing database, even if the checkout path changes.
+    name: brewlite_pgdata

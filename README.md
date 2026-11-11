@@ -6,24 +6,128 @@ Luồng đăng ký số điện thoại, OTP và cấp tài khoản nhân viên:
 
 ## Yêu cầu
 
-Node.js 24.15+ (hoặc 26), Git, Docker Desktop.
+Git và Docker Desktop để chạy toàn bộ ứng dụng bằng Compose.
+Node.js 24.15+ (hoặc 26) chỉ cần khi phát triển trên máy hoặc chạy script kiểm tra.
 
 Các lệnh dưới đây dùng PowerShell trên Windows. Trên macOS/Linux, dùng `npm`,
 `npx` thay cho `npm.cmd`, `npx.cmd` và `cp` thay cho `Copy-Item`.
 Mở Docker Desktop và chờ Docker Engine sẵn sàng trước khi chạy database.
 
-## Chạy lần đầu sau khi clone
+## Chạy frontend, backend và PostgreSQL bằng Docker
+
+Mở Docker Desktop. Tại thư mục gốc, nếu chưa có `backend/.env`, tạo từ mẫu:
+
+```powershell
+if (-not (Test-Path backend/.env)) { Copy-Item backend/.env.example backend/.env }
+```
+
+Giữ nguyên file `.env` đang dùng và database trong `DATABASE_URL`. Với cấu hình mới,
+đặt `JWT_SECRET` và `OTP_HASH_SECRET` riêng; khóa OTP phải dài ít nhất 32 ký tự.
+Sau đó chạy một lệnh:
+
+```powershell
+docker compose up --build
+```
+
+| Thành phần | Địa chỉ |
+| --- | --- |
+| Frontend/menu | http://localhost:3000/menu |
+| Swagger | http://localhost:4000/api/docs |
+| Backend health | http://localhost:4000/api/health |
+| API qua frontend | http://localhost:3000/api/health |
+| PostgreSQL trên máy | localhost:5432 |
+
+Compose gắn lại volume **`brewlite_pgdata`** đang có, kể cả khi thư mục checkout đổi tên.
+Backend chờ `db` healthy, chạy `prisma migrate deploy`, rồi mới mở HTTP. Frontend
+chờ backend healthy. Migration lỗi sẽ dừng backend; Compose không reset hoặc seed
+database tự động. Các file `.env`, `node_modules` và output trên Windows được loại
+khỏi build context; dependencies và Prisma client được dựng lại trong Linux.
+
+Backend đọc `backend/.env`; entrypoint chỉ thay host/port của `DATABASE_URL`
+thành **`db:5432`**, giữ nguyên tên database, tài khoản, mật khẩu và query parameters.
+Vì vậy database đang dùng không bị chuyển nhầm sang database mặc định `brewlite`.
+`POSTGRES_DB=brewlite` ở service `db` chỉ là database tạo khi volume hoàn toàn mới.
+Nếu dùng volume mới, bắt đầu với URL `.../brewlite` trong `.env.example`.
+
+| Biến | Ý nghĩa |
+| --- | --- |
+| `DATABASE_URL` | URL hiện có trong `backend/.env`; tên database phải tồn tại trong volume hiện tại. |
+| `JWT_SECRET`, `JWT_EXPIRES_IN` | Khóa và thời hạn token; giữ khóa hiện có để phiên đăng nhập còn hợp lệ. |
+| `OTP_HASH_SECRET` | Khóa OTP riêng, ít nhất 32 ký tự; giữ ổn định sau restart. |
+| `NODE_ENV` | `development` cho demo local có SMS giả lập; `production` cần SMS provider. |
+| `AUTH_OTP_DEMO` | `true` dùng OTP local `123456`, chỉ trong development/test. |
+| `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET` | Thông tin merchant thật/sandbox; thiếu hoặc giá trị mẫu thì VNPAY trả 503. |
+| `VNPAY_RETURN_URL` | Local: `http://localhost:3000/payment/vnpay-return`. |
+| `PAYMENT_EXPIRE_MINUTES`, `ORDER_PENDING_EXPIRE_MINUTES` | Thời hạn phiên thanh toán/đơn chưa thanh toán. |
+| `PAYMENT_MOCK_ENABLED` | Cho phép WALLET/CARD giả lập khi cần demo. |
+| `BACKEND_API_URL` | Compose đặt `http://backend:4000/api` lúc build frontend; trình duyệt gọi `/api` cùng origin. |
+
+Frontend là bản standalone, backend chạy JavaScript đã build. Sửa code rồi chạy lại
+`docker compose up --build`. Thay đích rewrite frontend cũng cần build lại.
+Nếu chưa có dữ liệu và muốn seed demo, chạy thủ công:
+
+```powershell
+docker compose run --rm backend npx prisma db seed
+```
+
+Chạy nền, xem trạng thái và khởi động lại:
+
+```powershell
+docker compose up --build -d --wait
+docker compose ps
+docker compose logs backend
+docker compose restart
+docker compose up -d --wait
+docker compose stop
+```
+
+`stop` và `restart` giữ nguyên volume. Không dùng `docker compose down -v` để dừng
+hằng ngày vì lệnh đó xóa dữ liệu PostgreSQL.
+
+Kiểm tra dữ liệu trước/sau chạy và sau restart (cần Node.js):
+
+```powershell
+node scripts/compose-smoke.mjs baseline
+docker compose up --build -d --wait
+node scripts/compose-smoke.mjs verify
+docker compose restart
+docker compose up -d --wait
+node scripts/compose-smoke.mjs verify
+```
+
+Script chỉ đọc dữ liệu: đối chiếu số lượng/mã băm sản phẩm, nguyên liệu, đơn hàng;
+kiểm tra volume, health cả ba service, Swagger và API qua frontend. Nó dùng tài khoản
+BARISTA đã có để đọc API riêng, không tạo người dùng hoặc đơn thử. Snapshot nằm trong
+`.local-backups/`; chạy khi không có giao dịch đang thay đổi dữ liệu. Đơn cũ quá hạn
+có thể được job chuyển từ `PENDING`/`PAYMENT_FAILED` sang `CANCELLED`; script báo riêng
+việc này và vẫn kiểm tra mọi trường lịch sử còn lại.
+
+Đã kiểm tra ngày 11/11/2026 với database đang dùng `brewlite_payment_verified_20261105`
+trên volume `brewlite_pgdata`: cả ba service healthy, Swagger/API hoạt động, giữ đủ
+**10 sản phẩm, 14 nguyên liệu, 52 đơn hàng** sau build và restart. Sản phẩm/nguyên liệu
+khớp mã băm ban đầu, các trường lịch sử của đơn khớp backup; 4 đơn cũ quá hạn được
+job hủy theo luồng hiện có. Chrome headless đã render menu qua API cùng origin.
+Có thể chạy lại kiểm tra trình duyệt (cài Chrome; đặt `CHROME_PATH` nếu khác đường dẫn
+Windows mặc định):
+
+```powershell
+node scripts/compose-menu-browser.mjs
+```
+
+## Chạy với Node trên máy (tùy chọn)
+
+Dừng container frontend/backend trước khi chạy server Node trên cùng cổng.
 
 ### 1. Tải mã nguồn và khởi động database
 
 ```powershell
 git clone https://github.com/letan01012006/brewlite.git
 cd brewlite
-docker compose up -d
+docker compose up -d db
 ```
 
-Docker Compose của dự án chỉ chạy PostgreSQL ở cổng **5432**.
-Backend và frontend cần chạy riêng ở hai terminal bên dưới.
+Trong cách chạy Node này, chỉ bật service PostgreSQL ở cổng **5432**.
+Backend và frontend chạy riêng ở hai terminal bên dưới.
 Lần đầu Docker có thể mất thêm thời gian tải image. Kiểm tra database sẵn sàng:
 
 ```powershell
@@ -91,12 +195,12 @@ Sau khi seed database mới, có thể đăng nhập bằng:
 
 Các tài khoản này chỉ dùng để thử dự án ở môi trường local.
 
-## Những lần chạy tiếp theo
+## Những lần chạy Node tiếp theo
 
 Mở Docker Desktop. Từ thư mục gốc `brewlite`, khởi động database:
 
 ```powershell
-docker compose up -d
+docker compose up -d db
 ```
 
 **Terminal thứ nhất**, bắt đầu tại thư mục gốc `brewlite`:

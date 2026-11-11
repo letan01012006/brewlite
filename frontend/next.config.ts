@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   // The browser only contacts Next; the server forwards requests to Nest.
   async rewrites() {
     const backend = (process.env.BACKEND_API_URL || 'http://127.0.0.1:4000/api').replace(/\/$/, '');
