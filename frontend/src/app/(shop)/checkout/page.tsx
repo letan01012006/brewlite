@@ -48,7 +48,6 @@ function CheckoutContent() {
     isRefreshing,
     isHydrated,
     getSubtotal,
-    clearCart,
   } = useCartStore();
 
   const { user, token, initAuth, isLoading: isLoadingAuth } = useAuthStore();
@@ -132,6 +131,8 @@ function CheckoutContent() {
             if (active && fetchedOrder) {
               const newSession = flow.startOrder(currentUser.id, fetchedOrder);
               setSession(newSession);
+              setSuccessOrder(newSession.phase === 'paid' ? fetchedOrder : null);
+              if (newSession.phase === 'paid') flow.clear(currentUser.id, fetchedOrder.id);
               setUseMaxPoints(
                 Boolean(
                   newSession.attempt?.pointsUsed ||
@@ -148,20 +149,10 @@ function CheckoutContent() {
           }
         }
 
-        let restored = flow.read(currentUser.id);
-        const currentCart = useCartStore.getState();
-        if (
-          restored?.order &&
-          currentCart.items.length &&
-          restored.cartKey !== cartKey(currentCart.items, currentCart.promoCode)
-        ) {
-          flow.beginCart(currentUser.id);
-          restored = null;
-        }
+        const restored = flow.read(currentUser.id);
         if (restored) {
           if (
-            restored.order?.status === "CANCELLED" ||
-            restored.order?.status === "COMPLETED"
+            restored.order?.status === "CANCELLED"
           ) {
             flow.clear(currentUser.id);
             setSession(null);
@@ -174,6 +165,7 @@ function CheckoutContent() {
               );
               if (!active) return;
               cleanSession = flow.startOrder(currentUser.id, latestOrder);
+              if (cleanSession.phase === 'paid') flow.clear(currentUser.id, latestOrder.id);
             }
             setSession(cleanSession);
             setUseMaxPoints(
@@ -371,11 +363,6 @@ function CheckoutContent() {
         const restored = await flow.retryCreation(user.id);
         if (useAuthStore.getState().token !== token) return;
         setSession(restored);
-        if (
-          cartKey(useCartStore.getState().items, useCartStore.getState().promoCode) ===
-          restored.cartKey
-        )
-          clearCart();
         // Show the confirmed server total before the next payment click.
         return;
       }
@@ -410,14 +397,6 @@ function CheckoutContent() {
           },
         );
         setSession(currentSession);
-        // The confirmed order now owns these items. A later cart is a new order.
-        if (
-          cartKey(
-            useCartStore.getState().items,
-            useCartStore.getState().promoCode,
-          ) === currentSession.cartKey
-        )
-          clearCart();
         if (
           currentSession.order &&
           currentSession.order.total !== clientTotal

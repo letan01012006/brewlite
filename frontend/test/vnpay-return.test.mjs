@@ -8,9 +8,13 @@ for (const [paymentStatus, orderStatus, successful] of [
   ["SUCCESS", "PENDING", false],
   ["NEEDS_REFUND", "CANCELLED", false],
   ["PROCESSING", "PENDING", false],
+  ["FAILED", "PAYMENT_FAILED", false],
+  ["EXPIRED", "PENDING", false],
+  ["CANCELLED", "PENDING", false],
 ]) {
   test(`VNPAY return ${paymentStatus}/${orderStatus} displays the backend-confirmed outcome`, async () => {
     const storage = memoryStorage();
+    const cartStorage = memoryStorage();
     const slots = [];
     const effects = [];
     let index = 0;
@@ -38,10 +42,17 @@ for (const [paymentStatus, orderStatus, successful] of [
           order: { id: 7, status: orderStatus, total: 50000 },
         }),
       },
-    }, { window: { sessionStorage: storage } });
+    }, { window: { sessionStorage: storage }, localStorage: cartStorage });
+    const cart = load('src/store/cart-store.ts').useCartStore;
+    cart.getState().hydrate(1);
+    const coffee = { product: { id: 1, name: 'Coffee', price: 50000, stock: 100 }, size: 'S', selectedToppings: [], quantity: 2 };
+    cart.getState().addItem(coffee);
     const { CheckoutFlow } = load("src/lib/checkout-flow.ts");
     const flow = new CheckoutFlow(storage);
-    flow.save(1, { cartKey: "cart", phase: "redirecting", order: { id: 7 } });
+    const original = { cartKey: 'cart', phase: 'redirecting', order: { id: 7 }, purchase: cart.getState().capturePurchase() };
+    flow.save(1, original);
+    cart.getState().addItem({ ...coffee, quantity: 1 });
+    cart.getState().addItem({ ...coffee, product: { ...coffee.product, id: 2, name: 'Tea' }, quantity: 1 });
     const Content = load("src/app/payment/vnpay-return/page.tsx").default().props.children.type;
     Content();
     effects.splice(0).forEach(effect => effect());
@@ -50,6 +61,20 @@ for (const [paymentStatus, orderStatus, successful] of [
     const rendered = JSON.stringify(Content());
     assert.equal(rendered.includes("Giao dịch VNPAY hoàn tất!"), successful);
     assert.equal(flow.read(1) === null, successful);
-    assert.equal(refreshed, successful);
+    assert.equal(refreshed, successful || ['FAILED', 'EXPIRED', 'CANCELLED'].includes(paymentStatus));
+    assert.equal(cart.getState().getTotalItemCount(), successful ? 2 : 4);
+    assert.equal(cart.getState().items.find(item => item.product.id === 1).quantity, successful ? 1 : 3);
+    assert.equal(cart.getState().items.find(item => item.product.id === 2).quantity, 1);
+    if (successful) {
+      // Even a stale checkout snapshot after reload cannot consume newer items.
+      cart.getState().deactivate();
+      cart.getState().hydrate(1);
+      flow.save(1, original);
+      effects.splice(0).forEach(effect => effect());
+      await new Promise(setImmediate);
+      assert.equal(cart.getState().getTotalItemCount(), 2);
+      assert.equal(cart.getState().completedOrderIds.filter(id => id === 7).length, 1);
+      assert.equal(flow.read(1), null);
+    }
   });
 }

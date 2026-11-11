@@ -78,10 +78,9 @@ function VnpayReturnContent() {
           )
         ) {
           if (userId) {
-            new CheckoutFlow(window.sessionStorage).clear(
-              userId,
-              data.order.id,
-            );
+            const flow = new CheckoutFlow(window.sessionStorage);
+            flow.startOrder(userId, data.order, false);
+            flow.clear(userId, data.order.id);
           }
           await refreshUser();
         } else if (

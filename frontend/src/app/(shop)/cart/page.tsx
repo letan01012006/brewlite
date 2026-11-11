@@ -7,7 +7,6 @@ import { useCartStore } from "@/store/cart-store";
 import { useAuthStore } from "@/store/auth-store";
 import { getProductImageUrl } from "@/lib/constants/product-images";
 import { pointsEarnedFor } from "@/lib/loyalty";
-import { CheckoutFlow } from "@/lib/checkout-flow";
 
 export default function CartPage() {
   const router = useRouter();
@@ -85,17 +84,6 @@ export default function CartPage() {
       // Nếu chưa đăng nhập, chuyển sang trang login với query redirect về checkout
       router.push("/login?redirect=/checkout");
     } else {
-      try {
-        new CheckoutFlow(window.sessionStorage).beginCart(user.id);
-      } catch (error) {
-        useCartStore.setState({
-          cartError:
-            error instanceof Error
-              ? error.message
-              : "Không thể bắt đầu đơn mới.",
-        });
-        return;
-      }
       router.push("/checkout");
     }
   };

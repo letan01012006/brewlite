@@ -188,7 +188,7 @@ test("lost cancellation response keeps session until cancellation is confirmed",
   assert.equal(mutations, 1);
 });
 
-test("a cancelled order cannot be paid; a different cart can create a new order", async () => {
+test("a cancelled order cannot be paid; an explicit new cart can create a new order", async () => {
   const calls = [];
   const flow = new CheckoutFlow(memoryStorage(), async (path) => {
     calls.push(path);
@@ -196,6 +196,7 @@ test("a cancelled order cannot be paid; a different cart can create a new order"
   });
   await flow.prepare(1, "cart", {});
   await assert.rejects(flow.pay(1, "CARD", "SUCCESS"));
+  flow.beginCart(1);
   await flow.prepare(1, "different-cart", {});
   assert.equal(calls.filter((path) => path === "/orders").length, 2);
   assert.equal(calls.filter((path) => path === "/payments").length, 0);
@@ -242,7 +243,7 @@ for (const phase of ["ready", "failed", "redirecting", "paying"]) {
   });
 }
 
-test("a changed basket does not silently reuse an unpaid order", async () => {
+test("adding to the basket still resumes the existing unpaid order", async () => {
   let created = 0;
   const flow = new CheckoutFlow(memoryStorage(), async () => ({
     ...order,
@@ -250,7 +251,8 @@ test("a changed basket does not silently reuse an unpaid order", async () => {
   }));
   await flow.prepare(1, "first-basket", {});
   const next = await flow.prepare(1, "new-basket", {});
-  assert.equal(next.order.id, 2);
+  assert.equal(next.order.id, 1);
+  assert.equal(created, 1);
   assert.equal(flow.read(1, 1).order.id, 1);
 });
 

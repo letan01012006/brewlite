@@ -1,5 +1,8 @@
 import { apiFetch, ApiError } from "@/lib/api/client";
 import type { Order, PaymentMethod } from "@/types";
+import { useCartStore } from '@/store/cart-store';
+import { cartKey as currentCartKey } from '@/lib/order-payload';
+import type { CartPurchase } from '@/lib/cart-purchase';
 
 export interface PaymentAttempt {
   orderId: number;
@@ -12,6 +15,7 @@ export interface PaymentAttempt {
 
 export interface CheckoutSession {
   cartKey: string;
+  purchase?: CartPurchase;
   phase: "creating" | "ready" | "paying" | "redirecting" | "failed" | "paid";
   order?: Order;
   creation?: { idempotencyKey: string; body: string };
@@ -77,6 +81,12 @@ export class CheckoutFlow {
     return session;
   }
 
+  private confirmPaid(userId: number, session: CheckoutSession) {
+    if (session.order && paidStatuses.includes(session.order.status))
+      useCartStore.getState().settleOrder(userId, session.order.id, session.purchase);
+    return session;
+  }
+
   beginCart(userId: number) {
     const existing = this.read(userId);
     if (existing && !existing.order && !existing.creation)
@@ -115,9 +125,9 @@ export class CheckoutFlow {
       this.storage.removeItem(this.key(userId));
   }
 
-  startOrder(userId: number, order: Order) {
+  startOrder(userId: number, order: Order, activate = true) {
     const existing = this.read(userId, order.id);
-    return this.save(userId, {
+    return this.confirmPaid(userId, this.save(userId, {
       ...existing,
       cartKey: existing?.cartKey ?? `order_${order.id}`,
       phase: paidStatuses.includes(order.status)
@@ -130,8 +140,9 @@ export class CheckoutFlow {
       ...(order.status === "PAYMENT_FAILED"
         ? { attempt: undefined, paymentUrl: undefined }
         : {}),
+      ...(paidStatuses.includes(order.status) ? { paymentUrl: undefined } : {}),
       order,
-    });
+    }, activate));
   }
 
   async prepare(userId: number, cartKey: string, payload: unknown) {
@@ -151,11 +162,14 @@ export class CheckoutFlow {
           );
         return this.submitCreation(userId, existing);
       }
-      if (existing.cartKey === cartKey) return existing;
-      this.beginCart(userId);
+      return existing;
     }
     const session: CheckoutSession = {
       cartKey,
+      purchase: useCartStore.getState().isHydrated &&
+        useCartStore.getState().ownerId === userId &&
+        currentCartKey(useCartStore.getState().items, useCartStore.getState().promoCode) === cartKey
+        ? useCartStore.getState().capturePurchase() : undefined,
       phase: "creating",
       creation: { idempotencyKey: paymentKey(), body: JSON.stringify(payload) },
     };
@@ -222,19 +236,20 @@ export class CheckoutFlow {
     if (!session?.order) throw new Error("Chưa có đơn hàng để thanh toán.");
     const order = await this.api<Order>(`/orders/${session.order.id}`);
     if (paidStatuses.includes(order.status)) {
-      return this.save(
+      return this.confirmPaid(userId, this.save(
         userId,
         {
           ...session,
           order,
           phase: "paid",
+          paymentUrl: undefined,
           paidMethod:
             order.payments?.find((p) => p.status === "SUCCESS")?.method ??
             session.attempt?.method ??
             method,
         },
         this.read(userId)?.order?.id === order.id,
-      );
+      ));
     }
     if (order.status === "CANCELLED")
       throw new Error(
@@ -325,16 +340,17 @@ export class CheckoutFlow {
         );
       }
 
-      return this.save(
+      return this.confirmPaid(userId, this.save(
         userId,
         {
           ...session,
           order: { ...order, ...result.order },
           phase: "paid",
+          paymentUrl: undefined,
           paidMethod: result.payment.method,
         },
         this.read(userId)?.order?.id === order.id,
-      );
+      ));
     } catch (error) {
       // Only a definitive declined payment permits a new key. Network errors,
       // 5xx and PAYMENT_IN_PROGRESS retain the exact key AND request body.
