@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
     globals: true,
-    env: { OTP_HASH_SECRET: 'test-only-otp-hmac-secret-at-least-32-characters', AUTH_OTP_DEMO: 'false' },
+    env: { OTP_HASH_SECRET: 'test-only-otp-hmac-secret-at-least-32-characters', AUTH_OTP_DEMO: 'false', SMS_PROVIDER: 'local' },
     root: './',
     include: ['**/*.e2e-spec.ts'],
   },

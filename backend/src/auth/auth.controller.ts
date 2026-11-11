@@ -16,6 +16,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng ký CUSTOMER chờ OTP; chưa cấp JWT hoặc điểm chào mừng' })
   @ApiResponse({ status: 201, description: '{ phone, requiresOtp, expiresIn: 300, resendAfter: 60, message }' })
   @ApiResponse({ status: 409, description: 'PHONE_ALREADY_EXISTS / EMAIL_ALREADY_EXISTS' })
+  @ApiResponse({ status: 503, description: 'SMS_NOT_CONFIGURED: tài khoản đã tạo, dùng resend-otp sau khi bổ sung cấu hình' })
+  @ApiResponse({ status: 502, description: 'SMS_REJECTED / SMS_UNAVAILABLE: chưa báo gửi thành công; có thể resend-otp ngay' })
+  @ApiResponse({ status: 504, description: 'SMS_TIMEOUT: mã chưa được xác nhận đã vô hiệu; dùng resend-otp' })
   register(@Body() dto: RegisterDto) { return this.authService.register(dto); }
 
   @Post('verify-otp')
@@ -30,6 +33,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Gửi lại OTP sau ít nhất 60 giây, mã mới thay mã cũ' })
   @ApiResponse({ status: 200, description: 'OTP mới, hết hạn sau 300 giây' })
   @ApiResponse({ status: 429, description: 'OTP_RESEND_TOO_SOON' })
+  @ApiResponse({ status: 503, description: 'SMS_NOT_CONFIGURED' })
+  @ApiResponse({ status: 502, description: 'SMS_REJECTED / SMS_UNAVAILABLE: có thể gửi lại ngay' })
+  @ApiResponse({ status: 504, description: 'SMS_TIMEOUT: mã của lần gửi này không còn hiệu lực' })
   resendOtp(@Body() dto: PhoneDto) { return this.authService.resendOtp(dto.phone); }
 
   @Post('login')

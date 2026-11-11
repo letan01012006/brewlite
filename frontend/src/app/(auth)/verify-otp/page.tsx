@@ -19,7 +19,9 @@ function VerifyOtpForm() {
   const setAuth = useAuthStore((state) => state.setAuth);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(params.get("deliveryFailed") === "1"
+    ? "Tài khoản đã tạo nhưng SMS chưa được xác nhận gửi thành công. Vui lòng bấm Gửi lại OTP."
+    : "");
   const [remaining, setRemaining] = useState(params.get("resendAfter") === "60" ? 60 : 0);
   useEffect(() => {
     if (remaining <= 0) return;
@@ -44,7 +46,7 @@ function VerifyOtpForm() {
     setBusy(true); setMessage("");
     try {
       await apiFetch("/auth/resend-otp", { method: "POST", auth: false, body: JSON.stringify({ phone }) });
-      setRemaining(60); setCode(""); setMessage("Đã gửi mã mới. Vui lòng kiểm tra SMS.");
+      setRemaining(60); setCode(""); setMessage("Yêu cầu gửi mã mới đã được tiếp nhận. Vui lòng kiểm tra SMS.");
     } catch (error) {
       if (error instanceof ApiError && error.code === "OTP_RESEND_TOO_SOON") setRemaining(60);
       setMessage(error instanceof ApiError ? error.message : "Không thể gửi OTP. Vui lòng thử lại.");

@@ -153,10 +153,11 @@ describe('Phone auth, OTP concurrency, manager provisioning and legacy upgrade',
     } finally { spy.mockRestore(); }
   });
 
-  it('production rejects demo mode; normal production disables local SMS but permits service startup', () => {
+  it('production rejects demo mode; unconfigured SMS permits startup but fails delivery', async () => {
     expect(() => new OtpService(new ConfigService({ NODE_ENV: 'production', AUTH_OTP_DEMO: 'true' }))).toThrow(/development\/test/);
     const otp = new OtpService(new ConfigService({ NODE_ENV: 'production', AUTH_OTP_DEMO: 'false', OTP_HASH_SECRET: 'a'.repeat(32) }));
-    expect(() => otp.issue(phone())).toThrow(/production/);
+    const issued = otp.issue(phone());
+    await expect(otp.send(phone(), issued.code)).rejects.toMatchObject({ response: { code: 'SMS_NOT_CONFIGURED' } });
   });
 
   it('duplicate phone/email returns 409, including racing registrations', async () => {

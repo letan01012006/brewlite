@@ -52,13 +52,34 @@ export class AuthService {
         },
       });
     } catch (error) { this.conflict(error); }
-    this.otp.send(dto.phone, issued.code);
+    await this.sendOtp(dto.phone, issued);
     return this.pending(dto.phone);
   }
 
   private pending(phone: string) {
     return { phone, requiresOtp: true, expiresIn: 300, resendAfter: 60,
-      message: 'Đã gửi mã xác thực qua SMS. Vui lòng nhập OTP để hoàn tất đăng ký.' };
+      message: 'Yêu cầu gửi OTP đã được tiếp nhận. Vui lòng kiểm tra SMS và nhập mã để hoàn tất đăng ký.' };
+  }
+
+  private async sendOtp(phone: string, issued: ReturnType<OtpService['issue']>) {
+    try {
+      await this.otp.send(phone, issued.code);
+    } catch (error) {
+      // Compare the hash so an older failure cannot clear a newer OTP or undo
+      // verification. Network I/O stays outside the database transaction.
+      await this.prisma.user.updateMany({
+        where: { phone, isPhoneVerified: false, otpHash: issued.data.otpHash },
+        data: { otpHash: null, otpExpiresAt: null, otpSentAt: null, otpAttempts: 0 },
+      });
+      if (error instanceof HttpException) {
+        const response = error.getResponse();
+        throw new HttpException({
+          ...(typeof response === 'object' ? response : { message: response }),
+          details: { phone, requiresOtp: true, resendAfter: 0 },
+        }, error.getStatus());
+      }
+      throw error;
+    }
   }
 
   async verifyOtp(phone: string, code: string) {
@@ -96,12 +117,13 @@ export class AuthService {
   }
 
   async resendOtp(phone: string) {
-    const issued = this.otp.issue(phone);
+    let issued = this.otp.issue(phone);
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "User" WHERE phone = ${phone} FOR UPDATE`);
       const user = await tx.user.findUnique({ where: { phone } });
       if (!user || user.isPhoneVerified) return 'OTP_NOT_PENDING';
       if (user.otpSentAt && Date.now() - user.otpSentAt.getTime() < 60000) return 'OTP_RESEND_TOO_SOON';
+      if (issued.data.otpHash === user.otpHash) issued = this.otp.issue(phone, user.otpHash);
       await tx.user.update({ where: { id: user.id }, data: issued.data });
       return null;
     });
@@ -109,7 +131,7 @@ export class AuthService {
       code: result, message: result === 'OTP_RESEND_TOO_SOON'
         ? 'Vui lòng đợi ít nhất 60 giây giữa hai lần gửi OTP.' : 'Tài khoản không chờ xác thực OTP.',
     }, result === 'OTP_RESEND_TOO_SOON' ? 429 : 400);
-    this.otp.send(phone, issued.code);
+    await this.sendOtp(phone, issued);
     return this.pending(phone);
   }
 
