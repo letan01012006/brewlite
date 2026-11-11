@@ -196,11 +196,11 @@ export class CheckoutFlow {
         headers: { "Idempotency-Key": creation.idempotencyKey },
         body: creation.body,
       });
-      return this.save(
+      return this.confirmPaid(userId, this.save(
         userId,
-        { ...session, phase: "ready", order },
+        { ...session, phase: paidStatuses.includes(order.status) ? 'paid' : 'ready', order },
         this.read(userId)?.creation?.idempotencyKey === creation.idempotencyKey,
-      );
+      ));
     } catch (error) {
       // A transport error / 5xx may occur after the order was committed.
       if (

@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import crypto from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import {
   Prisma,
   type Order,
@@ -25,6 +26,7 @@ import { CreateOrderDto } from './dto/create-order.dto.js';
 import { QueryOrderDto } from './dto/query-order.dto.js';
 import { assertTransition } from './order-state.js';
 import { lockOrder } from './order-lock.js';
+import { releaseOrderVoucher } from './order-voucher.js';
 import {
   type BaristaAllowedStatus,
   type OrderStatus,
@@ -40,13 +42,14 @@ export class OrdersService {
     private readonly inventory: InventoryService,
     @Inject(forwardRef(() => PaymentsService))
     private readonly paymentsService: PaymentsService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
    * Tạo đơn hàng mới từ giỏ hàng (Task 6 & Task 10)
    * POST /api/orders
    * - Tính giá chính xác trên server qua PricingService
-   * - Kiểm tra nguyên liệu và lưu snapshot, chưa giữ/trừ kho ở PENDING
+   * - Kiểm tra nguyên liệu và lưu snapshot; đơn 0đ giữ kho và sang PAID ngay
    * - Kiểm tra và áp dụng mã khuyến mãi (nếu có)
    * - Toàn bộ chạy trong 1 Transaction an toàn
    */
@@ -129,6 +132,7 @@ export class OrdersService {
       discountAmount: order.discountAmount,
       total: order.total,
       promoCode: order.promoCode,
+      pointsEarned: order.pointsEarned,
       createdAt: order.createdAt,
     };
   }
@@ -273,7 +277,7 @@ export class OrdersService {
           promoCode: appliedPromoCode,
           pointsEarned: 0,
         } satisfies Prisma.OrderUncheckedCreateInput;
-        const order = claimedOrder
+        let order = claimedOrder
           ? await tx.order.update({ where: { id: claimedOrder.id }, data })
           : await tx.order.create({ data });
 
@@ -296,6 +300,17 @@ export class OrdersService {
             }),
           ),
         );
+
+        // No tender is needed for a server-validated, fully discounted order.
+        // The unique creation claim, voucher admission and hold commit together.
+        if (total === 0 && appliedPromoCode) {
+          await this.inventory.hold(tx, order.id);
+          const pointsEarned = await awardOrderPoints(tx, order);
+          order = await tx.order.update({
+            where: { id: order.id },
+            data: { status: 'PAID', pointsEarned },
+          });
+        }
 
         return this.creationResponse(order, createdItems);
       },
@@ -495,6 +510,68 @@ export class OrdersService {
    * - Nếu đã thanh toán: hoàn tiền mock hoặc tạo yêu cầu hoàn VNPAY và thu hồi điểm thưởng
    */
   async cancelOrder(orderId: number, userId: number, role: string) {
+    return this.closeOrder(orderId, { kind: 'cancel', userId, role });
+  }
+
+  async expirePendingOrders(now = new Date()) {
+    const configured = Number(
+      this.configService.get('ORDER_PENDING_EXPIRE_MINUTES', 15),
+    );
+    const minutes =
+      Number.isFinite(configured) && configured > 0 ? configured : 15;
+    const cutoff = new Date(now.getTime() - minutes * 60000);
+    let cursor = 0;
+    let expired = 0;
+    // Move past unresolved sessions too, so they cannot starve newer candidates.
+    for (;;) {
+      const candidates = await this.prisma.order.findMany({
+        where: {
+          id: { gt: cursor },
+          OR: [
+            {
+              status: { in: ['PENDING', 'PAYMENT_FAILED'] },
+              createdAt: { lte: cutoff },
+            },
+            {
+              status: 'CANCELLED',
+              promoCode: { not: null },
+              promoReleasedAt: null,
+            },
+          ],
+        },
+        orderBy: { id: 'asc' },
+        take: 100,
+        select: {
+          id: true,
+          payments: {
+            where: { status: { in: ['PROCESSING', 'CANCELLED'] } },
+            select: { id: true, method: true, status: true, expiresAt: true },
+          },
+        },
+      });
+      if (!candidates.length) return expired;
+      for (const order of candidates) {
+        for (const payment of order.payments) {
+          if (
+            payment.method === 'VNPAY' &&
+            (payment.status === 'CANCELLED' ||
+              (payment.expiresAt && payment.expiresAt <= now))
+          )
+            await this.paymentsService.reconcileSinglePayment(payment.id);
+        }
+        if (await this.closeOrder(order.id, { kind: 'expire', cutoff }))
+          expired++;
+        cursor = order.id;
+      }
+    }
+  }
+
+  private async closeOrder(
+    orderId: number,
+    action:
+      | { kind: 'cancel'; userId: number; role: string }
+      | { kind: 'expire'; cutoff: Date },
+  ) {
     return inventoryTransaction(this.prisma, async (tx) => {
       await lockOrder(tx, orderId);
       const order = await tx.order.findUnique({
@@ -513,7 +590,11 @@ export class OrdersService {
       }
 
       // Chỉ chủ đơn hoặc BARISTA mới được hủy
-      if (order.userId !== userId && role !== 'BARISTA') {
+      if (
+        action.kind === 'cancel' &&
+        order.userId !== action.userId &&
+        action.role !== 'BARISTA'
+      ) {
         throw new ForbiddenException({
           code: 'FORBIDDEN',
           message: 'Bạn không có quyền hủy đơn hàng của người khác',
@@ -524,6 +605,35 @@ export class OrdersService {
       const processingPayment = order.payments.find(
         (p) => p.status === 'PROCESSING',
       );
+      const unresolved = order.payments.some(
+        (payment) =>
+          payment.status === 'PROCESSING' ||
+          (payment.status === 'CANCELLED' &&
+            payment.gatewayTxnRef &&
+            payment.gatewayResponseCode !== '24' &&
+            !(
+              payment.gatewayResponseCode === '00' &&
+              ['01', '02', '08', '11'].includes(
+                payment.gatewayTransactionStatus ?? '',
+              )
+            )),
+      );
+      if (action.kind === 'expire' && order.status === 'CANCELLED') {
+        if (unresolved || order.promoReleasedAt || !order.promoCode)
+          return null;
+        await releaseOrderVoucher(tx, order);
+        return { id: order.id, status: order.status };
+      }
+      // Recheck under the same lock as cancellation, payment claims and IPN.
+      // Reconciliation must first terminate any active gateway session.
+      if (
+        action.kind === 'expire' &&
+        (!['PENDING', 'PAYMENT_FAILED'].includes(order.status) ||
+          order.createdAt > action.cutoff ||
+          unresolved ||
+          order.payments.some((payment) => payment.status === 'SUCCESS'))
+      )
+        return null;
       let releaseInventory = true;
       if (processingPayment) {
         if (processingPayment.method === 'VNPAY') {
@@ -639,14 +749,7 @@ export class OrdersService {
       }
 
       // 2. Hoàn lại lượt dùng mã giảm giá nếu có
-      if (order.promoCode) {
-        await tx.promoCode.update({
-          where: { code: order.promoCode },
-          data: {
-            usedCount: { decrement: 1 },
-          },
-        });
-      }
+      if (releaseInventory) await releaseOrderVoucher(tx, order);
 
       // 3. Nếu đơn đã PAID: hoàn điểm đã dùng và ghi nhận hoàn tiền
       if (order.status === 'PAID') {

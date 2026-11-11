@@ -141,6 +141,7 @@ export const OrderScalarFieldEnum = {
   discountAmount: 'discountAmount',
   total: 'total',
   promoCode: 'promoCode',
+  promoReleasedAt: 'promoReleasedAt',
   pointsEarned: 'pointsEarned',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

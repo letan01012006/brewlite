@@ -1642,6 +1642,8 @@ export class PaymentsService {
           data: {
             status: current.status === 'CANCELLED' ? 'CANCELLED' : 'EXPIRED',
             failureReason: 'Giao dịch hết hạn thanh toán',
+            gatewayResponseCode: querydrResult!.responseCode,
+            gatewayTransactionStatus: querydrResult!.transactionStatus,
           },
         });
         await this.restoreHeldPoints(tx, current, current.order);

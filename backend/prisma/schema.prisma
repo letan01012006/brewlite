@@ -194,6 +194,7 @@ model Order {
   total          Int
 
   promoCode    String?
+  promoReleasedAt DateTime?
   pointsEarned Int     @default(0)
 
   createdAt DateTime @default(now())
@@ -213,6 +214,7 @@ model Order {
   @@unique([id, total])
   @@index([userId, createdAt])
   @@index([status])
+  @@index([status, createdAt])
 }
 
 // =========================

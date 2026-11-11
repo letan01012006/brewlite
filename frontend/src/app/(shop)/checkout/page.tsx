@@ -253,7 +253,11 @@ function CheckoutContent() {
                 Phương thức:
               </span>
               <span className="font-semibold text-stone-800 dark:text-stone-200 light:text-cafe-ink ">
-                {paymentMethod === "POINTS" ||
+                {successOrder.total === 0 &&
+                successOrder.promoCode &&
+                successOrder.discountAmount >= successOrder.subtotal
+                  ? 'Voucher (0đ)'
+                  : paymentMethod === "POINTS" ||
                 (successOrder.total === 0 &&
                   !successOrder.payments?.some((p) => p.method === "VNPAY"))
                   ? "Điểm thưởng (100%)"
@@ -353,6 +357,15 @@ function CheckoutContent() {
       setErrorMsg(null);
       if (!user || useCartStore.getState().isValidatingPromo) return;
       const flow = checkoutFlow(token!);
+      const finishPaid = async (paid: CheckoutSession) => {
+        if (paid.phase !== 'paid' || !paid.order || useAuthStore.getState().token !== token)
+          return false;
+        setSuccessOrder(paid.order);
+        if (paid.paidMethod) setPaymentMethod(paid.paidMethod);
+        flow.clear(user.id, paid.order.id);
+        await useAuthStore.getState().refreshUser();
+        return true;
+      };
       let currentSession = flow.read(user.id);
       if (queryOrderId && currentSession?.order?.id !== Number(queryOrderId))
         throw new Error(
@@ -363,6 +376,7 @@ function CheckoutContent() {
         const restored = await flow.retryCreation(user.id);
         if (useAuthStore.getState().token !== token) return;
         setSession(restored);
+        if (await finishPaid(restored)) return;
         // Show the confirmed server total before the next payment click.
         return;
       }
@@ -397,6 +411,7 @@ function CheckoutContent() {
           },
         );
         setSession(currentSession);
+        if (await finishPaid(currentSession)) return;
         if (
           currentSession.order &&
           currentSession.order.total !== clientTotal

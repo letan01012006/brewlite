@@ -147,6 +147,53 @@ test("changed server total requires another explicit click before payment", asyn
   assert.ok(JSON.stringify(h.render()).includes("45"));
 });
 
+test('a backend-confirmed zero-total voucher order completes immediately without a payment request or points', async () => {
+  const calls = [];
+  const freeOrder = { ...order, total: 0, discountAmount: 50000, promoCode: 'FREE', status: 'PAID', pointsEarned: 0 };
+  const h = harness(async path => {
+    calls.push(path);
+    if (path !== '/orders') throw new Error(`Unexpected payment call: ${path}`);
+    return freeOrder;
+  }, memoryStorage(), { balance: 1000 });
+  h.store.getState().addItem(item);
+  await h.mount();
+  await payButton(h.render()).props.onClick();
+  assert.deepEqual(calls, ['/orders']);
+  assert.equal(h.store.getState().getTotalItemCount(), 0);
+  assert.equal(h.authState.user.loyaltyPoints, 1000);
+  assert.equal(h.authState.refreshed, true);
+  assert.equal(h.storage.getItem('brewlite_checkout_v1_1'), null);
+  assert.ok(JSON.stringify(h.render()).includes('Voucher (0đ)'));
+  assert.ok(!payButton(h.render()));
+});
+
+test('a lost zero-total order response is recovered as paid without another order or payment', async () => {
+  let submits = 0;
+  const bodies = [];
+  const freeOrder = { ...order, total: 0, discountAmount: 50000, promoCode: 'FREE', status: 'PAID', pointsEarned: 0 };
+  const api = async (path, options) => {
+    assert.equal(path, '/orders');
+    bodies.push(options);
+    if (++submits === 1) throw new Error('Response lost');
+    return freeOrder;
+  };
+  const first = harness(api);
+  first.store.getState().addItem(item);
+  await first.mount();
+  await payButton(first.render()).props.onClick();
+  first.store.getState().addItem(item);
+  const reloaded = harness(api, first.storage, { cartStorage: first.cartStorage });
+  await reloaded.mount();
+  const retry = walk(reloaded.render(), node => node.type === 'button' &&
+    JSON.stringify(node.props.children).includes('Thử lại tạo đơn'))[0];
+  await retry.props.onClick();
+  assert.equal(bodies[0].headers['Idempotency-Key'], bodies[1].headers['Idempotency-Key']);
+  assert.equal(bodies[0].body, bodies[1].body);
+  assert.equal(reloaded.store.getState().getTotalItemCount(), 1);
+  assert.ok(JSON.stringify(reloaded.render()).includes('Voucher (0đ)'));
+  assert.equal(reloaded.storage.getItem('brewlite_checkout_v1_1'), null);
+});
+
 test("double click cannot create or pay twice while request is running", async () => {
   const pending = deferred();
   const calls = [];

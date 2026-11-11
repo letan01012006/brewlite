@@ -54,6 +54,7 @@ export type OrderMinAggregateOutputType = {
   discountAmount: number | null
   total: number | null
   promoCode: string | null
+  promoReleasedAt: Date | null
   pointsEarned: number | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -69,6 +70,7 @@ export type OrderMaxAggregateOutputType = {
   discountAmount: number | null
   total: number | null
   promoCode: string | null
+  promoReleasedAt: Date | null
   pointsEarned: number | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -84,6 +86,7 @@ export type OrderCountAggregateOutputType = {
   discountAmount: number
   total: number
   promoCode: number
+  promoReleasedAt: number
   pointsEarned: number
   createdAt: number
   updatedAt: number
@@ -119,6 +122,7 @@ export type OrderMinAggregateInputType = {
   discountAmount?: true
   total?: true
   promoCode?: true
+  promoReleasedAt?: true
   pointsEarned?: true
   createdAt?: true
   updatedAt?: true
@@ -134,6 +138,7 @@ export type OrderMaxAggregateInputType = {
   discountAmount?: true
   total?: true
   promoCode?: true
+  promoReleasedAt?: true
   pointsEarned?: true
   createdAt?: true
   updatedAt?: true
@@ -149,6 +154,7 @@ export type OrderCountAggregateInputType = {
   discountAmount?: true
   total?: true
   promoCode?: true
+  promoReleasedAt?: true
   pointsEarned?: true
   createdAt?: true
   updatedAt?: true
@@ -251,6 +257,7 @@ export type OrderGroupByOutputType = {
   discountAmount: number
   total: number
   promoCode: string | null
+  promoReleasedAt: Date | null
   pointsEarned: number
   createdAt: Date
   updatedAt: Date
@@ -289,6 +296,7 @@ export type OrderWhereInput = {
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
   promoCode?: Prisma.StringNullableFilter<"Order"> | string | null
+  promoReleasedAt?: Prisma.DateTimeNullableFilter<"Order"> | Date | string | null
   pointsEarned?: Prisma.IntFilter<"Order"> | number
   createdAt?: Prisma.DateTimeFilter<"Order"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Order"> | Date | string
@@ -311,6 +319,7 @@ export type OrderOrderByWithRelationInput = {
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
   promoCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  promoReleasedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   pointsEarned?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -339,6 +348,7 @@ export type OrderWhereUniqueInput = Prisma.AtLeast<{
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
   promoCode?: Prisma.StringNullableFilter<"Order"> | string | null
+  promoReleasedAt?: Prisma.DateTimeNullableFilter<"Order"> | Date | string | null
   pointsEarned?: Prisma.IntFilter<"Order"> | number
   createdAt?: Prisma.DateTimeFilter<"Order"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Order"> | Date | string
@@ -361,6 +371,7 @@ export type OrderOrderByWithAggregationInput = {
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
   promoCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  promoReleasedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   pointsEarned?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -384,6 +395,7 @@ export type OrderScalarWhereWithAggregatesInput = {
   discountAmount?: Prisma.IntWithAggregatesFilter<"Order"> | number
   total?: Prisma.IntWithAggregatesFilter<"Order"> | number
   promoCode?: Prisma.StringNullableWithAggregatesFilter<"Order"> | string | null
+  promoReleasedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Order"> | Date | string | null
   pointsEarned?: Prisma.IntWithAggregatesFilter<"Order"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Order"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Order"> | Date | string
@@ -396,6 +408,7 @@ export type OrderCreateInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -418,6 +431,7 @@ export type OrderUncheckedCreateInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -435,6 +449,7 @@ export type OrderUpdateInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -457,6 +472,7 @@ export type OrderUncheckedUpdateInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -477,6 +493,7 @@ export type OrderCreateManyInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -489,6 +506,7 @@ export type OrderUpdateManyMutationInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -504,6 +522,7 @@ export type OrderUncheckedUpdateManyInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -544,6 +563,7 @@ export type OrderCountOrderByAggregateInput = {
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
   promoCode?: Prisma.SortOrder
+  promoReleasedAt?: Prisma.SortOrder
   pointsEarned?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -568,6 +588,7 @@ export type OrderMaxOrderByAggregateInput = {
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
   promoCode?: Prisma.SortOrder
+  promoReleasedAt?: Prisma.SortOrder
   pointsEarned?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -583,6 +604,7 @@ export type OrderMinOrderByAggregateInput = {
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
   promoCode?: Prisma.SortOrder
+  promoReleasedAt?: Prisma.SortOrder
   pointsEarned?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -774,6 +796,7 @@ export type OrderCreateWithoutUserInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -794,6 +817,7 @@ export type OrderUncheckedCreateWithoutUserInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -843,6 +867,7 @@ export type OrderScalarWhereInput = {
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
   promoCode?: Prisma.StringNullableFilter<"Order"> | string | null
+  promoReleasedAt?: Prisma.DateTimeNullableFilter<"Order"> | Date | string | null
   pointsEarned?: Prisma.IntFilter<"Order"> | number
   createdAt?: Prisma.DateTimeFilter<"Order"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Order"> | Date | string
@@ -855,6 +880,7 @@ export type OrderCreateWithoutItemsInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -876,6 +902,7 @@ export type OrderUncheckedCreateWithoutItemsInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -908,6 +935,7 @@ export type OrderUpdateWithoutItemsInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -929,6 +957,7 @@ export type OrderUncheckedUpdateWithoutItemsInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -945,6 +974,7 @@ export type OrderCreateWithoutPaymentsInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -966,6 +996,7 @@ export type OrderUncheckedCreateWithoutPaymentsInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -998,6 +1029,7 @@ export type OrderUpdateWithoutPaymentsInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1019,6 +1051,7 @@ export type OrderUncheckedUpdateWithoutPaymentsInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1035,6 +1068,7 @@ export type OrderCreateWithoutPromotionInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1055,6 +1089,7 @@ export type OrderUncheckedCreateWithoutPromotionInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1098,6 +1133,7 @@ export type OrderCreateWithoutLoyaltyTransactionsInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1119,6 +1155,7 @@ export type OrderUncheckedCreateWithoutLoyaltyTransactionsInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1151,6 +1188,7 @@ export type OrderUpdateWithoutLoyaltyTransactionsInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1172,6 +1210,7 @@ export type OrderUncheckedUpdateWithoutLoyaltyTransactionsInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1188,6 +1227,7 @@ export type OrderCreateWithoutInventoryReservationInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1209,6 +1249,7 @@ export type OrderUncheckedCreateWithoutInventoryReservationInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1241,6 +1282,7 @@ export type OrderUpdateWithoutInventoryReservationInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1262,6 +1304,7 @@ export type OrderUncheckedUpdateWithoutInventoryReservationInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1278,6 +1321,7 @@ export type OrderCreateWithoutInventoryMovementsInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1299,6 +1343,7 @@ export type OrderUncheckedCreateWithoutInventoryMovementsInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1331,6 +1376,7 @@ export type OrderUpdateWithoutInventoryMovementsInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1352,6 +1398,7 @@ export type OrderUncheckedUpdateWithoutInventoryMovementsInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1370,6 +1417,7 @@ export type OrderCreateManyUserInput = {
   discountAmount?: number
   total: number
   promoCode?: string | null
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1382,6 +1430,7 @@ export type OrderUpdateWithoutUserInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1402,6 +1451,7 @@ export type OrderUncheckedUpdateWithoutUserInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1421,6 +1471,7 @@ export type OrderUncheckedUpdateManyWithoutUserInput = {
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
   promoCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1435,6 +1486,7 @@ export type OrderCreateManyPromotionInput = {
   subtotal: number
   discountAmount?: number
   total: number
+  promoReleasedAt?: Date | string | null
   pointsEarned?: number
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -1447,6 +1499,7 @@ export type OrderUpdateWithoutPromotionInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1467,6 +1520,7 @@ export type OrderUncheckedUpdateWithoutPromotionInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1486,6 +1540,7 @@ export type OrderUncheckedUpdateManyWithoutPromotionInput = {
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
+  promoReleasedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   pointsEarned?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -1559,6 +1614,7 @@ export type OrderSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   discountAmount?: boolean
   total?: boolean
   promoCode?: boolean
+  promoReleasedAt?: boolean
   pointsEarned?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -1582,6 +1638,7 @@ export type OrderSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   discountAmount?: boolean
   total?: boolean
   promoCode?: boolean
+  promoReleasedAt?: boolean
   pointsEarned?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -1599,6 +1656,7 @@ export type OrderSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   discountAmount?: boolean
   total?: boolean
   promoCode?: boolean
+  promoReleasedAt?: boolean
   pointsEarned?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -1616,12 +1674,13 @@ export type OrderSelectScalar = {
   discountAmount?: boolean
   total?: boolean
   promoCode?: boolean
+  promoReleasedAt?: boolean
   pointsEarned?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type OrderOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "status" | "creationKey" | "creationRequestHash" | "subtotal" | "discountAmount" | "total" | "promoCode" | "pointsEarned" | "createdAt" | "updatedAt", ExtArgs["result"]["order"]>
+export type OrderOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "status" | "creationKey" | "creationRequestHash" | "subtotal" | "discountAmount" | "total" | "promoCode" | "promoReleasedAt" | "pointsEarned" | "createdAt" | "updatedAt", ExtArgs["result"]["order"]>
 export type OrderInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   promotion?: boolean | Prisma.Order$promotionArgs<ExtArgs>
@@ -1662,6 +1721,7 @@ export type $OrderPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     discountAmount: number
     total: number
     promoCode: string | null
+    promoReleasedAt: Date | null
     pointsEarned: number
     createdAt: Date
     updatedAt: Date
@@ -2104,6 +2164,7 @@ export interface OrderFieldRefs {
   readonly discountAmount: Prisma.FieldRef<"Order", 'Int'>
   readonly total: Prisma.FieldRef<"Order", 'Int'>
   readonly promoCode: Prisma.FieldRef<"Order", 'String'>
+  readonly promoReleasedAt: Prisma.FieldRef<"Order", 'DateTime'>
   readonly pointsEarned: Prisma.FieldRef<"Order", 'Int'>
   readonly createdAt: Prisma.FieldRef<"Order", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Order", 'DateTime'>
