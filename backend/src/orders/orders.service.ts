@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   forwardRef,
@@ -7,6 +8,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import crypto from 'node:crypto';
+import {
+  Prisma,
+  type Order,
+  type OrderItem,
+} from '../generated/prisma/client.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { inventoryTransaction } from '../inventory/transaction.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -43,11 +50,94 @@ export class OrdersService {
    * - Kiểm tra và áp dụng mã khuyến mãi (nếu có)
    * - Toàn bộ chạy trong 1 Transaction an toàn
    */
-  async create(userId: number, dto: CreateOrderDto) {
-    return this.createAttempt(userId, dto);
+  async create(userId: number, dto: CreateOrderDto, idempotencyKey?: string) {
+    const key = idempotencyKey?.trim();
+    if (idempotencyKey !== undefined && (!key || key.length > 128)) {
+      throw new BadRequestException({
+        code: 'INVALID_IDEMPOTENCY_KEY',
+        message: 'Idempotency-Key phải có từ 1 đến 128 ký tự',
+      });
+    }
+    const identity = key
+      ? {
+          key,
+          requestHash: crypto
+            .createHash('sha256')
+            .update(
+              JSON.stringify({
+                items: dto.items.map((item) => ({
+                  productId: item.productId,
+                  size: item.size,
+                  quantity: item.quantity,
+                  toppingIds: item.toppingIds ?? [],
+                  note: item.note ?? null,
+                })),
+                promoCode: dto.promoCode?.trim().toUpperCase() || null,
+              }),
+            )
+            .digest('hex'),
+        }
+      : undefined;
+    if (identity) {
+      const existing = await this.findCreation(userId, identity.key);
+      if (existing) return this.replayCreation(existing, identity.requestHash);
+    }
+    try {
+      return await this.createAttempt(userId, dto, identity);
+    } catch (error) {
+      // The unique insert waits for the competing transaction. Its voucher
+      // and order writes are committed together before this read can replay it.
+      if (
+        identity &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existing = await this.findCreation(userId, identity.key);
+        if (existing)
+          return this.replayCreation(existing, identity.requestHash);
+      }
+      throw error;
+    }
   }
 
-  private async createAttempt(userId: number, dto: CreateOrderDto) {
+  private findCreation(userId: number, creationKey: string) {
+    return this.prisma.order.findUnique({
+      where: { userId_creationKey: { userId, creationKey } },
+      include: { items: { orderBy: { id: 'asc' } } },
+    });
+  }
+
+  private replayCreation(
+    order: Order & { items: OrderItem[] },
+    requestHash: string,
+  ) {
+    if (order.creationRequestHash !== requestHash)
+      throw new ConflictException({
+        code: 'ORDER_IDEMPOTENCY_KEY_REUSED',
+        message: 'Idempotency-Key đã được dùng với nội dung đơn hàng khác',
+      });
+    return this.creationResponse(order, order.items);
+  }
+
+  private creationResponse(order: Order, items: OrderItem[]) {
+    return {
+      id: order.id,
+      code: `#${order.id}`,
+      status: order.status,
+      items,
+      subtotal: order.subtotal,
+      discountAmount: order.discountAmount,
+      total: order.total,
+      promoCode: order.promoCode,
+      createdAt: order.createdAt,
+    };
+  }
+
+  private async createAttempt(
+    userId: number,
+    dto: CreateOrderDto,
+    identity?: { key: string; requestHash: string },
+  ) {
     const pricingInput: PricingItemInput[] = dto.items.map((i) => ({
       productId: i.productId,
       size: i.size,
@@ -60,6 +150,19 @@ export class OrdersService {
     return inventoryTransaction(
       this.prisma,
       async (tx) => {
+        // Claim before pricing or voucher admission. The placeholder is never
+        // visible outside this transaction and every failure rolls it back.
+        const claimedOrder = identity
+          ? await tx.order.create({
+              data: {
+                userId,
+                subtotal: 0,
+                total: 0,
+                creationKey: identity.key,
+                creationRequestHash: identity.requestHash,
+              },
+            })
+          : null;
         // 1. Tính giá server-side (không tin giá client)
         const pricingResult = await this.pricingService.calculate(
           pricingInput,
@@ -161,17 +264,18 @@ export class OrdersService {
         const total = Math.max(0, subtotal - discountAmount);
 
         // 5. Tạo đơn hàng Order ở trạng thái PENDING
-        const order = await tx.order.create({
-          data: {
-            userId,
-            status: 'PENDING',
-            subtotal,
-            discountAmount,
-            total,
-            promoCode: appliedPromoCode,
-            pointsEarned: 0,
-          },
-        });
+        const data = {
+          userId,
+          status: 'PENDING',
+          subtotal,
+          discountAmount,
+          total,
+          promoCode: appliedPromoCode,
+          pointsEarned: 0,
+        } satisfies Prisma.OrderUncheckedCreateInput;
+        const order = claimedOrder
+          ? await tx.order.update({ where: { id: claimedOrder.id }, data })
+          : await tx.order.create({ data });
 
         // 6. Tạo các dòng OrderItem kèm snapshot tên, toppings, giá lúc đặt
         const createdItems = await Promise.all(
@@ -193,17 +297,7 @@ export class OrdersService {
           ),
         );
 
-        return {
-          id: order.id,
-          code: `#${order.id}`,
-          status: order.status,
-          items: createdItems,
-          subtotal: order.subtotal,
-          discountAmount: order.discountAmount,
-          total: order.total,
-          promoCode: order.promoCode,
-          createdAt: order.createdAt,
-        };
+        return this.creationResponse(order, createdItems);
       },
       true,
     );
@@ -630,7 +724,10 @@ export class OrdersService {
             }
           }
 
-          if (successfulPayment.method === 'VNPAY' && successfulPayment.amount > 0) {
+          if (
+            successfulPayment.method === 'VNPAY' &&
+            successfulPayment.amount > 0
+          ) {
             await tx.paymentRefund.upsert({
               where: { paymentId: successfulPayment.id },
               create: {
@@ -751,7 +848,6 @@ export class OrdersService {
           const realAmount = successPayment?.amount ?? order.total;
           const points = pointsEarnedFor(realAmount);
           if (points > 0) {
-
             await tx.user.update({
               where: { id: order.userId },
               data: {

@@ -186,6 +186,8 @@ model Order {
   id     Int         @id @default(autoincrement())
   userId Int
   status OrderStatus @default(PENDING)
+  creationKey         String?
+  creationRequestHash String?
 
   subtotal       Int
   discountAmount Int @default(0)
@@ -207,6 +209,7 @@ model Order {
   inventoryMovements   InventoryMovement[]
 
   @@unique([id, userId])
+  @@unique([userId, creationKey])
   @@unique([id, total])
   @@index([userId, createdAt])
   @@index([status])

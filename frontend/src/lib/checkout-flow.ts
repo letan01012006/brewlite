@@ -14,6 +14,7 @@ export interface CheckoutSession {
   cartKey: string;
   phase: "creating" | "ready" | "paying" | "redirecting" | "failed" | "paid";
   order?: Order;
+  creation?: { idempotencyKey: string; body: string };
   attempt?: PaymentAttempt;
   paidMethod?: PaymentMethod;
   paymentUrl?: string;
@@ -44,6 +45,7 @@ function paymentKey() {
 // Persist before sending a mutation. If storage is unavailable, fail before
 // creating/charging anything rather than losing the recovery information.
 export class CheckoutFlow {
+  private creating = new Set<number>();
   constructor(
     private storage: Storage,
     private api: Api = apiFetch,
@@ -77,11 +79,16 @@ export class CheckoutFlow {
 
   beginCart(userId: number) {
     const existing = this.read(userId);
-    if (existing && !existing.order)
+    if (existing && !existing.order && !existing.creation)
       throw new Error(
         "Chưa xác định được kết quả tạo đơn. Hãy kiểm tra lịch sử đơn hàng trước khi đặt lại.",
       );
-    if (existing) this.save(userId, existing, false);
+    if (existing?.creation && !existing.order)
+      this.storage.setItem(
+        `${this.key(userId)}_creation_${existing.creation.idempotencyKey}`,
+        JSON.stringify(existing),
+      );
+    if (existing?.order) this.save(userId, existing, false);
     this.storage.removeItem(this.key(userId));
   }
 
@@ -130,28 +137,68 @@ export class CheckoutFlow {
   async prepare(userId: number, cartKey: string, payload: unknown) {
     const existing = this.read(userId);
     if (existing) {
-      if (!existing.order)
+      if (!existing.order && !existing.creation)
         throw new Error(
           "Chưa xác định được kết quả tạo đơn. Hãy kiểm tra lịch sử đơn hàng trước khi tiếp tục.",
         );
+      if (!existing.order) {
+        if (
+          existing.cartKey !== cartKey ||
+          existing.creation!.body !== JSON.stringify(payload)
+        )
+          throw new Error(
+            "Yêu cầu tạo đơn trước chưa có kết quả. Hãy thử lại yêu cầu đó trước khi thay đổi giỏ hàng.",
+          );
+        return this.submitCreation(userId, existing);
+      }
       if (existing.cartKey === cartKey) return existing;
       this.beginCart(userId);
     }
-    this.save(userId, { cartKey, phase: "creating" });
+    const session: CheckoutSession = {
+      cartKey,
+      phase: "creating",
+      creation: { idempotencyKey: paymentKey(), body: JSON.stringify(payload) },
+    };
+    return this.submitCreation(userId, session);
+  }
+
+  async retryCreation(userId: number) {
+    const session = this.read(userId);
+    if (!session?.creation || session.order)
+      throw new Error("Không có yêu cầu tạo đơn cần thử lại.");
+    return this.submitCreation(userId, session);
+  }
+
+  private async submitCreation(userId: number, session: CheckoutSession) {
+    if (this.creating.has(userId))
+      throw new Error("Yêu cầu tạo đơn đang được gửi.");
+    // Persist the exact serialized body and key before any request can escape.
+    this.save(userId, session);
+    this.creating.add(userId);
+    const creation = session.creation!;
     try {
       const order = await this.api<Order>("/orders", {
         method: "POST",
-        body: JSON.stringify(payload),
+        headers: { "Idempotency-Key": creation.idempotencyKey },
+        body: creation.body,
       });
-      return this.save(userId, { cartKey, phase: "ready", order });
+      return this.save(
+        userId,
+        { ...session, phase: "ready", order },
+        this.read(userId)?.creation?.idempotencyKey === creation.idempotencyKey,
+      );
     } catch (error) {
       // A transport error / 5xx may occur after the order was committed.
       if (
         error instanceof ApiError &&
-        [400, 401, 403, 404, 409, 422].includes(error.statusCode)
+        [400, 401, 403, 404, 409, 422].includes(error.statusCode) &&
+        error.code !== "ORDER_IDEMPOTENCY_KEY_REUSED" &&
+        this.read(userId)?.creation?.idempotencyKey === creation.idempotencyKey
       )
         this.clear(userId);
       throw error;
+    } finally {
+      this.creating.delete(userId);
     }
   }
 

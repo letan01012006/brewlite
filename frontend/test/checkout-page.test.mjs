@@ -392,3 +392,35 @@ test("an unconfirmed VNPAY response without a URL does not render checkout succe
   assert.equal(h.authState.refreshed, undefined);
   assert.equal(h.redirects.length, 0);
 });
+
+test("checkout reload shows retry for a lost order response and sends the saved request before payment", async () => {
+  const storage = memoryStorage();
+  const calls = [];
+  let orderCalls = 0;
+  const api = async (path, options) => {
+    calls.push({ path, options });
+    if (path === "/orders" && ++orderCalls === 1) throw new Error("Response lost");
+    return order;
+  };
+  const first = harness(api, storage);
+  first.store.getState().addItem(item);
+  await first.mount();
+  await payButton(first.render()).props.onClick();
+  const creation = JSON.parse(storage.getItem("brewlite_checkout_v1_1")).creation;
+  assert.ok(creation.idempotencyKey);
+
+  const reloaded = harness(api, storage);
+  reloaded.store.getState().addItem(item);
+  await reloaded.mount();
+  assert.equal(orderCalls, 1);
+  const retry = walk(reloaded.render(), node => node.type === "button" &&
+    JSON.stringify(node.props.children).includes("Thử lại tạo đơn"))[0];
+  assert.equal(retry.props.disabled, false);
+  await retry.props.onClick();
+  const submitted = calls.filter(call => call.path === "/orders");
+  assert.equal(submitted.length, 2);
+  assert.equal(submitted[1].options.headers["Idempotency-Key"], creation.idempotencyKey);
+  assert.equal(submitted[1].options.body, creation.body);
+  assert.equal(calls.some(call => call.path === "/payments"), false);
+  assert.equal(JSON.parse(storage.getItem("brewlite_checkout_v1_1")).order.id, order.id);
+});

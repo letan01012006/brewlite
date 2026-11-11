@@ -367,6 +367,19 @@ function CheckoutContent() {
           "Không thể tải đúng đơn hàng cần thanh toán. Vui lòng mở lại từ lịch sử đơn hàng.",
         );
 
+      if (currentSession?.creation && !currentSession.order) {
+        const restored = await flow.retryCreation(user.id);
+        if (useAuthStore.getState().token !== token) return;
+        setSession(restored);
+        if (
+          cartKey(useCartStore.getState().items, useCartStore.getState().promoCode) ===
+          restored.cartKey
+        )
+          clearCart();
+        // Show the confirmed server total before the next payment click.
+        return;
+      }
+
       // Nếu chưa có session và không có queryOrderId: prepare đơn mới từ giỏ hàng
       if (!currentSession && !queryOrderId) {
         if (!(await useCartStore.getState().refreshCart()))
@@ -709,6 +722,31 @@ function CheckoutContent() {
                   </Link>
                   <Link href="/orders" className="block underline">
                     Xem các đơn đã đặt
+                  </Link>
+                </>
+              ) : session.creation ? (
+                <>
+                  <p>
+                    Chưa nhận được kết quả tạo đơn. Bấm thử lại để tiếp tục yêu
+                    cầu vừa gửi.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={handlePayOrder}
+                    className="underline font-semibold"
+                  >
+                    Thử lại tạo đơn
+                  </button>
+                  <Link href="/orders" className="block underline">
+                    Xem các đơn đã đặt
+                  </Link>
+                  <Link
+                    href="/menu"
+                    onClick={() => user && checkoutFlow().beginCart(user.id)}
+                    className="block underline"
+                  >
+                    Đặt đơn mới
                   </Link>
                 </>
               ) : (

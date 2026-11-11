@@ -48,6 +48,8 @@ export type OrderMinAggregateOutputType = {
   id: number | null
   userId: number | null
   status: $Enums.OrderStatus | null
+  creationKey: string | null
+  creationRequestHash: string | null
   subtotal: number | null
   discountAmount: number | null
   total: number | null
@@ -61,6 +63,8 @@ export type OrderMaxAggregateOutputType = {
   id: number | null
   userId: number | null
   status: $Enums.OrderStatus | null
+  creationKey: string | null
+  creationRequestHash: string | null
   subtotal: number | null
   discountAmount: number | null
   total: number | null
@@ -74,6 +78,8 @@ export type OrderCountAggregateOutputType = {
   id: number
   userId: number
   status: number
+  creationKey: number
+  creationRequestHash: number
   subtotal: number
   discountAmount: number
   total: number
@@ -107,6 +113,8 @@ export type OrderMinAggregateInputType = {
   id?: true
   userId?: true
   status?: true
+  creationKey?: true
+  creationRequestHash?: true
   subtotal?: true
   discountAmount?: true
   total?: true
@@ -120,6 +128,8 @@ export type OrderMaxAggregateInputType = {
   id?: true
   userId?: true
   status?: true
+  creationKey?: true
+  creationRequestHash?: true
   subtotal?: true
   discountAmount?: true
   total?: true
@@ -133,6 +143,8 @@ export type OrderCountAggregateInputType = {
   id?: true
   userId?: true
   status?: true
+  creationKey?: true
+  creationRequestHash?: true
   subtotal?: true
   discountAmount?: true
   total?: true
@@ -233,6 +245,8 @@ export type OrderGroupByOutputType = {
   id: number
   userId: number
   status: $Enums.OrderStatus
+  creationKey: string | null
+  creationRequestHash: string | null
   subtotal: number
   discountAmount: number
   total: number
@@ -269,6 +283,8 @@ export type OrderWhereInput = {
   id?: Prisma.IntFilter<"Order"> | number
   userId?: Prisma.IntFilter<"Order"> | number
   status?: Prisma.EnumOrderStatusFilter<"Order"> | $Enums.OrderStatus
+  creationKey?: Prisma.StringNullableFilter<"Order"> | string | null
+  creationRequestHash?: Prisma.StringNullableFilter<"Order"> | string | null
   subtotal?: Prisma.IntFilter<"Order"> | number
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
@@ -289,6 +305,8 @@ export type OrderOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  creationKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  creationRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   subtotal?: Prisma.SortOrder
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
@@ -308,12 +326,15 @@ export type OrderOrderByWithRelationInput = {
 export type OrderWhereUniqueInput = Prisma.AtLeast<{
   id?: number
   id_userId?: Prisma.OrderIdUserIdCompoundUniqueInput
+  userId_creationKey?: Prisma.OrderUserIdCreationKeyCompoundUniqueInput
   id_total?: Prisma.OrderIdTotalCompoundUniqueInput
   AND?: Prisma.OrderWhereInput | Prisma.OrderWhereInput[]
   OR?: Prisma.OrderWhereInput[]
   NOT?: Prisma.OrderWhereInput | Prisma.OrderWhereInput[]
   userId?: Prisma.IntFilter<"Order"> | number
   status?: Prisma.EnumOrderStatusFilter<"Order"> | $Enums.OrderStatus
+  creationKey?: Prisma.StringNullableFilter<"Order"> | string | null
+  creationRequestHash?: Prisma.StringNullableFilter<"Order"> | string | null
   subtotal?: Prisma.IntFilter<"Order"> | number
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
@@ -328,12 +349,14 @@ export type OrderWhereUniqueInput = Prisma.AtLeast<{
   loyaltyTransactions?: Prisma.LoyaltyTransactionListRelationFilter
   inventoryReservation?: Prisma.XOR<Prisma.InventoryReservationNullableScalarRelationFilter, Prisma.InventoryReservationWhereInput> | null
   inventoryMovements?: Prisma.InventoryMovementListRelationFilter
-}, "id" | "id_userId" | "id_total">
+}, "id" | "id_userId" | "userId_creationKey" | "id_total">
 
 export type OrderOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  creationKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  creationRequestHash?: Prisma.SortOrderInput | Prisma.SortOrder
   subtotal?: Prisma.SortOrder
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
@@ -355,6 +378,8 @@ export type OrderScalarWhereWithAggregatesInput = {
   id?: Prisma.IntWithAggregatesFilter<"Order"> | number
   userId?: Prisma.IntWithAggregatesFilter<"Order"> | number
   status?: Prisma.EnumOrderStatusWithAggregatesFilter<"Order"> | $Enums.OrderStatus
+  creationKey?: Prisma.StringNullableWithAggregatesFilter<"Order"> | string | null
+  creationRequestHash?: Prisma.StringNullableWithAggregatesFilter<"Order"> | string | null
   subtotal?: Prisma.IntWithAggregatesFilter<"Order"> | number
   discountAmount?: Prisma.IntWithAggregatesFilter<"Order"> | number
   total?: Prisma.IntWithAggregatesFilter<"Order"> | number
@@ -366,6 +391,8 @@ export type OrderScalarWhereWithAggregatesInput = {
 
 export type OrderCreateInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -385,6 +412,8 @@ export type OrderUncheckedCreateInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -401,6 +430,8 @@ export type OrderUncheckedCreateInput = {
 
 export type OrderUpdateInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -420,6 +451,8 @@ export type OrderUncheckedUpdateInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -438,6 +471,8 @@ export type OrderCreateManyInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -449,6 +484,8 @@ export type OrderCreateManyInput = {
 
 export type OrderUpdateManyMutationInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -461,6 +498,8 @@ export type OrderUncheckedUpdateManyInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -485,6 +524,11 @@ export type OrderIdUserIdCompoundUniqueInput = {
   userId: number
 }
 
+export type OrderUserIdCreationKeyCompoundUniqueInput = {
+  userId: number
+  creationKey: string
+}
+
 export type OrderIdTotalCompoundUniqueInput = {
   id: number
   total: number
@@ -494,6 +538,8 @@ export type OrderCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  creationKey?: Prisma.SortOrder
+  creationRequestHash?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
@@ -516,6 +562,8 @@ export type OrderMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  creationKey?: Prisma.SortOrder
+  creationRequestHash?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
@@ -529,6 +577,8 @@ export type OrderMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   status?: Prisma.SortOrder
+  creationKey?: Prisma.SortOrder
+  creationRequestHash?: Prisma.SortOrder
   subtotal?: Prisma.SortOrder
   discountAmount?: Prisma.SortOrder
   total?: Prisma.SortOrder
@@ -719,6 +769,8 @@ export type OrderUpdateOneWithoutInventoryMovementsNestedInput = {
 
 export type OrderCreateWithoutUserInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -736,6 +788,8 @@ export type OrderCreateWithoutUserInput = {
 export type OrderUncheckedCreateWithoutUserInput = {
   id?: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -783,6 +837,8 @@ export type OrderScalarWhereInput = {
   id?: Prisma.IntFilter<"Order"> | number
   userId?: Prisma.IntFilter<"Order"> | number
   status?: Prisma.EnumOrderStatusFilter<"Order"> | $Enums.OrderStatus
+  creationKey?: Prisma.StringNullableFilter<"Order"> | string | null
+  creationRequestHash?: Prisma.StringNullableFilter<"Order"> | string | null
   subtotal?: Prisma.IntFilter<"Order"> | number
   discountAmount?: Prisma.IntFilter<"Order"> | number
   total?: Prisma.IntFilter<"Order"> | number
@@ -794,6 +850,8 @@ export type OrderScalarWhereInput = {
 
 export type OrderCreateWithoutItemsInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -812,6 +870,8 @@ export type OrderUncheckedCreateWithoutItemsInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -843,6 +903,8 @@ export type OrderUpdateToOneWithWhereWithoutItemsInput = {
 
 export type OrderUpdateWithoutItemsInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -861,6 +923,8 @@ export type OrderUncheckedUpdateWithoutItemsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -876,6 +940,8 @@ export type OrderUncheckedUpdateWithoutItemsInput = {
 
 export type OrderCreateWithoutPaymentsInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -894,6 +960,8 @@ export type OrderUncheckedCreateWithoutPaymentsInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -925,6 +993,8 @@ export type OrderUpdateToOneWithWhereWithoutPaymentsInput = {
 
 export type OrderUpdateWithoutPaymentsInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -943,6 +1013,8 @@ export type OrderUncheckedUpdateWithoutPaymentsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -958,6 +1030,8 @@ export type OrderUncheckedUpdateWithoutPaymentsInput = {
 
 export type OrderCreateWithoutPromotionInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -976,6 +1050,8 @@ export type OrderUncheckedCreateWithoutPromotionInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1017,6 +1093,8 @@ export type OrderUpdateManyWithWhereWithoutPromotionInput = {
 
 export type OrderCreateWithoutLoyaltyTransactionsInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1035,6 +1113,8 @@ export type OrderUncheckedCreateWithoutLoyaltyTransactionsInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1066,6 +1146,8 @@ export type OrderUpdateToOneWithWhereWithoutLoyaltyTransactionsInput = {
 
 export type OrderUpdateWithoutLoyaltyTransactionsInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1084,6 +1166,8 @@ export type OrderUncheckedUpdateWithoutLoyaltyTransactionsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1099,6 +1183,8 @@ export type OrderUncheckedUpdateWithoutLoyaltyTransactionsInput = {
 
 export type OrderCreateWithoutInventoryReservationInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1117,6 +1203,8 @@ export type OrderUncheckedCreateWithoutInventoryReservationInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1148,6 +1236,8 @@ export type OrderUpdateToOneWithWhereWithoutInventoryReservationInput = {
 
 export type OrderUpdateWithoutInventoryReservationInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1166,6 +1256,8 @@ export type OrderUncheckedUpdateWithoutInventoryReservationInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1181,6 +1273,8 @@ export type OrderUncheckedUpdateWithoutInventoryReservationInput = {
 
 export type OrderCreateWithoutInventoryMovementsInput = {
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1199,6 +1293,8 @@ export type OrderUncheckedCreateWithoutInventoryMovementsInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1230,6 +1326,8 @@ export type OrderUpdateToOneWithWhereWithoutInventoryMovementsInput = {
 
 export type OrderUpdateWithoutInventoryMovementsInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1248,6 +1346,8 @@ export type OrderUncheckedUpdateWithoutInventoryMovementsInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1264,6 +1364,8 @@ export type OrderUncheckedUpdateWithoutInventoryMovementsInput = {
 export type OrderCreateManyUserInput = {
   id?: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1275,6 +1377,8 @@ export type OrderCreateManyUserInput = {
 
 export type OrderUpdateWithoutUserInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1292,6 +1396,8 @@ export type OrderUpdateWithoutUserInput = {
 export type OrderUncheckedUpdateWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1309,6 +1415,8 @@ export type OrderUncheckedUpdateWithoutUserInput = {
 export type OrderUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1322,6 +1430,8 @@ export type OrderCreateManyPromotionInput = {
   id?: number
   userId: number
   status?: $Enums.OrderStatus
+  creationKey?: string | null
+  creationRequestHash?: string | null
   subtotal: number
   discountAmount?: number
   total: number
@@ -1332,6 +1442,8 @@ export type OrderCreateManyPromotionInput = {
 
 export type OrderUpdateWithoutPromotionInput = {
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1350,6 +1462,8 @@ export type OrderUncheckedUpdateWithoutPromotionInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1367,6 +1481,8 @@ export type OrderUncheckedUpdateManyWithoutPromotionInput = {
   id?: Prisma.IntFieldUpdateOperationsInput | number
   userId?: Prisma.IntFieldUpdateOperationsInput | number
   status?: Prisma.EnumOrderStatusFieldUpdateOperationsInput | $Enums.OrderStatus
+  creationKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  creationRequestHash?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   subtotal?: Prisma.IntFieldUpdateOperationsInput | number
   discountAmount?: Prisma.IntFieldUpdateOperationsInput | number
   total?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1437,6 +1553,8 @@ export type OrderSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   id?: boolean
   userId?: boolean
   status?: boolean
+  creationKey?: boolean
+  creationRequestHash?: boolean
   subtotal?: boolean
   discountAmount?: boolean
   total?: boolean
@@ -1458,6 +1576,8 @@ export type OrderSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   id?: boolean
   userId?: boolean
   status?: boolean
+  creationKey?: boolean
+  creationRequestHash?: boolean
   subtotal?: boolean
   discountAmount?: boolean
   total?: boolean
@@ -1473,6 +1593,8 @@ export type OrderSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensi
   id?: boolean
   userId?: boolean
   status?: boolean
+  creationKey?: boolean
+  creationRequestHash?: boolean
   subtotal?: boolean
   discountAmount?: boolean
   total?: boolean
@@ -1488,6 +1610,8 @@ export type OrderSelectScalar = {
   id?: boolean
   userId?: boolean
   status?: boolean
+  creationKey?: boolean
+  creationRequestHash?: boolean
   subtotal?: boolean
   discountAmount?: boolean
   total?: boolean
@@ -1497,7 +1621,7 @@ export type OrderSelectScalar = {
   updatedAt?: boolean
 }
 
-export type OrderOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "status" | "subtotal" | "discountAmount" | "total" | "promoCode" | "pointsEarned" | "createdAt" | "updatedAt", ExtArgs["result"]["order"]>
+export type OrderOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "status" | "creationKey" | "creationRequestHash" | "subtotal" | "discountAmount" | "total" | "promoCode" | "pointsEarned" | "createdAt" | "updatedAt", ExtArgs["result"]["order"]>
 export type OrderInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   promotion?: boolean | Prisma.Order$promotionArgs<ExtArgs>
@@ -1532,6 +1656,8 @@ export type $OrderPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs 
     id: number
     userId: number
     status: $Enums.OrderStatus
+    creationKey: string | null
+    creationRequestHash: string | null
     subtotal: number
     discountAmount: number
     total: number
@@ -1972,6 +2098,8 @@ export interface OrderFieldRefs {
   readonly id: Prisma.FieldRef<"Order", 'Int'>
   readonly userId: Prisma.FieldRef<"Order", 'Int'>
   readonly status: Prisma.FieldRef<"Order", 'OrderStatus'>
+  readonly creationKey: Prisma.FieldRef<"Order", 'String'>
+  readonly creationRequestHash: Prisma.FieldRef<"Order", 'String'>
   readonly subtotal: Prisma.FieldRef<"Order", 'Int'>
   readonly discountAmount: Prisma.FieldRef<"Order", 'Int'>
   readonly total: Prisma.FieldRef<"Order", 'Int'>

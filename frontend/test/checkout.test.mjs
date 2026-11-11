@@ -94,16 +94,22 @@ test("lost success response is reconciled from order without another payment", a
   assert.equal(paid.paidMethod, "CARD");
 });
 
-test("ambiguous order creation is not automatically repeated after reload", async () => {
+test("ambiguous order creation survives reload and retries the same identity and body", async () => {
   const storage = memoryStorage();
-  let requests = 0;
-  const api = async () => {
-    requests++;
-    throw new Error("Response lost");
+  const requests = [];
+  const api = async (_path, options) => {
+    requests.push(options);
+    const saved = JSON.parse(storage.getItem("brewlite_checkout_v1_1"));
+    assert.equal(saved.creation.idempotencyKey, options.headers["Idempotency-Key"]);
+    assert.equal(saved.creation.body, options.body);
+    if (requests.length === 1) throw new Error("Response lost");
+    return order;
   };
   await assert.rejects(new CheckoutFlow(storage, api).prepare(1, "cart", {}));
-  await assert.rejects(new CheckoutFlow(storage, api).prepare(1, "cart", {}));
-  assert.equal(requests, 1);
+  const restored = await new CheckoutFlow(storage, api).prepare(1, "cart", {});
+  assert.equal(restored.order.id, order.id);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[0], requests[1]);
 });
 
 test("a definitive rejected order can be corrected and submitted again", async () => {
@@ -316,4 +322,80 @@ test("an explicit retry cannot replace an unknown payment's key or points", asyn
   await assert.rejects(flow.pay(1, "VNPAY", undefined, undefined, 100));
   await assert.rejects(flow.pay(1, "VNPAY", undefined, undefined, 0, true));
   assert.equal(attempts[0], attempts[1]);
+});
+
+
+test("actual API timeout after server acceptance replays one order after reload", async () => {
+  const storage = memoryStorage();
+  const accepted = new Map();
+  const requests = [];
+  const timedLoad = sourceLoader({
+    "@/lib/auth-session": { accessToken: () => null, unauthorized() {} },
+  }, { fetch: async (_url, options) => {
+    const key = options.headers["Idempotency-Key"];
+    requests.push({ key, body: options.body });
+    if (accepted.has(key)) return new Response(JSON.stringify(accepted.get(key)), { status: 201 });
+    accepted.set(key, order); // The server committed, but the response was lost.
+    return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("timeout"))));
+  } });
+  const { CheckoutFlow: Flow } = timedLoad("src/lib/checkout-flow.ts");
+  const { apiFetch } = timedLoad("src/lib/api/client.ts");
+  const api = (path, options) => apiFetch(path, { ...options, timeoutMs: 10 });
+  const payload = { items: [{ productId: 1, size: "S", quantity: 1 }], promoCode: "ONLYONCE" };
+  await assert.rejects(new Flow(storage, api).prepare(1, "cart", payload), error => error.code === "TIMEOUT");
+  payload.items[0].quantity = 2; // Retry must use the frozen request, not a live cart object.
+  const restored = await new Flow(storage, api).retryCreation(1);
+  assert.equal(restored.order.id, order.id);
+  assert.equal(accepted.size, 1);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], requests[0]);
+  assert.equal(JSON.parse(requests[1].body).items[0].quantity, 1);
+});
+
+test("two checkout instances share the persisted creation key while the first is in flight", async () => {
+  const storage = memoryStorage(), pending = deferred(), calls = [];
+  const api = async (_path, options) => { calls.push(options); return pending.promise; };
+  const first = new CheckoutFlow(storage, api).prepare(1, "cart", {});
+  const second = new CheckoutFlow(storage, api).prepare(1, "cart", {});
+  assert.deepEqual(calls[0], calls[1]);
+  pending.resolve(order);
+  const sessions = await Promise.all([first, second]);
+  assert.equal(sessions[0].order.id, sessions[1].order.id);
+});
+
+test("a changed request cannot silently replace an unresolved creation", async () => {
+  const storage = memoryStorage();
+  let calls = 0;
+  const flow = new CheckoutFlow(storage, async () => { calls++; throw new Error("Offline"); });
+  await assert.rejects(flow.prepare(1, "cart", { quantity: 1 }));
+  const identity = flow.read(1).creation;
+  await assert.rejects(flow.prepare(1, "cart", { quantity: 2 }));
+  assert.equal(calls, 1);
+  assert.deepEqual(flow.read(1).creation, identity);
+});
+
+test("explicit new-order action creates a new key even for an identical cart after a lost response", async () => {
+  const storage = memoryStorage(), keys = [];
+  const flow = new CheckoutFlow(storage, async (_path, options) => {
+    keys.push(options.headers["Idempotency-Key"]);
+    if (keys.length === 1) throw new Error("Offline");
+    return order;
+  });
+  await assert.rejects(flow.prepare(1, "cart", {}));
+  flow.beginCart(1);
+  await flow.prepare(1, "cart", {});
+  assert.notEqual(keys[0], keys[1]);
+  assert.ok(storage.getItem(`brewlite_checkout_v1_1_creation_${keys[0]}`));
+});
+
+test("a late creation response cannot replace a newer checkout", async () => {
+  const storage = memoryStorage(), pending = deferred();
+  const first = new CheckoutFlow(storage, () => pending.promise).prepare(1, "cart", {});
+  const next = new CheckoutFlow(storage, async () => ({ ...order, id: 200 }));
+  next.beginCart(1);
+  await next.prepare(1, "new-cart", {});
+  pending.resolve(order);
+  await first;
+  assert.equal(next.read(1).order.id, 200);
+  assert.equal(next.read(1, 100).order.id, 100);
 });

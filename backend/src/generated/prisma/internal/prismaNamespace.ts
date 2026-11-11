@@ -1700,6 +1700,8 @@ export const OrderScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   status: 'status',
+  creationKey: 'creationKey',
+  creationRequestHash: 'creationRequestHash',
   subtotal: 'subtotal',
   discountAmount: 'discountAmount',
   total: 'total',
