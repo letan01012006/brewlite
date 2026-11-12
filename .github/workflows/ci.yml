@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://brewlite:brewlite@127.0.0.1:5432/brewlite
+      TEST_DATABASE_URL: postgresql://brewlite:brewlite@127.0.0.1:5432/brewlite_test
+      JWT_SECRET: brewlite-ci-jwt-key-only-for-disposable-tests
+      OTP_HASH_SECRET: brewlite-ci-otp-key-only-for-disposable-tests
+      SMS_PROVIDER: local
+      AUTH_OTP_DEMO: 'true'
+      PAYMENT_MOCK_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: brewlite
+          POSTGRES_PASSWORD: brewlite
+          POSTGRES_DB: brewlite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brewlite -d brewlite"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.1'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Prepare PostgreSQL
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" createdb -U brewlite brewlite_test
+          npx --no-install prisma generate
+          npx --no-install prisma migrate deploy
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:e2e
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.1'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  compose:
+    name: Docker Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.22.1'
+      - name: Start and seed the test stack
+        run: |
+          cat > backend/.env <<'ENV'
+          NODE_ENV=development
+          DATABASE_URL=postgresql://brewlite:brewlite@db:5432/brewlite
+          JWT_SECRET=brewlite-ci-jwt-key-only-for-disposable-tests
+          OTP_HASH_SECRET=brewlite-ci-otp-key-only-for-disposable-tests
+          SMS_PROVIDER=local
+          AUTH_OTP_DEMO=true
+          PAYMENT_MOCK_ENABLED=true
+          ENV
+          docker compose up --build --wait --wait-timeout 180
+          docker compose exec -T backend npx --no-install prisma db seed
+      - name: Check the web, menu and a mock checkout
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { randomUUID } from 'node:crypto';
+
+          const origin = 'http://127.0.0.1:3000';
+          assert.equal((await fetch(origin)).status, 200);
+          assert.equal((await fetch('http://127.0.0.1:4000/api/docs')).status, 200);
+
+          async function api(path, { body, token, key } = {}) {
+            const headers = {};
+            if (body) headers['Content-Type'] = 'application/json';
+            if (token) headers.Authorization = `Bearer ${token}`;
+            if (key) headers['Idempotency-Key'] = key;
+            const response = await fetch(`${origin}/api${path}`, {
+              method: body ? 'POST' : 'GET',
+              headers,
+              body: body && JSON.stringify(body),
+              signal: AbortSignal.timeout(15000),
+            });
+            return { status: response.status, data: await response.json() };
+          }
+
+          const menu = await api('/products');
+          assert.equal(menu.status, 200);
+          const product = menu.data.data.find((item) => item.stock > 0);
+          assert.ok(product, 'Seed must create at least one orderable product');
+
+          const login = await api('/auth/login', {
+            body: { email: 'demo@brewlite.com', password: 'Demo@1234' },
+          });
+          assert.equal(login.status, 200);
+          const token = login.data.accessToken;
+          assert.ok(token);
+
+          const order = await api('/orders', {
+            token,
+            key: randomUUID(),
+            body: { items: [{ productId: product.id, size: 'S', quantity: 1 }] },
+          });
+          assert.equal(order.status, 201);
+          assert.equal(order.data.status, 'PENDING');
+
+          const payment = await api('/payments', {
+            token,
+            key: randomUUID(),
+            body: { orderId: order.data.id, method: 'WALLET', mockResult: 'SUCCESS' },
+          });
+          assert.equal(payment.status, 201);
+
+          const history = await api('/orders/me', { token });
+          assert.equal(history.status, 200);
+          assert.equal(history.data.data.find((item) => item.id === order.data.id)?.status, 'PAID');
+          console.log('Web, Swagger, seed, mock checkout and order history passed.');
+          JS
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Remove the disposable CI stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
