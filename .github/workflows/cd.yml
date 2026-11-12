@@ -51,7 +51,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          context: git
+          context: workflow
           images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
           tags: |
             type=raw,value=latest
