@@ -109,6 +109,18 @@ Test OTP thật qua Swagger: `POST /api/auth/register` hoặc `POST /api/auth/re
 sau đó nhập mã SMS vào `POST /api/auth/verify-otp`. Mã có hiệu lực 5 phút;
 chờ 60 giây giữa các lần gửi được tiếp nhận.
 
+## CI/CD
+
+[CI](.github/workflows/ci.yml) chạy khi mở hoặc cập nhật Pull Request và khi push lên `main`.
+CI kiểm tra frontend, backend và chạy thử luồng đặt hàng qua Docker Compose trên dữ liệu mẫu.
+
+Khi CI chạy thành công trên bản mới nhất của `main`, [CD](.github/workflows/cd.yml) phát hành hai image lên GitHub Container Registry với tag `latest` và `sha-<commit>`.
+
+- `ghcr.io/letan01012006/brewlite/backend`
+- `ghcr.io/letan01012006/brewlite/frontend`
+
+Xem kết quả trong [GitHub Actions](https://github.com/letan01012006/brewlite/actions). Hai image có thể được dùng để triển khai lên host.
+
 ## Tài liệu
 
 - [Backend: sản phẩm, topping và nâng cấp dữ liệu](backend/README.md#product-và-topping)

@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI
 
 on:
   pull_request:
@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
@@ -98,7 +102,7 @@ jobs:
         run: |
           cat > backend/.env <<'ENV'
           NODE_ENV=development
-          DATABASE_URL=postgresql://brewlite:brewlite@localhost:5432/brewlite
+          DATABASE_URL=postgresql://brewlite:brewlite@db:5432/brewlite
           JWT_SECRET=brewlite-ci-jwt-key-only-for-disposable-tests
           OTP_HASH_SECRET=brewlite-ci-otp-key-only-for-disposable-tests
           SMS_PROVIDER=local
@@ -169,39 +173,3 @@ jobs:
       - name: Remove the disposable CI stack
         if: always()
         run: docker compose down --volumes --remove-orphans
-
-  publish:
-    name: Publish Docker images to GHCR
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend, compose]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Build and publish the checked revision
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tag="sha-${GITHUB_SHA}"
-          backend="${repository}-backend:${tag}"
-          frontend="${repository}-frontend:${tag}"
-          source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
-
-          docker build --label "org.opencontainers.image.source=${source}" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "$backend" ./backend
-          docker build --label "org.opencontainers.image.source=${source}" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --build-arg BACKEND_API_URL=http://backend:4000/api \
-            --tag "$frontend" ./frontend
-
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          docker push "$backend"
-          docker push "$frontend"
-          printf 'Published Docker images\n\n- `%s`\n- `%s`\n' "$backend" "$frontend" >> "$GITHUB_STEP_SUMMARY"
