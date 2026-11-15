@@ -216,6 +216,17 @@ Kiểm tra giao diện light/dark ở 1440px, 1024px và khoảng 390px; thử �
 modal bằng bàn phím/Escape, giỏ hàng và checkout. Test tự động không thay thế
 kiểm tra giao diện và các luồng với backend thật.
 
+## Test API bằng Postman
+
+Bộ collection và environment có sẵn trong [backend/postman/](backend/postman/README.md).
+Import hai file JSON, chọn **BrewLite Local**, chạy folder **00 Quick start**
+rồi **01 Checkout demo**. Các request tự lưu token Customer/Barista và ID từ
+response; có sẵn assertions và kiểm tra chống tạo trùng đơn/thanh toán.
+
+Để chạy đủ 65 request bằng Postman CLI với database kiểm thử riêng, OTP demo và
+ngân hàng VNPAY mô phỏng: `node backend/postman/run-full.mjs`.
+Kết quả gần nhất: [báo cáo Postman](backend/postman/reports/latest-run.md).
+
 ## Quy ước
 
 - Nhánh: `main` ← `develop` ← `feature/task-x-ten`. Không push thẳng `main`, `develop`.

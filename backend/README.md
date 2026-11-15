@@ -25,6 +25,15 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Test API bằng Postman
+
+Collection, environment và hướng dẫn nằm trong [postman/](postman/README.md).
+Sau khi PostgreSQL đã chạy và backend đã build, chạy từ thư mục `backend`:
+
+```powershell
+node postman/run-full.mjs
+```
+
 ## Product và topping
 
 `ProductsModule` quản lý cả sản phẩm và danh mục topping. `Product.toppings` và
