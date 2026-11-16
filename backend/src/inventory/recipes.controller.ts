@@ -32,7 +32,7 @@ import {
 @ApiTags('ingredients')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('BARISTA')
+@Roles('BARISTA', 'STAFF')
 @Controller()
 export class RecipesController {
   constructor(private readonly recipes: RecipesService) {}

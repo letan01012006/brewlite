@@ -19,10 +19,10 @@ export class ProductVisibilityGuard extends JwtAuthGuard {
     if (request.query.includeInactive !== 'true') return true;
 
     await super.canActivate(context);
-    if (request.user?.role !== 'BARISTA') {
+    if (!['BARISTA', 'STAFF'].includes(request.user?.role || '')) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
-        message: 'Chỉ BARISTA được xem sản phẩm đang tạm dừng bán',
+        message: 'BARISTA/STAFF được xem sản phẩm đang tạm dừng bán',
       });
     }
     return true;

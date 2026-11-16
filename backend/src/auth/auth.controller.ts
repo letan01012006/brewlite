@@ -41,7 +41,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   @ApiBody({ type: LoginDto, examples: {
-    phone: { summary: 'Khách mới / quản lý / nhân viên', value: { phone: '0900000001', password: 'Manager@123' } },
+    phone: { summary: 'Khách hoặc nhân viên đăng nhập bằng số điện thoại đã đăng ký', value: { phone: '0912345679', password: 'Barista@123' } },
     legacyEmail: { summary: 'Tài khoản cũ chưa có phone', value: { email: 'demo@brewlite.com', password: 'Demo@1234' } },
   } })
   @ApiOperation({ summary: 'Đăng nhập bằng phone hoặc email cho tài khoản cũ chưa có phone' })

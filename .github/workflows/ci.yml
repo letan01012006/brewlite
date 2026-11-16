@@ -117,9 +117,9 @@ jobs:
           import assert from 'node:assert/strict';
           import { randomUUID } from 'node:crypto';
 
-          const origin = 'http://127.0.0.1:3000';
+          const origin = 'http://127.0.0.1:3001';
           assert.equal((await fetch(origin)).status, 200);
-          assert.equal((await fetch('http://127.0.0.1:4000/api/docs')).status, 200);
+          assert.equal((await fetch('http://127.0.0.1:4001/api/docs')).status, 200);
 
           async function api(path, { body, token, key } = {}) {
             const headers = {};
@@ -137,8 +137,9 @@ jobs:
 
           const menu = await api('/products');
           assert.equal(menu.status, 200);
-          const product = menu.data.data.find((item) => item.stock > 0);
+          const product = menu.data.data.find((item) => item.availability?.some((size) => size.maxQuantity >= 1));
           assert.ok(product, 'Seed must create at least one orderable product');
+          const size = product.availability.find((size) => size.maxQuantity >= 1).size;
 
           const login = await api('/auth/login', {
             body: { email: 'demo@brewlite.com', password: 'Demo@1234' },
@@ -150,7 +151,7 @@ jobs:
           const order = await api('/orders', {
             token,
             key: randomUUID(),
-            body: { items: [{ productId: product.id, size: 'S', quantity: 1 }] },
+            body: { items: [{ productId: product.id, size, quantity: 1 }] },
           });
           assert.equal(order.status, 201);
           assert.equal(order.data.status, 'PENDING');

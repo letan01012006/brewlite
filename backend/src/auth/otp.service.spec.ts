@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OtpService } from './otp.service.js';
 
@@ -18,9 +19,104 @@ function service(overrides: Record<string, string> = {}) {
   return new OtpService(config);
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('eSMS OTP adapter', () => {
+  it('shows the same code sent to eSMS only when development logging is enabled', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const send = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ CodeResult: '100' }));
+    vi.stubGlobal('fetch', send);
+    await service({ AUTH_OTP_LOG: 'true', NODE_ENV: 'development' }).send(
+      '0911111111',
+      '654321',
+    );
+    expect(JSON.parse(send.mock.calls[0][1]!.body as string).Content).toContain(
+      '654321',
+    );
+    const output = JSON.stringify(log.mock.calls);
+    expect(output).toContain('[DEV OTP] phone=******1111 code=654321');
+    expect(output).not.toMatch(/0911111111|unit-test-/);
+  });
+
+  it('also supports terminal OTPs for the explicit local SMS provider', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const send = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', send);
+    await service({ AUTH_OTP_LOG: 'true', SMS_PROVIDER: 'local' }).send(
+      '0911111111',
+      '654321',
+    );
+    expect(JSON.stringify(log.mock.calls)).toContain('code=654321');
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('keeps local OTPs hidden by default', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    await service({ SMS_PROVIDER: 'local' }).send('0911111111', '654321');
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('does not print a code that was rejected by eSMS', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json({ CodeResult: '146' })),
+    );
+    await expect(
+      service({ AUTH_OTP_LOG: 'true' }).send('0911111111', '654321'),
+    ).rejects.toMatchObject({ response: { code: 'SMS_REJECTED' } });
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('rejects OTP terminal logging in production', () => {
+    expect(() =>
+      service({ AUTH_OTP_LOG: 'true', NODE_ENV: 'production' }),
+    ).toThrow('AUTH_OTP_LOG is allowed only in development/test');
+  });
+
+  it('logs only references for delivery lookup, never the OTP, phone or secrets', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    const smsId = 'd533459ee42b2b9525ba9eabf6a8156';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          CodeResult: '100',
+          SMSID: smsId,
+          ErrorMessage: 'echo 654321 unit-test-secret-key',
+        }),
+      ),
+    );
+    await service().send('0911111111', '654321');
+    const output = JSON.stringify(log.mock.calls);
+    expect(output).toContain(smsId);
+    expect(output).toContain('delivery not confirmed');
+    expect(output).not.toMatch(/654321|0911111111|unit-test-|ErrorMessage/);
+  });
+
+  it('does not log untrusted text returned in the provider reference', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          CodeResult: '100',
+          SMSID: 'echo 654321 unit-test-secret-key\n',
+        }),
+      ),
+    );
+    await service().send('0911111111', '654321');
+    expect(JSON.stringify(log.mock.calls)).toContain('smsId=unavailable');
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/654321|unit-test-/);
+  });
+
   it('allows a local fixed demo OTP to be reissued without looping', () => {
     const otp = service({ SMS_PROVIDER: 'local', AUTH_OTP_DEMO: 'true' });
     const first = otp.issue('0911111111');

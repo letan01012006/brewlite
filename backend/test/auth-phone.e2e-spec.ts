@@ -206,31 +206,76 @@ describe('Phone auth, OTP concurrency, manager provisioning and legacy upgrade',
     }
   });
 
-  it('MANAGER creates BARISTA -> phone login immediately; CUSTOMER/BARISTA receive 403', async () => {
-    const manager = await login({ phone: '0900000001' }).expect(200);
+  it('BARISTA creates STAFF -> phone login immediately; STAFF/CUSTOMER cannot provision staff', async () => {
+    const barista = await login({ email: 'barista@legacy.test' }).expect(200);
     const staffPhone = phone();
     const body = { phone: staffPhone, fullName: 'Nhân viên mới', password };
-    const created = await f.api('post', '/admin/staff', manager.body.accessToken).send(body).expect(201);
-    expect(created.body).toMatchObject({ role: 'BARISTA', isPhoneVerified: true, email: null, loyaltyPoints: 0 });
+    const created = await f.api('post', '/admin/staff', barista.body.accessToken).send(body).expect(201);
+    expect(created.body).toMatchObject({ role: 'STAFF', isPhoneVerified: true, email: null, loyaltyPoints: 0 });
     expect(created.body.passwordHash).toBeUndefined();
     const staff = await login({ phone: staffPhone }).expect(200);
     await f.api('get', '/auth/me', staff.body.accessToken).expect(200);
     await f.api('get', '/orders', staff.body.accessToken).expect(200);
+    await f.api('get', '/inventory/stock', staff.body.accessToken).expect(200);
+    await f.api('get', '/products?includeInactive=true', staff.body.accessToken).expect(200);
     await f.api('post', '/admin/staff', staff.body.accessToken).send({ ...body, phone: phone() }).expect(403);
     const customer = await login({ email: 'customer@legacy.test' }).expect(200);
     await f.api('post', '/admin/staff', customer.body.accessToken).send({ ...body, phone: phone() }).expect(403);
     await f.api('post', '/admin/staff').send(body).expect(401);
-    await f.api('post', '/admin/staff', manager.body.accessToken).send(body).expect(409);
-    await f.api('post', '/admin/staff', manager.body.accessToken).send({ ...body, phone: phone(), role: 'MANAGER' }).expect(400);
+    await f.api('post', '/admin/staff', barista.body.accessToken).send(body).expect(409);
+    await f.api('post', '/admin/staff', barista.body.accessToken).send({ ...body, phone: phone(), role: 'MANAGER' }).expect(400);
     await login({ phone: staffPhone, password: 'Wrong123' }).expect(401);
     // Current DB roles override stale/forged role claims in otherwise signed JWTs.
-    const forged = f.app.get(JwtService).sign({ sub: customer.body.user.id, email: null, role: 'MANAGER' });
+    const forged = f.app.get(JwtService).sign({ sub: customer.body.user.id, email: null, role: 'BARISTA' });
     await f.api('post', '/admin/staff', forged).send({ ...body, phone: phone() }).expect(403);
+    const forgedStaff = f.app.get(JwtService).sign({ sub: staff.body.user.id, email: null, role: 'BARISTA' });
+    await f.api('post', '/admin/staff', forgedStaff).send({ ...body, phone: phone() }).expect(403);
+  });
+
+  it('only BARISTA deletes STAFF; deletion revokes login/JWT and preserves history', async () => {
+    const barista = await login({ email: 'barista@legacy.test' }).expect(200);
+    const customer = await login({ email: 'customer@legacy.test' }).expect(200);
+    const p = phone();
+    const body = { phone: p, fullName: 'Staff to delete', password };
+    const created = await f.api('post', '/admin/staff', barista.body.accessToken).send(body).expect(201);
+    const id = created.body.id;
+    const staff = await login({ phone: p }).expect(200);
+    const history = await f.db.order.create({ data: { userId: id, status: 'COMPLETED', subtotal: 50000, total: 50000 } });
+    await f.api('delete', `/admin/staff/${id}`).expect(401);
+    await f.api('delete', `/admin/staff/${id}`, customer.body.accessToken).expect(403);
+    await f.api('delete', `/admin/staff/${id}`, staff.body.accessToken).expect(403);
+    const forged = f.app.get(JwtService).sign({ sub: id, email: null, role: 'BARISTA' });
+    await f.api('delete', `/admin/staff/${id}`, forged).expect(403);
+    const deleted = await f.api('delete', `/admin/staff/${id}`, barista.body.accessToken).expect(200);
+    expect(deleted.body).toEqual({ id, deleted: true });
+    const row = await f.db.user.findUniqueOrThrow({ where: { id } });
+    expect(row.deletedAt).toBeInstanceOf(Date);
+    expect(row.role).toBe('STAFF');
+    expect(await f.db.order.findUnique({ where: { id: history.id } })).toEqual(history);
+    await login({ phone: p }).expect(401);
+    await f.api('get', '/auth/me', staff.body.accessToken).expect(401);
+    await f.api('get', '/orders', staff.body.accessToken).expect(401);
+    await f.api('delete', `/admin/staff/${id}`, barista.body.accessToken).expect(404);
+    await f.api('post', '/admin/staff', barista.body.accessToken).send(body).expect(409);
+  });
+
+  it('delete rejects invalid IDs and other roles; concurrent deletes succeed only once', async () => {
+    const barista = await login({ email: 'barista@legacy.test' }).expect(200);
+    for (const invalid of ['not-an-id', '0', '-1', '1.5', '2147483648']) {
+      await f.api('delete', `/admin/staff/${invalid}`, barista.body.accessToken).expect(400);
+    }
+    for (const id of [barista.body.user.id, f.customer.id, 2147483647]) {
+      await f.api('delete', `/admin/staff/${id}`, barista.body.accessToken).expect(404);
+    }
+    const created = await f.api('post', '/admin/staff', barista.body.accessToken).send({ phone: phone(), fullName: 'Concurrent delete', password }).expect(201);
+    const results = await Promise.all([0, 1].map(() => f.api('delete', `/admin/staff/${created.body.id}`, barista.body.accessToken)));
+    expect(results.map(r => r.status).sort()).toEqual([200, 404]);
   });
 
   it('Swagger exposes all auth/staff routes and bearer authentication', async () => {
     const res = await f.api('get', '/docs-json').expect(200);
     for (const path of ['/api/auth/register', '/api/auth/verify-otp', '/api/auth/resend-otp', '/api/auth/login', '/api/admin/staff']) expect(res.body.paths[path].post).toBeDefined();
     expect(res.body.paths['/api/admin/staff'].post.security).toEqual([{ bearer: [] }]);
+    expect(res.body.paths['/api/admin/staff/{id}'].delete.security).toEqual([{ bearer: [] }]);
   });
 });

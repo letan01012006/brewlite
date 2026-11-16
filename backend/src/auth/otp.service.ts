@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   GatewayTimeoutException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,16 +13,22 @@ const ESMS_ENDPOINT =
 
 @Injectable()
 export class OtpService {
+  private readonly logger = new Logger(OtpService.name);
   private readonly secret: string;
   private readonly demo: boolean;
   private readonly local: boolean;
+  private readonly logOtp: boolean;
 
   constructor(private readonly config: ConfigService) {
     const environment = config.get<string>('NODE_ENV');
     const demo = config.get<string>('AUTH_OTP_DEMO') === 'true';
     const local = environment === 'development' || environment === 'test';
+    const logOtp = config.get<string>('AUTH_OTP_LOG') === 'true';
     if (demo && !local)
       throw new Error('AUTH_OTP_DEMO is allowed only in development/test');
+    if (logOtp && !local)
+      throw new Error('AUTH_OTP_LOG is allowed only in development/test');
+    this.logOtp = logOtp;
     this.local = local && config.get<string>('SMS_PROVIDER') === 'local';
     // A real SMS provider always receives a random code, even in development.
     this.demo = demo && this.local;
@@ -61,8 +68,10 @@ export class OtpService {
   }
 
   async send(phone: string, code: string): Promise<void> {
-    // Explicit local simulator only; no OTP, phone, or credentials are logged.
-    if (this.local) return;
+    if (this.local) {
+      this.logDevelopmentOtp(phone, code);
+      return;
+    }
 
     const provider = this.config.get<string>('SMS_PROVIDER') ?? 'esms';
     const apiKey = this.config.get<string>('ESMS_API_KEY')?.trim();
@@ -87,6 +96,7 @@ export class OtpService {
       });
     }
 
+    const requestId = randomUUID();
     const signal = AbortSignal.timeout(timeoutMs);
     let response: Response;
     let body: unknown;
@@ -105,7 +115,7 @@ export class OtpService {
           SmsType: '2',
           Sandbox: '0',
           IsUnicode: /\P{ASCII}/u.test(template) ? '1' : '0',
-          RequestId: randomUUID(),
+          RequestId: requestId,
         }),
       });
       body = await response.json();
@@ -142,6 +152,30 @@ export class OtpService {
           (providerCode ? ` (mã ${providerCode})` : '') +
           '. Kiểm tra key, quyền Brandname/mẫu tin và số dư eSMS, sau đó gửi lại mã.',
       });
+    }
+
+    // Keep a provider reference for delivery troubleshooting without logging
+    // the OTP, recipient, credentials, or arbitrary provider response text.
+    const rawSmsId =
+      body && typeof body === 'object' && 'SMSID' in body
+        ? body.SMSID
+        : undefined;
+    const smsId =
+      typeof rawSmsId === 'string' && /^[a-f0-9-]{16,64}$/i.test(rawSmsId)
+        ? rawSmsId
+        : 'unavailable';
+    this.logger.log(
+      `eSMS accepted requestId=${requestId} smsId=${smsId}; delivery not confirmed.`,
+    );
+    // Log only after acceptance; send failures invalidate the issued code.
+    this.logDevelopmentOtp(phone, code);
+  }
+
+  private logDevelopmentOtp(phone: string, code: string) {
+    if (this.logOtp) {
+      this.logger.log(
+        `[DEV OTP] phone=******${phone.slice(-4)} code=${code} (expires in 5 minutes)`,
+      );
     }
   }
 }

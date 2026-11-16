@@ -101,6 +101,35 @@ test('calculates real uncapped cup counts per recipe size and topping servings f
   assert.equal(calls[0][0], '/inventory/movements?ingredientId=3&kind=ADJUSTMENT&from=2026-11-01&to=2026-11-04&page=1&limit=12');
 });
 
+test('barista catalog sends the session token on every page and includes paused products', async () => {
+  const storage = memoryStorage();
+  storage.setItem('brewlite_token', 'barista-session');
+  const requests = [];
+  const load = sourceLoader({}, {
+    window: {},
+    localStorage: storage,
+    fetch: async (url, options) => {
+      requests.push({ url, authorization: options.headers.Authorization });
+      if (options.headers.Authorization !== 'Bearer barista-session') {
+        return new Response(JSON.stringify({ message: 'Login required' }), { status: 401 });
+      }
+      const page = Number(new URL(url, 'http://localhost').searchParams.get('page'));
+      return new Response(JSON.stringify({
+        data: [{ id: page, name: `Coffee ${page}`, isActive: page === 1 }],
+        meta: { total: 2, page, limit: 50, totalPages: 2 },
+      }), { status: 200 });
+    },
+  });
+
+  const products = await load('src/lib/api/inventory.ts').getProductsCatalog();
+
+  assert.deepEqual(Array.from(products, ({ id, isActive }) => [id, isActive]), [[1, true], [2, false]]);
+  assert.deepEqual(requests, [
+    { url: '/api/products?limit=50&page=1&includeInactive=true', authorization: 'Bearer barista-session' },
+    { url: '/api/products?limit=50&page=2&includeInactive=true', authorization: 'Bearer barista-session' },
+  ]);
+});
+
 test('getProductsCatalog paginates with limit=50&includeInactive=true, distinguishes ADJUSTMENT delta labels, and blocks paused products in cart', async () => {
   const calls = [];
   class MockApiError extends Error {

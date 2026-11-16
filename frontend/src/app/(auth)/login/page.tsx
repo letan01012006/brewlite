@@ -60,7 +60,7 @@ function LoginForm() {
       setAuth(res.user, res.accessToken);
 
       // Chuyển trang theo vai trò
-      if (res.user.role === "BARISTA") {
+      if (res.user.role === "BARISTA" || res.user.role === "STAFF") {
         router.push("/barista");
       } else if (res.user.role === "MANAGER") {
         router.push("/manager");

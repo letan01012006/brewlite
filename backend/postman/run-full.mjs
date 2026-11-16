@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import pg from '../node_modules/pg/lib/index.js';
+import { integrationScenario } from './integration-scenario.mjs';
 
 // An isolated integration run of the real API with Postman's official CLI.
 // OTP delivery and the external VNPAY bank are simulated, explicitly and locally.
@@ -36,7 +37,7 @@ const localEnv = {
   OTP_HASH_SECRET: randomBytes(32).toString('hex'),
   SMS_PROVIDER: 'local', AUTH_OTP_DEMO: 'true',
   ESMS_API_KEY: '', ESMS_SECRET_KEY: '',
-  AUTH_DEMO_SEED: 'true', DEMO_MANAGER_PHONE: '0900000001', DEMO_MANAGER_PASSWORD: 'Manager@123',
+  AUTH_DEMO_SEED: 'false',
   PAYMENT_MOCK_ENABLED: 'true',
   VNPAY_TMN_CODE: merchant, VNPAY_HASH_SECRET: gatewaySecret,
   VNPAY_PAY_URL: `${gatewayUrl}/pay`, VNPAY_API_URL: `${gatewayUrl}/transaction`,
@@ -101,7 +102,7 @@ const gateway = createServer(async (req, res) => {
       assert.equal(duplicate.RspCode, '02', 'Duplicate callback must not pay twice');
       simulator.duplicateIpnsRejected++;
       transactions.set(callback.vnp_TxnRef, callback);
-      sendJson(res, 200, { mode: 'LOCAL_SIMULATOR', status: 'SUCCESS', invalidSignatureRejected: true, duplicateRejected: true });
+      sendJson(res, 200, { mode: 'LOCAL_SIMULATOR', status: 'SUCCESS', invalidSignatureRejected: true, duplicateRejected: true, callbackQuery: new URLSearchParams(signed).toString() });
       return;
     }
     if (req.method === 'POST' && url.pathname === '/transaction') {
@@ -161,60 +162,18 @@ try {
   api.on('close', () => writeFileSync(resolve(runDir, 'backend.log'), apiLogs));
   const collection = JSON.parse(readFileSync(resolve(postman, 'BrewLite.postman_collection.json'), 'utf8'));
   const environment = JSON.parse(readFileSync(resolve(postman, 'BrewLite-Local.postman_environment.json'), 'utf8'));
-  collection.info.name = 'BrewLite API - Full local run';
+  collection.info.name = 'BrewLite API - Isolated Swagger verification';
   collection.info._postman_id = randomUUID();
-  collection.info.description = 'All 65 requests against an isolated local database. OTP delivery and VNPAY bank are simulated; real BrewLite API, signatures, IPN, refund and guards are exercised. Start with node backend/postman/run-full.mjs --serve from the repository root before running this collection in the desktop app.';
-  environment.name = 'BrewLite Full local run';
-  const overrides = { base_url: apiUrl, register_phone: '0900000002', register_password: 'Postman@123', otp_code: '123456',
-    manager_phone: '0900000001', manager_password: 'Manager@123', staff_phone: '0900000003', staff_password: 'Barista@123' };
-  for (const [key, value] of Object.entries(overrides)) {
-    collection.variable.find(v => v.key === key).value = value;
-    environment.values.find(v => v.key === key).value = value;
-  }
-  const auth = collection.item.find(f => f.name.startsWith('06'));
-  const [register, verify, resend, ...rest] = auth.item;
-  auth.item = [register, resend, verify, ...rest];
-  auth.name = '06 Auth phone + Manager - automated local';
-  auth.description = 'Register, wait 61 seconds, resend OTP, verify and login; then Manager creates a verified Barista. Local SMS simulator only.';
-  resend.event.unshift({ listen: 'prerequest', script: { type: 'text/javascript', exec: ["console.log('Waiting 61 seconds for the real OTP resend cooldown...');", 'setTimeout(function () {}, 61000);'] } });
-  const appendScript = (item, listen, sourceCode) => {
-    const script = item.event.find(e => e.listen === listen).script.exec;
-    script.splice(script.length - 1, 0, ...sourceCode.split('\n'));
-  };
-  register.event.unshift({ listen: 'prerequest', script: { type: 'text/javascript', exec: [
-    "const vars = pm.environment.get('base_url') ? pm.environment : pm.collectionVariables;",
-    "vars.set('register_phone', '09' + String(Math.floor(Math.random() * 100000000)).padStart(8, '0'));",
-  ] } });
-  const staff = rest.find(r => r.name.includes('Manager creates'));
-  staff.event.unshift({ listen: 'prerequest', script: { type: 'text/javascript', exec: [
-    "const vars = pm.environment.get('base_url') ? pm.environment : pm.collectionVariables;",
-    "vars.set('staff_phone', '09' + String(Math.floor(Math.random() * 100000000)).padStart(8, '0'));",
-  ] } });
-  for (const [index, item] of auth.item.entries()) item.name = String(index + 1).padStart(2, '0') + item.name.slice(2);
-  appendScript(collection.item[0].item[1], 'prerequest', "['vnpay_order_id','vnpay_payment_id','vnpay_order_key','vnpay_payment_key','vnpay_payment_url'].forEach(key => vars.unset(key));");
-  const vnpay = collection.item.find(f => f.name.startsWith('08'));
-  vnpay.name = '08 VNPAY + refund - local bank simulator';
-  vnpay.description = 'Real payment URL signing, invalid/successful/duplicate IPN verification and signed B2B refund against an explicit local bank simulator.';
-  vnpay.item[1].name = '02 Create VNPAY URL and settle via LOCAL SIMULATOR';
-  appendScript(vnpay.item[1], 'test', `if (pm.response.code === 201) {
-    const payment = pm.response.json().payment;
-    pm.test('VNPAY bank simulator is local', () => pm.expect(payment.paymentUrl).to.match(/^http:\\/\\/127\\.0\\.0\\.1:${gatewayPort}\\/pay\\?/));
-    pm.sendRequest({url: payment.paymentUrl, method: 'GET'}, (err, response) => {
-      pm.test('Signed IPN settlement and duplicate rejection', () => {
-        pm.expect(err).to.eql(null);
-        pm.expect(response.code).to.eql(200);
-        const settled = response.json();
-        pm.expect(settled.mode).to.eql('LOCAL_SIMULATOR');
-        pm.expect(settled.status).to.eql('SUCCESS');
-        pm.expect(settled.invalidSignatureRejected).to.eql(true);
-        pm.expect(settled.duplicateRejected).to.eql(true);
-      });
-    });
-  }`);
-  appendScript(vnpay.item[2], 'test', "pm.test('VNPAY payment settled', () => pm.expect(pm.response.json().status).to.eql('SUCCESS'));");
-  appendScript(vnpay.item[3], 'test', "pm.test('VNPAY refund confirmed', () => { const result = pm.response.json(); pm.expect(result.refund.status).to.eql('SUCCESS'); pm.expect(result.payment.refundedAmount).to.eql(result.payment.amount); });");
-  const requestCount = collection.item.reduce((total, folder) => total + folder.item.length, 0);
-  assert.equal(requestCount, 65);
+  collection.info.description = 'All exported Swagger endpoints in a dependency-ordered scenario. Real API and database; local SMS and bank simulators. Only use with the test services created by run-full.mjs.';
+  environment.name = 'BrewLite Isolated Swagger verification';
+  environment.id = randomUUID();
+  const overrides = { base_url: apiUrl, size: 'M', register_phone: '0900000002', register_password: 'Postman@123', otp_code: '123456', manager_phone: '0900000001', manager_password: 'Manager@123', staff_phone: '0900000003', staff_password: 'Staff@123' };
+  for (const variable of collection.variable) if (Object.hasOwn(overrides, variable.key)) variable.value = overrides[variable.key];
+  environment.values = collection.variable.map(v => ({ key: v.key, value: v.value, enabled: true, type: /password|token|otp_code/.test(v.key) ? 'secret' : 'default' }));
+  const scenario = integrationScenario(collection, gatewayPort);
+  collection.item = [{ name: 'Isolated API verification', item: scenario.items }];
+  const endpointCount = scenario.endpointCount;
+  const requestCount = scenario.items.length;
   const collectionPath = resolve(runDir, 'BrewLite-Full.postman_collection.json');
   const environmentPath = resolve(runDir, 'BrewLite-Full.postman_environment.json');
   writeFileSync(collectionPath, JSON.stringify(collection, null, 2) + '\n');
@@ -224,7 +183,7 @@ try {
     console.log(`Import both JSON files from ${runDir}, select BrewLite Full local run, and run the whole collection. Ctrl+C stops the test services.`);
     await new Promise(() => {});
   }
-  console.log('Running all 65 requests with the official Postman CLI (including the 61-second OTP cooldown).');
+  console.log(`Running ${requestCount} steps covering ${endpointCount} endpoints with Postman CLI (including the 61-second OTP cooldown).`);
   const cli = await command(process.env.POSTMAN_CLI || (process.platform === 'win32' ? 'postman.exe' : 'postman'), ['collection', 'run', collectionPath, '-e', environmentPath,
     '--no-report-events', '--disable-unicode', '--timeout-request', '20000', '--timeout-script', '90000'], { env: process.env });
   writeFileSync(resolve(runDir, 'postman.log'), cli.output);
@@ -233,7 +192,7 @@ try {
     return match ? { executed: Number(match[1]), failed: Number(match[2]) } : null;
   };
   const stats = Object.fromEntries(['iterations', 'requests', 'test-scripts', 'prerequest-scripts', 'assertions'].map(name => [name, stat(name)]));
-  const result = { runId, timestamp: new Date().toISOString(), engine: 'Postman CLI', requestCount, exitCode: cli.code,
+  const result = { runId, timestamp: new Date().toISOString(), engine: 'Postman CLI', requestCount, endpointCount, exitCode: cli.code,
     mode: 'isolated-local-integration', simulatedServices: ['OTP SMS delivery', 'VNPAY external bank'],
     database: databaseName, apiUrl, simulator, stats, logPath: resolve(runDir, 'postman.log') };
   const reportDir = resolve(postman, 'reports');
@@ -241,10 +200,10 @@ try {
   writeFileSync(resolve(reportDir, 'latest-run.json'), JSON.stringify(result, null, 2) + '\n');
   const complete = cli.code === 0 && stats.requests?.executed >= requestCount && Object.values(stats).every(s => s && s.failed === 0) && simulator.refundsVerified > 0;
   writeFileSync(resolve(reportDir, 'latest-run.md'), `# BrewLite Postman full run\n\nResult: **${complete ? 'PASS' : 'FAIL'}**\n\n` +
-    `- Runner: Postman CLI\n- Collection: ${requestCount} requests, 1 iteration\n- Requests executed: ${stats.requests?.executed ?? 'unknown'}; failures: ${stats.requests?.failed ?? 'unknown'}\n` +
+    `- Runner: Postman CLI\n- Collection: ${endpointCount} Swagger endpoints, ${requestCount} scenario requests, 1 iteration\n- Requests executed: ${stats.requests?.executed ?? 'unknown'}; failures: ${stats.requests?.failed ?? 'unknown'}\n` +
     `- Assertions executed: ${stats.assertions?.executed ?? 'unknown'}; failures: ${stats.assertions?.failed ?? 'unknown'}\n` +
     `- Timestamp (UTC): ${result.timestamp}\n- Database: ${databaseName}\n\n` +
-    `The HTTP request count includes one helper request to the local VNPAY bank simulator in addition to the 65 collection requests.\n\n` +
+    `The HTTP request count includes helper requests to the local VNPAY bank simulator and the deleted-staff token check in addition to the scenario requests.\n\n` +
     `OTP delivery and the external VNPAY bank were simulated locally. Real BrewLite HTTP endpoints, PostgreSQL, authorization, payment signatures, invalid/successful/duplicate IPN callbacks and signed refunds were exercised. This is not evidence of a real eSMS delivery or a real VNPAY sandbox/bank settlement.\n\n` +
     `Verified simulator events: ${JSON.stringify(simulator)}\n\nFull runner output: \`${result.logPath}\`.\n\nRepeat from the repository root: \`node backend/postman/run-full.mjs\`.\n`);
   console.log(JSON.stringify(result, null, 2));

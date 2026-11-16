@@ -237,7 +237,7 @@ export async function getProductsCatalog(
   do {
     const response = await apiFetch<PaginatedResponse<Product>>(
       `/products?limit=50&page=${page}&includeInactive=true`,
-      { signal, auth: false },
+      { signal },
     );
     response.data.forEach((item) => items.set(item.id, item));
     totalPages = response.meta.totalPages;

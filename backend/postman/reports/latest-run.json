@@ -1,15 +1,16 @@
 {
-  "runId": "20261115135852295_8854",
-  "timestamp": "2026-11-15T14:00:11.144Z",
+  "runId": "20261116080636442_9194",
+  "timestamp": "2026-11-16T08:08:00.948Z",
   "engine": "Postman CLI",
-  "requestCount": 65,
+  "requestCount": 57,
+  "endpointCount": 44,
   "exitCode": 0,
   "mode": "isolated-local-integration",
   "simulatedServices": [
     "OTP SMS delivery",
     "VNPAY external bank"
   ],
-  "database": "brewlite_postman_20261115135852295_8854",
+  "database": "brewlite_postman_20261116080636442_9194",
   "apiUrl": "http://127.0.0.1:4010/api",
   "simulator": {
     "paymentUrlsVerified": 1,
@@ -24,21 +25,21 @@
       "failed": 0
     },
     "requests": {
-      "executed": 66,
+      "executed": 59,
       "failed": 0
     },
     "test-scripts": {
-      "executed": 65,
+      "executed": 57,
       "failed": 0
     },
     "prerequest-scripts": {
-      "executed": 13,
+      "executed": 39,
       "failed": 0
     },
     "assertions": {
-      "executed": 91,
+      "executed": 83,
       "failed": 0
     }
   },
-  "logPath": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\.local-backups\\postman-runs\\20261115135852295_8854\\postman.log"
+  "logPath": "C:\\Users\\letro\\OneDrive\\Desktop\\doanreal\\brewlite\\.local-backups\\postman-runs\\20261116080636442_9194\\postman.log"
 }

@@ -71,10 +71,10 @@ Starting checkout from the cart creates a new order even if an older order is pe
 or failed, including an identical basket. Confirmed order items leave the cart;
 older orders remain accessible from history and retain their payment replay keys.
 VNPAY return callbacks only update their own order and never clear a newer cart.
-An unresolved payment reuses the original key and body. If the POST /orders
-response is lost, the UI blocks automatic creation retries and lets the user
-recover an order from history. Order creation has no backend idempotency API;
-it is deliberately not retried automatically.
+An unresolved payment reuses the original key and body. Before POST /orders,
+checkout persists the exact creation body and Idempotency-Key. If the response is
+lost, the user can retry that same request or recover the order from history.
+An unresolved creation blocks a different basket from replacing its key/body.
 
 Checkout uses a single maximum-points switch. Its derived amount is recalculated
 from the current balance and total after promotions, rounded to valid 20-point

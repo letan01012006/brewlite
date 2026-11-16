@@ -177,7 +177,7 @@ export async function databaseFixture(beforeAuthMigration?: (db: PrismaClient) =
     const barista = await user('BARISTA');
     const customer = await user();
     function api(
-      method: 'get' | 'post' | 'put' | 'patch',
+      method: 'get' | 'post' | 'put' | 'patch' | 'delete',
       path: string,
       token?: string,
     ) {

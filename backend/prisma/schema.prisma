@@ -80,6 +80,7 @@ enum Size {
 enum Role {
   CUSTOMER
   BARISTA
+  STAFF
   MANAGER
 }
 
@@ -172,6 +173,9 @@ model User {
   role          Role     @default(CUSTOMER)
   loyaltyPoints Int      @default(0)
   createdAt     DateTime @default(now())
+
+  // Keep order, payment and inventory history when an account is removed.
+  deletedAt     DateTime?
 
   orders              Order[]
   loyaltyTransactions LoyaltyTransaction[]

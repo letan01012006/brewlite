@@ -476,7 +476,7 @@ export class OrdersService {
     }
 
     // Kiểm tra quyền riêng tư (chỉ chủ đơn hoặc Barista)
-    if (order.userId !== userId && role !== 'BARISTA') {
+    if (order.userId !== userId && !['BARISTA', 'STAFF'].includes(role)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'Bạn không có quyền xem thông tin đơn hàng của người khác',
@@ -593,7 +593,7 @@ export class OrdersService {
       if (
         action.kind === 'cancel' &&
         order.userId !== action.userId &&
-        action.role !== 'BARISTA'
+        !['BARISTA', 'STAFF'].includes(action.role)
       ) {
         throw new ForbiddenException({
           code: 'FORBIDDEN',

@@ -113,7 +113,7 @@ export class PaymentsController {
    */
   @Post(':id/refund')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

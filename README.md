@@ -1,234 +1,243 @@
-# BrewLite
+<div align="center">
 
-Ứng dụng đặt cà phê không dùng tiền mặt. NestJS + Next.js + PostgreSQL (Prisma).
+![BrewLite — Chọn món. Chốt đơn. Nhận ly.](docs/assets/readme-cover.svg)
 
-## Yêu cầu
+# BrewLite · Cà phê trong vài chạm
 
-Node.js 24.15+ (hoặc 26), Git, Docker Desktop.
+**Hệ thống đặt đồ uống tại quầy và thanh toán không dùng tiền mặt.**
 
-Các lệnh dưới đây dùng PowerShell trên Windows. Trên macOS/Linux, dùng `npm`,
-`npx` thay cho `npm.cmd`, `npx.cmd` và `cp` thay cho `Copy-Item`.
-Mở Docker Desktop và chờ Docker Engine sẵn sàng trước khi chạy database.
+![Next.js 16](https://img.shields.io/badge/Next.js-16-34251e?style=flat-square&logo=next.js&logoColor=white)
+![NestJS 12](https://img.shields.io/badge/NestJS-12-8a5035?style=flat-square&logo=nestjs&logoColor=white)
+![Prisma 6](https://img.shields.io/badge/Prisma-6-6a5140?style=flat-square&logo=prisma&logoColor=white)
+![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-775f4c?style=flat-square&logo=postgresql&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-523c2e?style=flat-square&logo=docker&logoColor=white)
 
-## Chạy lần đầu sau khi clone
+Đồ án môn **Công nghệ phần mềm** · **Nhóm 10_2**<br/>
+Khoa Công nghệ Thông tin · Trường Đại học Sài Gòn<br/>
+Giảng viên hướng dẫn: **ThS. Từ Lãng Phiêu**
 
-### 1. Tải mã nguồn và khởi động database
+[Chạy dự án](#bat-dau) · [Trải nghiệm](#trai-nghiem) · [Kiến trúc](#kien-truc) · [Kiểm thử](#kiem-thu) · [Nhóm thực hiện](#nhom)
 
-```powershell
-git clone https://github.com/letan01012006/brewlite.git
-cd brewlite
-docker compose up -d
-```
+</div>
 
-Docker Compose của dự án chỉ chạy PostgreSQL ở cổng **5432**.
-Backend và frontend cần chạy riêng ở hai terminal bên dưới.
-Lần đầu Docker có thể mất thêm thời gian tải image. Kiểm tra database sẵn sàng:
+---
 
-```powershell
-docker compose exec db pg_isready -U brewlite -d brewlite
-```
+Một ly cà phê bắt đầu từ sở thích của khách và kết thúc ở quầy pha chế. BrewLite
+kết nối hai phía trong cùng một hệ thống: khách chọn món, tùy chỉnh và thanh toán;
+nhân viên nhận đơn, chuẩn bị đồ uống và theo dõi nguyên liệu.
 
-Chờ kết quả `accepting connections` rồi tiếp tục.
+<a id="bat-dau"></a>
 
-### 2. Cài đặt và chạy backend — terminal thứ nhất
+## 01 / Mở quán bằng một lệnh
 
-Từ thư mục gốc `brewlite`:
+### Chuẩn bị một lần
 
-```powershell
-cd backend
-Copy-Item .env.example .env
-npm.cmd ci
-```
+Máy cần có **Docker Desktop** đang chạy. Tải mã nguồn về máy và mở terminal tại
+thư mục gốc `brewlite`.
 
-Mở `backend/.env`, thay `JWT_SECRET="change-me"` bằng chuỗi bí mật ngẫu nhiên
-của bạn. Giữ `DATABASE_URL` theo mẫu nếu dùng PostgreSQL từ Docker Compose
-của dự án. Không đưa file `.env` lên GitHub.
+Nếu chưa có `backend/.env`, sao chép [backend/.env.example](backend/.env.example)
+thành `backend/.env` trong trình soạn thảo, rồi cập nhật:
 
-Sau đó chạy trong cùng terminal:
+| Biến | Cấu hình |
+| --- | --- |
+| `DATABASE_URL` | Giữ giá trị mẫu nếu dùng PostgreSQL mặc định của dự án. Với database đã có dữ liệu, giữ đúng tài khoản và tên database đang dùng. |
+| `JWT_SECRET` | Thay `change-me` bằng chuỗi bí mật riêng. |
+| `OTP_HASH_SECRET` | Dùng một chuỗi bí mật riêng khác, dài ít nhất 32 ký tự. |
 
-```powershell
-npx.cmd prisma generate
-npx.cmd prisma migrate status
-npx.cmd prisma migrate deploy
-npx.cmd prisma db seed
-npm.cmd run start:dev
-```
+Nếu đã có `.env`, giữ cấu hình hiện tại. File này chỉ lưu ở máy cá nhân.
 
-Các lệnh Prisma lần lượt tạo client, tạo/cập nhật cấu trúc database và thêm
-dữ liệu demo. Giữ terminal này chạy. Tài liệu API: <http://localhost:4000/api/docs>.
-
-### 3. Cài đặt và chạy frontend — terminal thứ hai
-
-Mở terminal mới tại thư mục gốc `brewlite`:
+### Khởi động
 
 ```powershell
-cd frontend
-Copy-Item .env.example .env.local
-npm.cmd ci
-npm.cmd run dev -- --port 3000
+docker compose up --build
 ```
 
-Giữ terminal này chạy và mở <http://localhost:3000>.
-File `frontend/.env.local` dùng `BACKEND_API_URL=http://127.0.0.1:4000/api`
-để Next.js chuyển tiếp request đến backend.
+Docker build ứng dụng, khởi động PostgreSQL, áp dụng migrations rồi chạy backend
+và frontend theo thứ tự healthcheck. Lần đầu cần mạng để tải image, thư viện và
+tài nguyên build. Không cần cài Node.js trên máy để chạy theo cách này.
 
-### Tài khoản demo
+| Mở ở đâu? | Địa chỉ |
+| --- | --- |
+| **Website** | <http://localhost:3001> |
+| **Swagger API** | <http://localhost:4001/api/docs> |
+| **Healthcheck** | <http://localhost:3001/api/health> |
+| **PostgreSQL** | `localhost:5432` |
 
-Sau khi seed database mới, có thể đăng nhập bằng:
+Healthcheck sẵn sàng sẽ trả `{"status":"ok","db":"up"}`.
+Mỗi lần mở lại dự án vẫn dùng lệnh trên. Nhấn **Ctrl+C** để dừng; dữ liệu được giữ
+trong volume `brewlite_pgdata`.
 
-| Vai trò | Email | Mật khẩu |
+> **Về dữ liệu demo:** lệnh khởi động tự áp dụng migrations, chưa tự seed.
+> Database mới cần được bổ sung dữ liệu mẫu trước khi dùng tài khoản và menu demo.
+> Xem [hướng dẫn dữ liệu mẫu](backend/README.md#nâng-cấp-an-toàn).
+
+<a id="trai-nghiem"></a>
+
+## 02 / Từ thực đơn tới quầy pha chế
+
+**Chọn món → Tùy chỉnh → Giỏ hàng → Thanh toán → Theo dõi đơn → Nhận đồ uống**
+
+| Người dùng | Có thể làm gì? |
+| --- | --- |
+| **Khách hàng** | Tìm và lọc món, chọn size và topping, chỉnh giỏ hàng, dùng mã giảm giá hoặc điểm thưởng, thanh toán và xem lịch sử đơn. |
+| **Barista** | Nhận đơn đã thanh toán, chuyển trạng thái pha chế, quản lý món và topping, cấu hình công thức, nhập kho và ghi nhận hao hụt nguyên liệu. |
+| **Quản lý** | Cấp tài khoản Barista đã xác thực để nhân viên đăng nhập và làm việc. |
+
+### Những phần giữ cho một đơn hàng đi đúng luồng
+
+| Nghiệp vụ | Cách BrewLite xử lý |
+| --- | --- |
+| **Tài khoản và phân quyền** | Đăng ký bằng số điện thoại, xác thực OTP, đăng nhập bằng JWT; mật khẩu được băm bằng bcrypt. API kiểm tra vai trò Customer, Barista và Manager. |
+| **Giá được tính tại backend** | Máy chủ kiểm tra món, size, topping, khuyến mãi và điểm sử dụng trước khi chốt số tiền của đơn. |
+| **Gửi lại khi mạng chập chờn** | Tạo đơn và thanh toán dùng `Idempotency-Key` để nhận diện yêu cầu lặp; cùng key nhưng khác nội dung sẽ bị từ chối. |
+| **Tồn kho theo công thức** | Kiểm tra và giữ nguyên liệu khi đặt đơn; cập nhật bằng transaction và kiểm tra `version` để xử lý cạnh tranh tồn kho. |
+| **Thanh toán** | Tích hợp VNPAY, kiểm tra chữ ký callback, hỗ trợ đối soát và luồng hoàn tiền; có thanh toán mô phỏng cho môi trường local. |
+| **Điểm thưởng** | Tích lũy theo giá trị thanh toán và quy đổi điểm để giảm số tiền cần trả. |
+
+Luồng xử lý tại quầy:
+
+`PENDING → PAID → PREPARING → READY → COMPLETED`
+
+Hệ thống còn xử lý thanh toán thất bại, thử lại, hủy đơn và đơn quá hạn theo điều
+kiện nghiệp vụ. API từ chối chuyển trạng thái không hợp lệ.
+
+### Một vòng demo
+
+Khi database đã có dữ liệu mẫu và cấu hình thanh toán phù hợp:
+
+1. Mở [menu](http://localhost:3001/menu), chọn món, size và topping còn khả dụng.
+2. Đăng nhập, thêm món vào giỏ, kiểm tra số lượng và áp dụng ưu đãi nếu có.
+3. Tạo đơn và thanh toán. Với VNPAY, cần cấu hình sandbox hợp lệ; với mock local,
+   cần bật `PAYMENT_MOCK_ENABLED=true`.
+4. Mở [quầy Barista](http://localhost:3001/barista) bằng tài khoản nhân viên,
+   xử lý đơn qua các bước pha chế, sẵn sàng và hoàn tất.
+5. Quay lại [đơn hàng của khách](http://localhost:3001/orders) để xem trạng thái
+   và chi tiết đơn.
+
+| Tài khoản sau khi seed | Email | Mật khẩu local |
 | --- | --- | --- |
 | Khách hàng | `demo@brewlite.com` | `Demo@1234` |
 | Barista | `barista@brewlite.com` | `Barista@123` |
 
-Các tài khoản này chỉ dùng để thử dự án ở môi trường local.
+Manager không được tạo mặc định. Cấu hình Manager demo và OTP local được mô tả
+trong [hướng dẫn Postman](backend/postman/README.md). Đăng ký bằng OTP cần cấu hình
+eSMS hoặc chế độ demo local; các khóa eSMS trong file mẫu đang để trống.
 
-## Những lần chạy tiếp theo
+<a id="kien-truc"></a>
 
-Mở Docker Desktop. Từ thư mục gốc `brewlite`, khởi động database:
+## 03 / Bên trong BrewLite
 
-```powershell
-docker compose up -d
+```mermaid
+flowchart LR
+    Guest["Khách hàng / Nhân viên"] --> Web["Next.js<br/>localhost:3001"]
+    Web -->|"/api · proxy nội bộ"| API["NestJS<br/>backend:4000"]
+    API -->|"Prisma"| DB[("PostgreSQL 16<br/>db:5432")]
+    API <-->|"Thanh toán / callback"| VNPAY["VNPAY"]
+    API -->|"OTP"| SMS["eSMS / local demo"]
+    API -.-> Docs["Swagger<br/>localhost:4001/api/docs"]
+    classDef coffee fill:#f6f0e5,stroke:#a5643f,color:#34251e;
+    class Web,API,DB coffee;
 ```
 
-**Terminal thứ nhất**, bắt đầu tại thư mục gốc `brewlite`:
+Trình duyệt gọi `/api` cùng origin với frontend. Next.js chuyển tiếp request đến
+`http://backend:4000/api` trong mạng Docker. Cổng trong container là **3000/4000**;
+cổng truy cập từ máy tính là **3001/4001**. URL quay về từ VNPAY được cấu hình
+thành `http://localhost:3001/payment/vnpay-return` trong Compose.
 
-```powershell
-cd backend
-npm.cmd run start:dev
+### Công nghệ
+
+| Thành phần | Công nghệ | Vai trò |
+| --- | --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript | Giao diện, định tuyến và chuyển tiếp API. |
+| Giao diện | Tailwind CSS 4 | Responsive và chế độ sáng/tối. |
+| Trạng thái | Zustand, TanStack Query | Giỏ hàng, phiên đăng nhập và dữ liệu từ API. |
+| Backend | NestJS 12, TypeScript ESM | REST API, xác thực, phân quyền và nghiệp vụ. |
+| Dữ liệu | Prisma 6, PostgreSQL 16 | Truy vấn, migrations và transaction. |
+| Đóng gói | Docker, Docker Compose, Node.js 24 trong image | Chạy frontend, backend và database cùng nhau. |
+| Kiểm thử | Vitest, Node.js test runner, Postman | Kiểm tra nghiệp vụ, frontend và luồng API. |
+
+### Bản đồ mã nguồn
+
+```text
+brewlite/
+├── frontend/
+│   ├── src/app/           # Menu, giỏ hàng, checkout, đơn hàng, Barista, Manager
+│   ├── src/components/   # Các thành phần giao diện
+│   ├── src/lib/          # API client và xử lý luồng phía trình duyệt
+│   ├── src/store/        # Giỏ hàng, tài khoản, giao diện
+│   └── Dockerfile
+├── backend/
+│   ├── src/auth/         # Đăng nhập, OTP và cấp tài khoản nhân viên
+│   ├── src/products/     # Sản phẩm và topping
+│   ├── src/orders/       # Đơn hàng, trạng thái và chống tạo trùng
+│   ├── src/payments/     # Thanh toán, VNPAY và đối soát
+│   ├── src/inventory/    # Nguyên liệu, công thức và biến động kho
+│   ├── src/promotions/   # Mã giảm giá và quy tắc điểm thưởng
+│   ├── prisma/           # Schema, migrations và dữ liệu mẫu
+│   ├── postman/          # Collection, environment và báo cáo kiểm thử
+│   └── Dockerfile
+├── docs/                 # Báo cáo đồ án và phân công nhóm
+├── scripts/              # Kiểm tra dịch vụ và menu chạy qua Compose
+├── .github/workflows/    # Cấu hình CI/CD
+└── docker-compose.yml
 ```
 
-**Terminal thứ hai**, cũng bắt đầu tại thư mục gốc `brewlite`:
+<a id="kiem-thu"></a>
 
-```powershell
-cd frontend
-npm.cmd run dev -- --port 3000
-```
+## 04 / Kiểm thử có minh chứng
 
-Mở <http://localhost:3000>. Nếu terminal đã ở `backend` hoặc `frontend`,
-bỏ qua lệnh `cd` tương ứng. Không cần copy lại `.env`, cài thư viện,
-generate Prisma, migrate hay seed mỗi lần mở dự án khi mã nguồn không đổi.
+Dự án có kiểm thử cho tính giá, quyền truy cập, trạng thái đơn, yêu cầu lặp,
+thanh toán, khuyến mãi và cạnh tranh nguyên liệu. Các bộ tích hợp PostgreSQL dùng
+database kiểm thử và schema riêng.
 
-### Khi vừa kéo mã nguồn mới từ GitHub
+| Tài liệu | Nội dung |
+| --- | --- |
+| [Backend tests](backend/test/README.md) | Unit, tích hợp API, transaction, cạnh tranh dữ liệu và kiểm thử trình duyệt cho cấu hình sản phẩm. |
+| [Frontend tests](frontend/test/README.md) | Giỏ hàng, phiên đăng nhập, checkout, lỗi mạng và kiểm tra giao diện. |
+| [Postman](backend/postman/README.md) | Collection, cách chạy thử từng luồng và bộ chạy tích hợp local. |
+| [Báo cáo Postman](backend/postman/reports/latest-run.md) | Lần chạy lưu ngày 16/11/2026: collection 65 request, 91 assertions, không có assertion thất bại. OTP và ngân hàng VNPAY được mô phỏng local. |
 
-Nếu dependencies hoặc lockfile thay đổi, chạy `npm.cmd ci` trong thư mục
-`backend` hoặc `frontend` tương ứng. Nếu Prisma schema hoặc migrations thay đổi,
-chạy trong `backend` khi database đang hoạt động:
+<a id="go-loi"></a>
 
-```powershell
-npx.cmd prisma generate
-npx.cmd prisma migrate status
-npx.cmd prisma migrate deploy
-```
+## 05 / Khi ly cà phê chưa tới quầy
 
-Nếu `.env.example` có biến mới, bổ sung vào file môi trường đang dùng;
-không copy đè làm mất cấu hình riêng. Chỉ seed lại khi cần bổ sung dữ liệu demo.
-Khởi động lại server sau khi cập nhật.
+| Hiện tượng | Kiểm tra |
+| --- | --- |
+| `port is already allocated` | Cổng **3001**, **4001** hoặc **5432** đang bị chiếm. Xem container trong Docker Desktop hoặc ứng dụng đang dùng cổng. |
+| Backend báo `P1001` / không kết nối database | Kiểm tra log PostgreSQL và backend. Compose thay host/port thành `db:5432`, giữ tài khoản, tên database và schema trong `backend/.env`. |
+| Frontend mở được nhưng API lỗi | Kiểm tra backend đã qua healthcheck; dùng địa chỉ website cổng **3001** và Swagger cổng **4001**. |
+| Menu trống hoặc tài khoản demo không đăng nhập được | Kiểm tra database đã có dữ liệu mẫu. Khởi động Compose không tự seed. |
+| `SMS_NOT_CONFIGURED` | Bổ sung cấu hình eSMS hoặc dùng chế độ OTP demo local theo hướng dẫn Postman. |
+| Không chọn được size / thiếu nguyên liệu | Kiểm tra công thức của size, trạng thái bán và lượng nguyên liệu còn khả dụng trong kho. |
 
-### Product và topping
+Giữ log lỗi để xác định service gặp vấn đề. Không xóa volume database để xử lý
+lỗi khởi động nếu cần giữ dữ liệu.
 
-Topping thuộc `ProductsModule`, vẫn là model riêng và liên kết nhiều–nhiều với
-Product. Chi tiết nâng cấp dữ liệu cũ, seed an toàn và API xem
-[backend/README.md](backend/README.md#product-và-topping).
-Trước khi áp dụng migration, kiểm tra `migrate status`: chỉ tiếp tục khi không
-có migration lỗi/lệch lịch sử. Với database mới, các migration chưa áp dụng là
-bình thường. Không dùng reset hoặc xóa volume để xử lý lỗi migration.
+<a id="nhom"></a>
 
-### Dừng dự án
+## 06 / Những người đứng sau quầy
 
-Nhấn `Ctrl+C` trong từng terminal frontend và backend.
-Từ thư mục gốc `brewlite`, dừng database:
+| Thành viên | MSSV | Phạm vi thực hiện |
+| --- | --- | --- |
+| **Lê Trọng Bảo Tấn** · Trưởng nhóm | `3124410316` | Kiến trúc nền tảng, giỏ hàng, tạo đơn và tính giá, xác thực, lịch sử đơn, Docker, tích hợp và review. |
+| **Đỗ Chí Thanh** | `3124410320` | API và giao diện sản phẩm, menu, tùy chọn đồ uống, nguyên liệu và tồn kho. |
+| **Trần Anh Trung** | `3124410380` | Giao diện checkout, thanh toán VNPAY, điểm thưởng và xử lý thử lại thanh toán. |
 
-```powershell
-docker compose stop
-```
+### Hồ sơ dự án
 
-Lệnh này giữ lại dữ liệu cho lần chạy sau. `docker compose down -v` sẽ xóa
-volume database, vì vậy không dùng lệnh đó để dừng dự án hằng ngày.
+- [Báo cáo đồ án BrewLite — Nhóm 10_2](docs/BrewLite_Assignment1_Nhom10_2.pdf)
+- [Phân công và tiến độ thực hiện](docs/BaoCao-PhanCong.pdf)
+- [Chi tiết backend](backend/README.md) · [Chi tiết frontend](frontend/README.md)
 
-### Lỗi khởi động thường gặp
+Nhóm làm việc qua Pull Request, cần ít nhất một người review trước khi tích hợp.
+Nhánh theo luồng `main ← develop ← feature/task-x-ten`; commit dùng các tiền tố
+`feat:`, `fix:`, `docs:`, `chore:`.
 
-- **Cổng 3000 đang được sử dụng:** dừng server hoặc container đang chiếm cổng
-  rồi chạy lại frontend. Xóa Docker image không giải phóng cổng của tiến trình đang chạy.
-- **`ECONNREFUSED 127.0.0.1:4000`:** frontend chưa kết nối được backend.
-  Kiểm tra terminal backend đã khởi động thành công ở cổng 4000 và database đang chạy.
-- **Không kết nối được database:** kiểm tra Docker Desktop, `docker compose ps`
-  và `DATABASE_URL` trong `backend/.env`.
+---
 
-## Website trên trình duyệt
+<div align="center">
 
-BrewLite ưu tiên trình duyệt máy tính, giữ giao diện responsive khi thu nhỏ cửa sổ.
-Điều hướng chính và giỏ hàng nằm ở header; không còn thanh điều hướng đáy,
-giỏ hàng nổi, manifest, banner cài ứng dụng hoặc chế độ PWA.
+**BrewLite — Chọn món. Chốt đơn. Nhận ly.**<br/>
+<sub>Đồ án Công nghệ phần mềm · Nhóm 10_2 · SGU · 2026</sub>
 
-Frontend gọi `/api` cùng origin; Next.js chuyển tiếp đến `BACKEND_API_URL`
-(mặc định `http://127.0.0.1:4000/api`). Đây là địa chỉ server Next.js truy cập.
-Giữ backend và database chạy để dùng đăng nhập, menu, giỏ hàng và thanh toán.
-Không cần IP LAN hardcode để chạy local. Khi đổi đích backend, khởi động lại
-server hoặc build lại production. `NEXT_PUBLIC_API_URL` không được sử dụng.
-
-Để kiểm tra bản production, dừng frontend dev ở cổng 3000 rồi chạy trong `frontend`:
-
-```powershell
-npm.cmd run build
-npm.cmd run start -- --port 3000
-```
-
-Mở <http://localhost:3000>. Chế độ dev biên dịch khi truy cập nên không phản ánh
-tốc độ production. Website cần mạng để tải trang/API, tạo đơn và thanh toán.
-Request quá 15 giây báo lỗi; checkout chưa rõ kết quả vẫn giữ phiên để đối soát,
-không tự gửi lại thanh toán. Các kiểm tra mất mạng của API/auth/cart/checkout
-vẫn được giữ lại.
-
-### Trình duyệt từng chạy PWA
-
-Website không đăng ký service worker mới. Cleanup trong root layout chỉ gỡ worker
-có script URL chính xác `/sw.js` cùng origin và scope `/`; bỏ qua registration
-có worker khác đang active/waiting/installing. Chỉ cache có tiền tố `brewlite-pwa-`
-bị xóa. Không sửa localStorage, sessionStorage, cookie, tài khoản, giỏ hàng, theme
-hoặc phiên checkout và không tự reload/chuyển trang.
-
-Tạm giữ `frontend/public/sw.js` tại URL cũ với header không cache. Trình duyệt còn
-registration cũ có thể lấy bản worker vô hiệu hóa này khi kiểm tra cập nhật:
-worker kích hoạt ngay, dọn đúng cache BrewLite, nhận quyền điều khiển tab rồi tự
-gỡ đăng ký. Worker không xử lý fetch, precache hoặc điều hướng tab. Nếu cleanup
-trên trang gỡ registration trước, worker đang điều khiển tab có thể còn sống đến
-lần điều hướng/đóng tab tự nhiên; không ép tải lại giữa lúc checkout.
-
-Giữ `/sw.js` trong giai đoạn chuyển đổi để cả trình duyệt lâu không truy cập có
-cơ hội cập nhật. Chỉ xóa file và header `/sw.js` khi đã xác nhận các profile cũ
-được chuyển đổi hoặc chấp nhận kết thúc hỗ trợ chúng; không có thời hạn tự động
-đảm bảo mọi profile đã quay lại. Có thể giữ component cleanup lâu hơn để dọn
-cache còn sót. Xem `frontend/test/README.md` để kiểm tra profile cũ và dữ liệu giữ lại.
-
-### Kiểm tra frontend
-
-Chạy trong `frontend`:
-
-```powershell
-npm.cmd run lint
-npm.cmd test
-npx.cmd tsc --noEmit --incremental false
-npm.cmd run build
-```
-
-Kiểm tra giao diện light/dark ở 1440px, 1024px và khoảng 390px; thử điều hướng,
-modal bằng bàn phím/Escape, giỏ hàng và checkout. Test tự động không thay thế
-kiểm tra giao diện và các luồng với backend thật.
-
-## Test API bằng Postman
-
-Bộ collection và environment có sẵn trong [backend/postman/](backend/postman/README.md).
-Import hai file JSON, chọn **BrewLite Local**, chạy folder **00 Quick start**
-rồi **01 Checkout demo**. Các request tự lưu token Customer/Barista và ID từ
-response; có sẵn assertions và kiểm tra chống tạo trùng đơn/thanh toán.
-
-Để chạy đủ 65 request bằng Postman CLI với database kiểm thử riêng, OTP demo và
-ngân hàng VNPAY mô phỏng: `node backend/postman/run-full.mjs`.
-Kết quả gần nhất: [báo cáo Postman](backend/postman/reports/latest-run.md).
-
-## Quy ước
-
-- Nhánh: `main` ← `develop` ← `feature/task-x-ten`. Không push thẳng `main`, `develop`.
-- Commit: `feat:`, `fix:`, `docs:`, `chore:`.
-- Mọi thay đổi qua Pull Request, cần 1 người review.
+</div>
