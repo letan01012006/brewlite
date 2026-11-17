@@ -205,6 +205,11 @@ test("protected gate hides private content and redirects guests / wrong role", (
     AuthGate({ children: privateContent, path: "/orders" }),
     privateContent,
   );
+  state = { ...state, user: { ...customer, role: "STAFF" } };
+  const before = redirects.length;
+  assert.equal(AuthGate({ children: privateContent, path: "/barista", barista: true }), privateContent);
+  effects.splice(0).forEach((effect) => effect());
+  assert.equal(redirects.length, before);
 });
 
 test("customer gate waits for verification, redirects baristas and permits guests/customers", () => {
@@ -257,6 +262,9 @@ test("customer gate waits for verification, redirects baristas and permits guest
   state = { ...state, token: "barista-token", user: { ...customer, role: "BARISTA" } };
   assert.equal(render(), null);
   assert.equal(redirects.length, 2);
+  state = { ...state, user: { ...customer, role: "STAFF" } };
+  assert.equal(render(), null);
+  assert.equal(redirects.at(-1), "/barista");
 });
 
 test("barista logout clears the session and returns to login only after confirmation", () => {

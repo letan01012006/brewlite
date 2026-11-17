@@ -36,12 +36,12 @@ export class ToppingsController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Thêm mới topping' })
   @ApiResponse({ status: 201, description: 'Tạo topping thành công' })
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
-  @ApiResponse({ status: 403, description: 'Chỉ BARISTA được thêm topping' })
+  @ApiResponse({ status: 403, description: 'BARISTA/STAFF được thêm topping' })
   @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
   @ApiResponse({ status: 409, description: 'Tên topping đã tồn tại' })
   async create(@Body() createToppingDto: CreateToppingDto) {

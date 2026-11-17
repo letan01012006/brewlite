@@ -1,0 +1,3035 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/api/inventory/units": {
+      "get": {
+        "operationId": "RecipesController_units",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "GRAM",
+                      "MILLILITRE",
+                      "PIECE"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Đơn vị gốc được hỗ trợ",
+        "tags": [
+          "ingredients"
+        ]
+      }
+    },
+    "/api/inventory/ingredients": {
+      "get": {
+        "operationId": "RecipesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "GRAM",
+                          "MILLILITRE",
+                          "PIECE"
+                        ]
+                      },
+                      "stockQuantity": {
+                        "type": "string",
+                        "example": "100.000",
+                        "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                      },
+                      "reservedQuantity": {
+                        "type": "string",
+                        "example": "100.000",
+                        "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Danh sách nguyên liệu",
+        "tags": [
+          "ingredients"
+        ]
+      },
+      "post": {
+        "operationId": "RecipesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIngredientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "GRAM",
+                        "MILLILITRE",
+                        "PIECE"
+                      ]
+                    },
+                    "stockQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "reservedQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tạo nguyên liệu với tồn ban đầu bằng 0",
+        "tags": [
+          "ingredients"
+        ]
+      }
+    },
+    "/api/inventory/ingredients/{id}": {
+      "get": {
+        "operationId": "RecipesController_ingredient",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "GRAM",
+                        "MILLILITRE",
+                        "PIECE"
+                      ]
+                    },
+                    "stockQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "reservedQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chi tiết nguyên liệu",
+        "tags": [
+          "ingredients"
+        ]
+      },
+      "patch": {
+        "operationId": "RecipesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIngredientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "GRAM",
+                        "MILLILITRE",
+                        "PIECE"
+                      ]
+                    },
+                    "stockQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "reservedQuantity": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cập nhật metadata nguyên liệu, không sửa tồn",
+        "tags": [
+          "ingredients"
+        ]
+      }
+    },
+    "/api/products/{id}/recipes/{size}": {
+      "get": {
+        "operationId": "RecipesController_recipe",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "size",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "productId": {
+                      "type": "integer"
+                    },
+                    "size": {
+                      "type": "string",
+                      "enum": [
+                        "S",
+                        "M",
+                        "L"
+                      ]
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "ingredients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "recipeId": {
+                            "type": "integer"
+                          },
+                          "ingredientId": {
+                            "type": "integer"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "GRAM",
+                              "MILLILITRE",
+                              "PIECE"
+                            ]
+                          },
+                          "quantity": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Công thức sản phẩm theo size",
+        "tags": [
+          "ingredients"
+        ]
+      },
+      "put": {
+        "operationId": "RecipesController_setRecipe",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "size",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "productId": {
+                      "type": "integer"
+                    },
+                    "size": {
+                      "type": "string",
+                      "enum": [
+                        "S",
+                        "M",
+                        "L"
+                      ]
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "ingredients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "recipeId": {
+                            "type": "integer"
+                          },
+                          "ingredientId": {
+                            "type": "integer"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "GRAM",
+                              "MILLILITRE",
+                              "PIECE"
+                            ]
+                          },
+                          "quantity": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thay thế toàn bộ công thức của size trong transaction",
+        "tags": [
+          "ingredients"
+        ]
+      }
+    },
+    "/api/products/toppings/{id}/recipe": {
+      "get": {
+        "operationId": "RecipesController_topping",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "ingredientId": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "quantityPerServing": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript.",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Định mức topping đã chuẩn bị",
+        "tags": [
+          "ingredients"
+        ]
+      },
+      "put": {
+        "operationId": "RecipesController_setTopping",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToppingRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "ingredientId": {
+                      "type": "integer",
+                      "nullable": true
+                    },
+                    "quantityPerServing": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript.",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Gắn nguyên liệu và định mức một phần topping",
+        "tags": [
+          "ingredients"
+        ]
+      }
+    },
+    "/api/products/toppings": {
+      "get": {
+        "operationId": "ToppingsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Danh sách topping dạng [{ id, name, price }]"
+          }
+        },
+        "summary": "Lấy danh sách tất cả topping đang bán",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "operationId": "ToppingsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateToppingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo topping thành công"
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "BARISTA/STAFF được thêm topping"
+          },
+          "409": {
+            "description": "Tên topping đã tồn tại"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thêm mới topping",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}/toppings": {
+      "patch": {
+        "operationId": "ProductsController_updateToppings",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductToppingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đã cập nhật toàn bộ liên kết"
+          },
+          "400": {
+            "description": "ID trùng, không hợp lệ, không tồn tại hoặc topping đã ngừng bán"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "BARISTA/STAFF được cấu hình topping"
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thay thế toàn bộ topping được phép của sản phẩm; [] để gỡ hết",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}/status": {
+      "patch": {
+        "operationId": "ProductsController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đã cập nhật trạng thái bán của sản phẩm"
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "BARISTA/STAFF được cập nhật trạng thái bán"
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cập nhật trạng thái bán (Đang bán / Tạm dừng) của sản phẩm",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products": {
+      "get": {
+        "description": "Danh sách đang bán được xem công khai. includeInactive=true yêu cầu token BARISTA hoặc STAFF.",
+        "operationId": "ProductsController_findAll",
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Tìm kiếm sản phẩm theo tên (không phân biệt hoa thường)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Lọc sản phẩm theo danh mục (Cà phê, Trà, Đá xay...)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeInactive",
+            "required": false,
+            "in": "query",
+            "description": "Bao gồm cả sản phẩm đang tạm dừng bán (dành cho Barista)",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Trang hiện tại (bắt đầu từ 1)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Số lượng sản phẩm mỗi trang (tối đa 50)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy danh sách sản phẩm thành công"
+          },
+          "400": {
+            "description": "Tham số query không hợp lệ"
+          },
+          "401": {
+            "description": "includeInactive=true cần đăng nhập"
+          },
+          "403": {
+            "description": "BARISTA/STAFF được xem sản phẩm đang tạm dừng bán"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lấy danh sách sản phẩm (hỗ trợ tìm kiếm, lọc danh mục và phân trang)",
+        "tags": [
+          "products"
+        ]
+      },
+      "post": {
+        "operationId": "ProductsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo sản phẩm thành công"
+          },
+          "400": {
+            "description": "Dữ liệu đầu vào không hợp lệ"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "BARISTA/STAFF được thêm sản phẩm"
+          },
+          "409": {
+            "description": "Tên sản phẩm đã tồn tại"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thêm sản phẩm mới vào thực đơn",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "operationId": "ProductsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID của sản phẩm (số nguyên)",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tìm thấy thông tin sản phẩm"
+          },
+          "400": {
+            "description": "ID không phải là số hợp lệ"
+          },
+          "404": {
+            "description": "Không tìm thấy sản phẩm"
+          }
+        },
+        "summary": "Lấy thông tin chi tiết một món kèm danh sách sizes và toppings",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/toppings": {
+      "get": {
+        "operationId": "LegacyToppingsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lấy danh sách tất cả topping đang bán",
+        "tags": [
+          "products"
+        ]
+      }
+    },
+    "/api/inventory/availability": {
+      "post": {
+        "operationId": "InventoryController_availability",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvailabilityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "shortages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ingredientId": {
+                            "type": "integer"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "GRAM",
+                              "MILLILITRE",
+                              "PIECE"
+                            ]
+                          },
+                          "quantity": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          },
+                          "availableQuantity": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          },
+                          "sufficient": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer"
+                          },
+                          "productId": {
+                            "type": "integer"
+                          },
+                          "size": {
+                            "type": "string"
+                          },
+                          "maxQuantity": {
+                            "type": "integer",
+                            "description": "Tổng số ly tối đa của dòng sau khi đáp ứng các dòng khác, giới hạn 20."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "summary": "Kiểm tra nguyên liệu toàn giỏ, chưa giữ kho",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/inventory/stock": {
+      "get": {
+        "operationId": "InventoryController_stock",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "GRAM",
+                          "MILLILITRE",
+                          "PIECE"
+                        ]
+                      },
+                      "stockQuantity": {
+                        "type": "string",
+                        "example": "100.000",
+                        "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                      },
+                      "reservedQuantity": {
+                        "type": "string",
+                        "example": "100.000",
+                        "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "availableQuantity": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tồn và lượng khả dụng",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/inventory/movements": {
+      "get": {
+        "operationId": "InventoryController_movements",
+        "parameters": [
+          {
+            "name": "ingredientId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECEIPT",
+                "ADJUSTMENT",
+                "ADJUSTMENT_POSITIVE",
+                "ADJUSTMENT_NEGATIVE",
+                "HOLD",
+                "RELEASE",
+                "CONSUME"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Từ ngày (ISO / YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Đến ngày (ISO / YYYY-MM-DD)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "eventKey": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIPT",
+                              "ADJUSTMENT"
+                            ]
+                          },
+                          "ingredientId": {
+                            "type": "integer"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "enum": [
+                              "GRAM",
+                              "MILLILITRE",
+                              "PIECE"
+                            ]
+                          },
+                          "stockDelta": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          },
+                          "reservedDelta": {
+                            "type": "string",
+                            "example": "100.000",
+                            "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                          },
+                          "actorId": {
+                            "type": "integer"
+                          },
+                          "reason": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lịch sử biến động kho (phân trang)",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/inventory/receipts": {
+      "post": {
+        "operationId": "InventoryController_receipt",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockAdjustmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "eventKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "RECEIPT",
+                        "ADJUSTMENT"
+                      ]
+                    },
+                    "ingredientId": {
+                      "type": "integer"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "GRAM",
+                        "MILLILITRE",
+                        "PIECE"
+                      ]
+                    },
+                    "stockDelta": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "reservedDelta": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "actorId": {
+                      "type": "integer"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Nhập kho; cùng khóa và nội dung trả lại movement cũ",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/inventory/adjustments": {
+      "post": {
+        "operationId": "InventoryController_adjustment",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockAdjustmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "eventKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "RECEIPT",
+                        "ADJUSTMENT"
+                      ]
+                    },
+                    "ingredientId": {
+                      "type": "integer"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "enum": [
+                        "GRAM",
+                        "MILLILITRE",
+                        "PIECE"
+                      ]
+                    },
+                    "stockDelta": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "reservedDelta": {
+                      "type": "string",
+                      "example": "100.000",
+                      "description": "Decimal theo đơn vị gốc; không dùng số thực JavaScript."
+                    },
+                    "actorId": {
+                      "type": "integer"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DTO hoặc định mức không hợp lệ."
+          },
+          "401": {
+            "description": "Cần đăng nhập."
+          },
+          "403": {
+            "description": "Cần quyền BARISTA hoặc STAFF."
+          },
+          "404": {
+            "description": "Không tìm thấy bản ghi."
+          },
+          "409": {
+            "description": "Thiếu nguyên liệu, công thức chưa sẵn sàng, dữ liệu trùng hoặc xung đột kho/idempotency."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Điều chỉnh delta tồn, không giảm dưới lượng giữ",
+        "tags": [
+          "inventory"
+        ]
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "{ phone, requiresOtp, expiresIn: 300, resendAfter: 60, message }"
+          },
+          "409": {
+            "description": "PHONE_ALREADY_EXISTS / EMAIL_ALREADY_EXISTS"
+          },
+          "502": {
+            "description": "SMS_REJECTED / SMS_UNAVAILABLE: chưa báo gửi thành công; có thể resend-otp ngay"
+          },
+          "503": {
+            "description": "SMS_NOT_CONFIGURED: tài khoản đã tạo, dùng resend-otp sau khi bổ sung cấu hình"
+          },
+          "504": {
+            "description": "SMS_TIMEOUT: mã chưa được xác nhận đã vô hiệu; dùng resend-otp"
+          }
+        },
+        "summary": "Đăng ký CUSTOMER chờ OTP; chưa cấp JWT hoặc điểm chào mừng",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/verify-otp": {
+      "post": {
+        "operationId": "AuthController_verifyOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ accessToken, tokenType, expiresIn, user }"
+          },
+          "400": {
+            "description": "OTP_INVALID / OTP_EXPIRED / OTP_INVALID_OR_USED / OTP_ATTEMPTS_EXCEEDED"
+          }
+        },
+        "summary": "Xác thực OTP, nhận JWT và WELCOME_POINTS đúng một lần",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/resend-otp": {
+      "post": {
+        "operationId": "AuthController_resendOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP mới, hết hạn sau 300 giây"
+          },
+          "429": {
+            "description": "OTP_RESEND_TOO_SOON"
+          },
+          "502": {
+            "description": "SMS_REJECTED / SMS_UNAVAILABLE: có thể gửi lại ngay"
+          },
+          "503": {
+            "description": "SMS_NOT_CONFIGURED"
+          },
+          "504": {
+            "description": "SMS_TIMEOUT: mã của lần gửi này không còn hiệu lực"
+          }
+        },
+        "summary": "Gửi lại OTP sau ít nhất 60 giây, mã mới thay mã cũ",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              },
+              "examples": {
+                "phone": {
+                  "summary": "Khách hoặc nhân viên đăng nhập bằng số điện thoại đã đăng ký",
+                  "value": {
+                    "phone": "0912345679",
+                    "password": "Barista@123"
+                  }
+                },
+                "legacyEmail": {
+                  "summary": "Tài khoản cũ chưa có phone",
+                  "value": {
+                    "email": "demo@brewlite.com",
+                    "password": "Demo@1234"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ accessToken, tokenType, expiresIn, user }"
+          },
+          "401": {
+            "description": "INVALID_CREDENTIALS"
+          },
+          "403": {
+            "description": "PHONE_NOT_VERIFIED: chuyển sang màn OTP"
+          }
+        },
+        "summary": "Đăng nhập bằng phone hoặc email cho tài khoản cũ chưa có phone",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "AuthController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thông tin tài khoản hiện tại; email có thể null",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/admin/staff": {
+      "post": {
+        "operationId": "StaffController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              },
+              "examples": {
+                "staff": {
+                  "summary": "Cấp STAFF đã xác thực",
+                  "value": {
+                    "fullName": "Nhân viên BrewLite",
+                    "phone": "0912345679",
+                    "password": "Staff@123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User STAFF, isPhoneVerified=true; không trả passwordHash. STAFF không được tạo/xóa tài khoản."
+          },
+          "401": {
+            "description": "Thiếu JWT hoặc JWT không hợp lệ"
+          },
+          "403": {
+            "description": "Chỉ BARISTA có quyền cấp tài khoản nhân viên"
+          },
+          "409": {
+            "description": "Trùng phone hoặc email"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "BARISTA cấp tài khoản nhân viên đã xác thực, đăng nhập ngay",
+        "tags": [
+          "admin/staff"
+        ]
+      }
+    },
+    "/api/admin/staff/{id}": {
+      "delete": {
+        "description": "Chỉ xóa tài khoản có role STAFF. Xóa mềm để giữ lịch sử đơn hàng, thanh toán và kho; SĐT/email vẫn được giữ và không tái sử dụng. Không xóa CUSTOMER, BARISTA hoặc MANAGER.",
+        "operationId": "StaffController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID tài khoản STAFF cần xóa (số nguyên dương)",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã xóa tài khoản nhân viên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "deleted"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "deleted": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID không phải số nguyên dương hợp lệ"
+          },
+          "401": {
+            "description": "Thiếu JWT, JWT không hợp lệ hoặc tài khoản đã bị xóa"
+          },
+          "403": {
+            "description": "Chỉ BARISTA được xóa tài khoản nhân viên; STAFF/CUSTOMER bị chặn"
+          },
+          "404": {
+            "description": "Không tìm thấy STAFF đang hoạt động, đã xóa hoặc ID thuộc vai trò khác"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "BARISTA xóa tài khoản STAFF, thu hồi đăng nhập và token",
+        "tags": [
+          "admin/staff"
+        ]
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "operationId": "OrdersController_create",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Khóa tạo đơn (1–128 ký tự), dùng lại khi gửi lại cùng yêu cầu",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo đơn hàng thành công, trả về thông tin đơn hàng"
+          },
+          "400": {
+            "description": "Dữ liệu giỏ hàng không hợp lệ"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "404": {
+            "description": "Sản phẩm hoặc topping không tồn tại"
+          },
+          "409": {
+            "description": "Key đã dùng với nội dung khác, thiếu nguyên liệu hoặc công thức chưa sẵn sàng"
+          },
+          "422": {
+            "description": "Mã khuyến mãi không hợp lệ hoặc không đủ điều kiện"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tạo đơn PENDING, kiểm tra nguyên liệu và lưu công thức; chưa giữ kho",
+        "tags": [
+          "orders"
+        ]
+      },
+      "get": {
+        "operationId": "OrdersController_findAllOrders",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Trang hiện tại (bắt đầu từ 1)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Số lượng đơn mỗi trang (mặc định 10, tối đa 50)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Lọc theo trạng thái đơn hàng",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PAID",
+                "PREPARING",
+                "READY",
+                "COMPLETED",
+                "CANCELLED",
+                "PAYMENT_FAILED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy danh sách toàn bộ đơn hàng thành công"
+          },
+          "403": {
+            "description": "Tài khoản BARISTA/STAFF mới có quyền xem"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Barista xem toàn bộ đơn hàng trong quầy pha chế",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/me": {
+      "get": {
+        "operationId": "OrdersController_findMyOrders",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Trang hiện tại (bắt đầu từ 1)",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Số lượng đơn mỗi trang (mặc định 10, tối đa 50)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Lọc theo trạng thái đơn hàng",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PAID",
+                "PREPARING",
+                "READY",
+                "COMPLETED",
+                "CANCELLED",
+                "PAYMENT_FAILED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy danh sách đơn hàng thành công"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lấy lịch sử đơn hàng của người dùng hiện tại (hỗ trợ phân trang)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/active": {
+      "get": {
+        "operationId": "OrdersController_findActiveOrders",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Toàn bộ đơn đang chờ pha chế, đang pha chế hoặc chờ nhận",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID đơn hàng (số nguyên)",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tìm thấy thông tin chi tiết đơn hàng"
+          },
+          "400": {
+            "description": "ID đơn hàng không phải là số hợp lệ"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "Không có quyền xem đơn hàng của người khác"
+          },
+          "404": {
+            "description": "Không tìm thấy đơn hàng"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Xem chi tiết một đơn hàng kèm danh sách món và lịch sử thanh toán",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/cancel": {
+      "post": {
+        "operationId": "OrdersController_cancelOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID đơn hàng cần hủy",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hủy đơn hàng thành công"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "Không có quyền hủy đơn của người khác"
+          },
+          "404": {
+            "description": "Không tìm thấy đơn hàng"
+          },
+          "409": {
+            "description": "Chuyển trạng thái không hợp lệ hoặc đang thanh toán dở"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hủy đơn hàng (hoàn kho, hoàn lượt mã giảm giá, hoàn tiền/thu hồi điểm nếu đã PAID)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/orders/{id}/status": {
+      "patch": {
+        "operationId": "OrdersController_updateStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "ID đơn hàng cần cập nhật",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOrderStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật trạng thái thành công"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "403": {
+            "description": "Tài khoản BARISTA/STAFF mới có quyền thực hiện"
+          },
+          "404": {
+            "description": "Không tìm thấy đơn hàng"
+          },
+          "409": {
+            "description": "Nhảy cóc trạng thái bất hợp lệ (INVALID_TRANSITION)"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Barista cập nhật trạng thái đơn hàng (chỉ nhận: PREPARING -> READY -> COMPLETED)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/api/payments": {
+      "post": {
+        "operationId": "PaymentsController_processPayment",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Khóa chống trùng lặp giao dịch (UUID v4 do frontend sinh)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessPaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo link thanh toán VNPAY hoặc thanh toán mock thành công"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thanh toán đơn hàng qua VNPAY hoặc phương thức thử nghiệm",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/vnpay/ipn": {
+      "get": {
+        "operationId": "PaymentsController_handleVnpayIpn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Webhook IPN tiếp nhận thông báo kết quả từ cổng VNPAY",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/vnpay/return": {
+      "get": {
+        "operationId": "PaymentsController_handleVnpayReturn",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Xác nhận và kiểm tra kết quả giao dịch sau khi khách quay lại từ VNPAY",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}/refund": {
+      "post": {
+        "operationId": "PaymentsController_refundPayment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Yêu cầu hoàn tiền cho giao dịch đã thanh toán hoặc lỗi kho",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}": {
+      "get": {
+        "operationId": "PaymentsController_getPayment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Xem chi tiết giao dịch thanh toán",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/promotions/validate": {
+      "post": {
+        "operationId": "PromotionsController_validatePromotion",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidatePromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mã hợp lệ, trả về số tiền được giảm và tổng sau giảm"
+          },
+          "400": {
+            "description": "Dữ liệu giỏ hàng hoặc mã không đúng định dạng"
+          },
+          "401": {
+            "description": "Chưa đăng nhập"
+          },
+          "422": {
+            "description": "Mã không tồn tại, hết hạn, hết lượt, hoặc đơn chưa đạt giá trị tối thiểu"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Kiểm tra tính hợp lệ và xem trước số tiền giảm của mã khuyến mãi",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "BrewLite API",
+    "description": "",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "CreateIngredientDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "COFFEE_BEANS",
+            "description": "Tùy chọn; nếu bỏ trống hệ thống tự sinh mã duy nhất."
+          },
+          "name": {
+            "type": "string",
+            "example": "Cà phê hạt"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITRE",
+              "PIECE"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "unit"
+        ]
+      },
+      "UpdateIngredientDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "COFFEE_BEANS",
+            "description": "Tùy chọn; nếu bỏ trống hệ thống tự sinh mã duy nhất."
+          },
+          "name": {
+            "type": "string",
+            "example": "Cà phê hạt"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "GRAM",
+              "MILLILITRE",
+              "PIECE"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RecipeIngredientDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "16.500",
+            "description": "Định mức theo đơn vị gốc, tối đa 3 chữ số thập phân."
+          }
+        },
+        "required": [
+          "ingredientId",
+          "quantity"
+        ]
+      },
+      "RecipeDto": {
+        "type": "object",
+        "properties": {
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientDto"
+            }
+          },
+          "isActive": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "ingredients"
+        ]
+      },
+      "ToppingRecipeDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "number"
+          },
+          "quantityPerServing": {
+            "type": "string",
+            "example": "50.000"
+          }
+        },
+        "required": [
+          "ingredientId",
+          "quantityPerServing"
+        ]
+      },
+      "CreateToppingDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tên topping (unique)",
+            "example": "Trân châu trắng"
+          },
+          "price": {
+            "type": "number",
+            "description": "Giá tiền topping (VND)",
+            "example": 5000
+          }
+        },
+        "required": [
+          "name",
+          "price"
+        ]
+      },
+      "UpdateProductToppingsDto": {
+        "type": "object",
+        "properties": {
+          "toppingIds": {
+            "description": "Thay thế toàn bộ topping được phép. [] gỡ hết. Không giới hạn số topping cấu hình.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "toppingIds"
+        ]
+      },
+      "UpdateProductStatusDto": {
+        "type": "object",
+        "properties": {
+          "isActive": {
+            "type": "boolean",
+            "description": "Trạng thái bán của sản phẩm (true: Đang bán, false: Tạm dừng)",
+            "example": false
+          }
+        },
+        "required": [
+          "isActive"
+        ]
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tên sản phẩm (unique)",
+            "example": "Cà phê sữa"
+          },
+          "category": {
+            "type": "string",
+            "description": "Danh mục sản phẩm",
+            "example": "Cà phê"
+          },
+          "price": {
+            "type": "integer",
+            "description": "Giá gốc sản phẩm (size S, VND)",
+            "example": 35000,
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "URL hình ảnh sản phẩm",
+            "example": "/img/ca-phe-sua.jpg"
+          },
+          "stock": {
+            "type": "number",
+            "description": "Số lượng tồn kho",
+            "default": 0,
+            "example": 50
+          },
+          "description": {
+            "type": "string",
+            "description": "Mô tả chi tiết sản phẩm",
+            "example": "Cà phê phin pha sữa đặc"
+          },
+          "toppingIds": {
+            "description": "ID topping được phép; không truyền tương đương []",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "price"
+        ]
+      },
+      "OrderItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "number",
+            "description": "ID của sản phẩm (số nguyên)",
+            "example": 1
+          },
+          "size": {
+            "type": "string",
+            "description": "Kích cỡ món nước",
+            "enum": [
+              "S",
+              "M",
+              "L"
+            ],
+            "example": "M"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Số lượng mua (1 - 20 phần)",
+            "example": 1,
+            "minimum": 1,
+            "maximum": 20
+          },
+          "toppingIds": {
+            "description": "Danh sách ID topping kèm theo (tối đa 3 topping)",
+            "example": [
+              1,
+              2
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "note": {
+            "type": "string",
+            "description": "Ghi chú của khách cho món này (tối đa 200 ký tự)",
+            "example": "ít đá, 50% ngọt"
+          }
+        },
+        "required": [
+          "productId",
+          "size",
+          "quantity"
+        ]
+      },
+      "AvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StockAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "number"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "100.000",
+            "description": "RECEIPT: lượng tăng (> 0); ADJUSTMENT: lượng hao hụt (> 0 hoặc delta âm)."
+          },
+          "reason": {
+            "type": "string",
+            "example": "Kiểm kê ca sáng",
+            "description": "Tùy chọn khi nhập kho (RECEIPT), bắt buộc khi ghi nhận hao hụt (ADJUSTMENT)."
+          }
+        },
+        "required": [
+          "ingredientId",
+          "quantity"
+        ]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "Nguyễn Văn An",
+            "minLength": 2,
+            "maxLength": 100
+          },
+          "phone": {
+            "type": "string",
+            "example": "0912345678",
+            "pattern": "^0[0-9]{9}$"
+          },
+          "email": {
+            "type": "object",
+            "example": "an@example.com",
+            "nullable": true
+          },
+          "password": {
+            "type": "string",
+            "description": "8–64 ký tự, ít nhất một chữ cái và một chữ số",
+            "example": "Passw0rd!"
+          }
+        },
+        "required": [
+          "fullName",
+          "phone",
+          "password"
+        ]
+      },
+      "VerifyOtpDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "example": "0912345678",
+            "pattern": "^0[0-9]{9}$"
+          },
+          "code": {
+            "type": "string",
+            "example": "123456",
+            "description": "Demo 123456 chỉ khi AUTH_OTP_DEMO=true trong dev/test"
+          }
+        },
+        "required": [
+          "phone",
+          "code"
+        ]
+      },
+      "PhoneDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "example": "0912345678",
+            "pattern": "^0[0-9]{9}$"
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "example": "0912345678",
+            "description": "Chọn đúng một trong phone hoặc email"
+          },
+          "email": {
+            "type": "string",
+            "example": "demo@brewlite.com",
+            "description": "Tài khoản cũ chưa có số điện thoại"
+          },
+          "password": {
+            "type": "string",
+            "example": "Passw0rd!"
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "CreateOrderDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Danh sách các món đặt trong đơn (1 đến 30 món)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemDto"
+            }
+          },
+          "promoCode": {
+            "type": "string",
+            "description": "Mã khuyến mãi (nếu có, không phân biệt hoa thường)",
+            "example": "BREW10"
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "UpdateOrderStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Trạng thái mới của đơn hàng (Barista chỉ được chuyển PREPARING, READY, COMPLETED)",
+            "enum": [
+              "PREPARING",
+              "READY",
+              "COMPLETED"
+            ],
+            "example": "PREPARING"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ProcessPaymentDto": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "number",
+            "description": "ID của đơn hàng cần thanh toán",
+            "example": 1
+          },
+          "method": {
+            "type": "string",
+            "description": "Phương thức thanh toán (VNPAY, WALLET, CARD, POINTS)",
+            "enum": [
+              "WALLET",
+              "CARD",
+              "VNPAY",
+              "POINTS"
+            ],
+            "example": "VNPAY"
+          },
+          "pointsUsed": {
+            "type": "number",
+            "description": "Số điểm thưởng sử dụng để thanh toán (phải là bội số của 20)",
+            "example": 100
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Idempotency-Key (nếu không truyền qua Header Idempotency-Key)",
+            "example": "c2e584f2-9844-484d-b94d-4be9df14d9b6"
+          },
+          "mockResult": {
+            "type": "string",
+            "description": "Mô phỏng kết quả thanh toán cho việc demo/test (SUCCESS hoặc FAILED)",
+            "enum": [
+              "SUCCESS",
+              "FAILED"
+            ],
+            "example": "SUCCESS"
+          },
+          "bankCode": {
+            "type": "string",
+            "description": "Mã ngân hàng VNPAY (tùy chọn, ví dụ VNPAYQR, NCB)",
+            "example": "VNPAYQR"
+          }
+        },
+        "required": [
+          "orderId",
+          "method"
+        ]
+      },
+      "ValidatePromotionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Mã khuyến mãi cần kiểm tra",
+            "example": "BREW10"
+          },
+          "items": {
+            "description": "Danh sách các món trong giỏ hàng để tính toán điều kiện và số tiền giảm",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderItemDto"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "items"
+        ]
+      }
+    }
+  }
+}

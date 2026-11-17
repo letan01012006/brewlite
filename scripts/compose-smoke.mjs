@@ -70,20 +70,20 @@ if (mode === 'baseline') {
     assert.equal(response.status, 200, url);
     return json ? response.json() : response.text();
   };
-  assert.equal((await get('http://localhost:3000/api/health')).db, 'up');
-  const swagger = await get('http://localhost:4000/api/docs', null, false);
+  assert.equal((await get('http://localhost:3001/api/health')).db, 'up');
+  const swagger = await get('http://localhost:4001/api/docs', null, false);
   assert.match(swagger, /swagger-ui/i);
-  await get('http://localhost:3000/menu', null, false);
-  const product = await get(`http://localhost:3000/api/products/${snapshot.productId}`);
+  await get('http://localhost:3001/menu', null, false);
+  const product = await get(`http://localhost:3001/api/products/${snapshot.productId}`);
   assert.equal(product.id, snapshot.productId);
   // Use a short-lived token for an existing staff member, without changing users
   // or exposing the application's signing secret in command arguments/output.
   assert.ok(snapshot.baristaId, 'An existing verified BARISTA is required for private API checks');
   const token = docker('compose', 'exec', '-T', 'backend', 'node', '-e',
     "process.stdout.write(require('jsonwebtoken').sign({sub:Number(process.argv[1]),role:'BARISTA'},process.env.JWT_SECRET,{expiresIn:'5m'}))", String(snapshot.baristaId));
-  const ingredient = await get(`http://localhost:3000/api/inventory/ingredients/${snapshot.ingredientId}`, token);
+  const ingredient = await get(`http://localhost:3001/api/inventory/ingredients/${snapshot.ingredientId}`, token);
   assert.equal(ingredient.id, snapshot.ingredientId);
-  const order = await get(`http://localhost:3000/api/orders/${snapshot.orderId}`, token);
+  const order = await get(`http://localhost:3001/api/orders/${snapshot.orderId}`, token);
   assert.equal(order.id, snapshot.orderId);
   console.log('PASS: all services healthy; frontend API proxy, Swagger and existing product/ingredient/order are readable; products/ingredients and historical order fields preserved.');
   if (expiredOrders) console.log(`${expiredOrders} pre-existing overdue orders were closed by the normal expiry job; no order was deleted.`);

@@ -50,10 +50,10 @@ try {
   await send('Runtime.enable');
   await send('Network.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-  const list = await (await fetch('http://localhost:3000/api/products?limit=50')).json();
+  const list = await (await fetch('http://localhost:3001/api/products?limit=50')).json();
   const product = (Array.isArray(list) ? list : list.data).find(row => row.isActive !== false);
   assert.ok(product, 'Existing menu product is required');
-  await send('Page.navigate', { url: 'http://localhost:3000/menu' });
+  await send('Page.navigate', { url: 'http://localhost:3001/menu' });
   let rendered = false;
   for (let attempt = 0; attempt < 150; attempt++) {
     const result = await send('Runtime.evaluate', {

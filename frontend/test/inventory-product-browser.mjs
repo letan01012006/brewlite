@@ -3,6 +3,9 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
+const frontendOrigin = new URL(
+  process.env.PRODUCT_TEST_ORIGIN || "http://localhost:3001",
+).origin;
 const directory =
   process.env.PRODUCT_TEST_OUTPUT ||
   fs.mkdtempSync(path.join(os.tmpdir(), "brewlite-product-report-"));
@@ -168,7 +171,7 @@ try {
     await send("Runtime.enable");
     await send("Fetch.enable", {
       patterns: [
-        { urlPattern: "http://localhost:3000/api/*", requestStage: "Request" },
+        { urlPattern: `${frontendOrigin}/api/*`, requestStage: "Request" },
       ],
     });
     await send("Page.addScriptToEvaluateOnNewDocument", {
@@ -181,7 +184,7 @@ try {
       mobile: false,
     });
     await send("Page.navigate", {
-      url: "http://localhost:3000/barista/inventory",
+      url: `${frontendOrigin}/barista/inventory`,
     });
     await until(
       `[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='+ Thêm món' && !b.disabled)`,

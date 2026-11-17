@@ -98,12 +98,14 @@ Frontend form/API regressions run with `npm.cmd test` from `frontend` (118 tests
 passed). They cover creation payloads without stock, more than three permitted
 toppings, invalid inputs, duplicate submission prevention and failure/retry.
 
-For the real-browser suite, run the updated frontend on http://localhost:3000,
+For the real-browser suite, run the updated Docker frontend on http://localhost:3001,
 configure a separate TEST_DATABASE_URL as above, install Chrome, then from backend:
 
 ```powershell
 npm.cmd run test:browser:product
 ```
+
+Set `PRODUCT_TEST_ORIGIN=http://localhost:3000` to test a frontend dev server instead.
 
 This suite is separate from the default backend tests. It launches a fresh Chrome
 profile and redirects only that browser's API calls to a NestJS test fixture with

@@ -1256,7 +1256,7 @@ export class PaymentsService {
       });
     }
 
-    if (payment.order.userId !== userId && userRole !== 'BARISTA') {
+    if (payment.order.userId !== userId && !['BARISTA', 'STAFF'].includes(userRole)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'Bạn không có quyền xem thông tin giao dịch này',
@@ -1320,10 +1320,10 @@ export class PaymentsService {
     adminRole: string,
     clientIp = '127.0.0.1',
   ) {
-    if (adminRole !== 'BARISTA') {
+    if (!['BARISTA', 'STAFF'].includes(adminRole)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
-        message: 'Chỉ nhân viên BARISTA mới có quyền yêu cầu hoàn tiền',
+        message: 'Nhân viên BARISTA/STAFF mới có quyền yêu cầu hoàn tiền',
       });
     }
 
@@ -1547,7 +1547,7 @@ export class PaymentsService {
         amount: payment.amount,
         transactionDate,
         transactionNo: payment.providerRef || '0',
-        createBy: `BARISTA_${adminId}`,
+        createBy: `${adminRole}_${adminId}`,
         ipAddr: clientIp,
         requestId: crypto
           .createHash('sha256')

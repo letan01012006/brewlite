@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 import { timingSafeEqual } from 'node:crypto';
@@ -88,7 +88,7 @@ export class AuthService {
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "User" WHERE phone = ${phone} FOR UPDATE`);
       const user = await tx.user.findUnique({ where: { phone } });
-      if (!user || user.isPhoneVerified || !user.otpHash)
+      if (!user || user.deletedAt || user.isPhoneVerified || !user.otpHash)
         return { error: 'OTP_INVALID_OR_USED' } as const;
       if (user.otpAttempts >= 5) return { error: 'OTP_ATTEMPTS_EXCEEDED' } as const;
       if (!user.otpExpiresAt || user.otpExpiresAt.getTime() <= Date.now())
@@ -121,7 +121,7 @@ export class AuthService {
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM "User" WHERE phone = ${phone} FOR UPDATE`);
       const user = await tx.user.findUnique({ where: { phone } });
-      if (!user || user.isPhoneVerified) return 'OTP_NOT_PENDING';
+      if (!user || user.deletedAt || user.isPhoneVerified) return 'OTP_NOT_PENDING';
       if (user.otpSentAt && Date.now() - user.otpSentAt.getTime() < 60000) return 'OTP_RESEND_TOO_SOON';
       if (issued.data.otpHash === user.otpHash) issued = this.otp.issue(phone, user.otpHash);
       await tx.user.update({ where: { id: user.id }, data: issued.data });
@@ -141,10 +141,25 @@ export class AuthService {
         data: { fullName: dto.fullName.trim(), phone: dto.phone,
           email: dto.email?.toLowerCase().trim() || null,
           passwordHash: await bcrypt.hash(dto.password, 10),
-          role: 'BARISTA', isPhoneVerified: true },
+          role: 'STAFF', isPhoneVerified: true },
         select: publicUserSelect,
       });
     } catch (error) { this.conflict(error); }
+  }
+
+  async deleteStaff(id: number) {
+    if (!Number.isSafeInteger(id) || id <= 0 || id > 2147483647) throw new BadRequestException({
+      code: 'INVALID_STAFF_ID', message: 'ID nhân viên phải là số nguyên dương hợp lệ.',
+    });
+    // Match the current role atomically; never remove a Customer or Barista.
+    const result = await this.prisma.user.updateMany({
+      where: { id, role: 'STAFF', deletedAt: null },
+      data: { deletedAt: new Date(), otpHash: null, otpExpiresAt: null, otpSentAt: null },
+    });
+    if (!result.count) throw new NotFoundException({
+      code: 'STAFF_NOT_FOUND', message: 'Không tìm thấy tài khoản STAFF đang hoạt động.',
+    });
+    return { id, deleted: true };
   }
 
   async login(dto: LoginDto) {
@@ -154,7 +169,7 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: dto.phone ? { phone: dto.phone } : { email: dto.email! },
     });
-    if (!user || (dto.email && user.phone) || !await bcrypt.compare(dto.password, user.passwordHash))
+    if (!user || user.deletedAt || (dto.email && user.phone) || !await bcrypt.compare(dto.password, user.passwordHash))
       throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Thông tin đăng nhập không chính xác.' });
     if (user.phone && !user.isPhoneVerified)
       throw new ForbiddenException({ code: 'PHONE_NOT_VERIFIED', message: 'Vui lòng xác thực số điện thoại bằng OTP.' });
@@ -173,7 +188,7 @@ export class AuthService {
   }
 
   async getMe(userId: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: publicUserSelect });
+    const user = await this.prisma.user.findUnique({ where: { id: userId, deletedAt: null }, select: publicUserSelect });
     if (!user) throw new UnauthorizedException({ code: 'UNAUTHORIZED', message: 'Không tìm thấy tài khoản.' });
     return user;
   }

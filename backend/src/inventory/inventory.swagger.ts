@@ -127,7 +127,7 @@ export function InventoryDocs(
     ...(!publicRoute
       ? [
           ApiResponse({ status: 401, description: 'Cần đăng nhập.' }),
-          ApiResponse({ status: 403, description: 'Cần quyền BARISTA.' }),
+          ApiResponse({ status: 403, description: 'Cần quyền BARISTA hoặc STAFF.' }),
         ]
       : []),
   );

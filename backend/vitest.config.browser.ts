@@ -1,6 +1,6 @@
 import base from './vitest.config.e2e.js';
 
-// Manual browser suite: frontend must be running at http://localhost:3000.
+// Frontend defaults to http://localhost:3001; override PRODUCT_TEST_ORIGIN for dev.
 export default {
   ...base,
   test: {

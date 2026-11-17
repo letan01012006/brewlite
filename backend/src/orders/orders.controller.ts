@@ -87,7 +87,7 @@ export class OrdersController {
    */
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiOperation({ summary: 'Barista xem toàn bộ đơn hàng trong quầy pha chế' })
   @ApiResponse({
     status: 200,
@@ -95,7 +95,7 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Chỉ tài khoản BARISTA mới có quyền xem',
+    description: 'Tài khoản BARISTA/STAFF mới có quyền xem',
   })
   async findAllOrders(@Query() query: QueryOrderDto) {
     return this.ordersService.findAllOrders(query);
@@ -124,7 +124,7 @@ export class OrdersController {
 
   @Get('active')
   @UseGuards(RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiOperation({
     summary: 'Toàn bộ đơn đang chờ pha chế, đang pha chế hoặc chờ nhận',
   })
@@ -200,7 +200,7 @@ export class OrdersController {
    */
   @Patch(':id/status')
   @UseGuards(RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiOperation({
     summary:
       'Barista cập nhật trạng thái đơn hàng (chỉ nhận: PREPARING -> READY -> COMPLETED)',
@@ -210,7 +210,7 @@ export class OrdersController {
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
   @ApiResponse({
     status: 403,
-    description: 'Chỉ tài khoản BARISTA mới có quyền thực hiện',
+    description: 'Tài khoản BARISTA/STAFF mới có quyền thực hiện',
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy đơn hàng' })
   @ApiResponse({

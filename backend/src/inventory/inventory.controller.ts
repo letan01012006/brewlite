@@ -44,7 +44,7 @@ export class InventoryController {
   @Get('stock')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @InventoryDocs('Tồn và lượng khả dụng', {
     type: 'array',
     items: {
@@ -61,7 +61,7 @@ export class InventoryController {
   @Get('movements')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @InventoryDocs('Lịch sử biến động kho (phân trang)', {
     type: 'object',
     properties: {
@@ -76,7 +76,7 @@ export class InventoryController {
   @ApiBearerAuth()
   @ApiHeader({ name: 'Idempotency-Key', required: true })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @InventoryDocs(
     'Nhập kho; cùng khóa và nội dung trả lại movement cũ',
     movementSchema,
@@ -93,7 +93,7 @@ export class InventoryController {
   @ApiBearerAuth()
   @ApiHeader({ name: 'Idempotency-Key', required: true })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @InventoryDocs(
     'Điều chỉnh delta tồn, không giảm dưới lượng giữ',
     movementSchema,

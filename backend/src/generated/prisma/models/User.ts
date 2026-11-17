@@ -53,6 +53,7 @@ export type UserMinAggregateOutputType = {
   role: $Enums.Role | null
   loyaltyPoints: number | null
   createdAt: Date | null
+  deletedAt: Date | null
 }
 
 export type UserMaxAggregateOutputType = {
@@ -70,6 +71,7 @@ export type UserMaxAggregateOutputType = {
   role: $Enums.Role | null
   loyaltyPoints: number | null
   createdAt: Date | null
+  deletedAt: Date | null
 }
 
 export type UserCountAggregateOutputType = {
@@ -87,6 +89,7 @@ export type UserCountAggregateOutputType = {
   role: number
   loyaltyPoints: number
   createdAt: number
+  deletedAt: number
   _all: number
 }
 
@@ -118,6 +121,7 @@ export type UserMinAggregateInputType = {
   role?: true
   loyaltyPoints?: true
   createdAt?: true
+  deletedAt?: true
 }
 
 export type UserMaxAggregateInputType = {
@@ -135,6 +139,7 @@ export type UserMaxAggregateInputType = {
   role?: true
   loyaltyPoints?: true
   createdAt?: true
+  deletedAt?: true
 }
 
 export type UserCountAggregateInputType = {
@@ -152,6 +157,7 @@ export type UserCountAggregateInputType = {
   role?: true
   loyaltyPoints?: true
   createdAt?: true
+  deletedAt?: true
   _all?: true
 }
 
@@ -256,6 +262,7 @@ export type UserGroupByOutputType = {
   role: $Enums.Role
   loyaltyPoints: number
   createdAt: Date
+  deletedAt: Date | null
   _count: UserCountAggregateOutputType | null
   _avg: UserAvgAggregateOutputType | null
   _sum: UserSumAggregateOutputType | null
@@ -296,6 +303,7 @@ export type UserWhereInput = {
   role?: Prisma.EnumRoleFilter<"User"> | $Enums.Role
   loyaltyPoints?: Prisma.IntFilter<"User"> | number
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   orders?: Prisma.OrderListRelationFilter
   loyaltyTransactions?: Prisma.LoyaltyTransactionListRelationFilter
   inventoryMovements?: Prisma.InventoryMovementListRelationFilter
@@ -316,6 +324,7 @@ export type UserOrderByWithRelationInput = {
   role?: Prisma.SortOrder
   loyaltyPoints?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   orders?: Prisma.OrderOrderByRelationAggregateInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionOrderByRelationAggregateInput
   inventoryMovements?: Prisma.InventoryMovementOrderByRelationAggregateInput
@@ -339,6 +348,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   role?: Prisma.EnumRoleFilter<"User"> | $Enums.Role
   loyaltyPoints?: Prisma.IntFilter<"User"> | number
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
+  deletedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   orders?: Prisma.OrderListRelationFilter
   loyaltyTransactions?: Prisma.LoyaltyTransactionListRelationFilter
   inventoryMovements?: Prisma.InventoryMovementListRelationFilter
@@ -359,6 +369,7 @@ export type UserOrderByWithAggregationInput = {
   role?: Prisma.SortOrder
   loyaltyPoints?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
   _avg?: Prisma.UserAvgOrderByAggregateInput
   _max?: Prisma.UserMaxOrderByAggregateInput
@@ -384,6 +395,7 @@ export type UserScalarWhereWithAggregatesInput = {
   role?: Prisma.EnumRoleWithAggregatesFilter<"User"> | $Enums.Role
   loyaltyPoints?: Prisma.IntWithAggregatesFilter<"User"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"User"> | Date | string
+  deletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
 }
 
 export type UserCreateInput = {
@@ -400,6 +412,7 @@ export type UserCreateInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementCreateNestedManyWithoutActorInput
@@ -420,6 +433,7 @@ export type UserUncheckedCreateInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedCreateNestedManyWithoutActorInput
@@ -439,6 +453,7 @@ export type UserUpdateInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUpdateManyWithoutActorNestedInput
@@ -459,6 +474,7 @@ export type UserUncheckedUpdateInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedUpdateManyWithoutActorNestedInput
@@ -479,6 +495,7 @@ export type UserCreateManyInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
 }
 
 export type UserUpdateManyMutationInput = {
@@ -495,6 +512,7 @@ export type UserUpdateManyMutationInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type UserUncheckedUpdateManyInput = {
@@ -512,6 +530,7 @@ export type UserUncheckedUpdateManyInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
 
 export type UserCountOrderByAggregateInput = {
@@ -529,6 +548,7 @@ export type UserCountOrderByAggregateInput = {
   role?: Prisma.SortOrder
   loyaltyPoints?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
 }
 
 export type UserAvgOrderByAggregateInput = {
@@ -552,6 +572,7 @@ export type UserMaxOrderByAggregateInput = {
   role?: Prisma.SortOrder
   loyaltyPoints?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
 }
 
 export type UserMinOrderByAggregateInput = {
@@ -569,6 +590,7 @@ export type UserMinOrderByAggregateInput = {
   role?: Prisma.SortOrder
   loyaltyPoints?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
+  deletedAt?: Prisma.SortOrder
 }
 
 export type UserSumOrderByAggregateInput = {
@@ -653,6 +675,7 @@ export type UserCreateWithoutOrdersInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   loyaltyTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementCreateNestedManyWithoutActorInput
 }
@@ -672,6 +695,7 @@ export type UserUncheckedCreateWithoutOrdersInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedCreateNestedManyWithoutActorInput
 }
@@ -706,6 +730,7 @@ export type UserUpdateWithoutOrdersInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   loyaltyTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUpdateManyWithoutActorNestedInput
 }
@@ -725,6 +750,7 @@ export type UserUncheckedUpdateWithoutOrdersInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedUpdateManyWithoutActorNestedInput
 }
@@ -743,6 +769,7 @@ export type UserCreateWithoutLoyaltyTransactionsInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementCreateNestedManyWithoutActorInput
 }
@@ -762,6 +789,7 @@ export type UserUncheckedCreateWithoutLoyaltyTransactionsInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedCreateNestedManyWithoutActorInput
 }
@@ -796,6 +824,7 @@ export type UserUpdateWithoutLoyaltyTransactionsInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUpdateManyWithoutActorNestedInput
 }
@@ -815,6 +844,7 @@ export type UserUncheckedUpdateWithoutLoyaltyTransactionsInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   inventoryMovements?: Prisma.InventoryMovementUncheckedUpdateManyWithoutActorNestedInput
 }
@@ -833,6 +863,7 @@ export type UserCreateWithoutInventoryMovementsInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderCreateNestedManyWithoutUserInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionCreateNestedManyWithoutUserInput
 }
@@ -852,6 +883,7 @@ export type UserUncheckedCreateWithoutInventoryMovementsInput = {
   role?: $Enums.Role
   loyaltyPoints?: number
   createdAt?: Date | string
+  deletedAt?: Date | string | null
   orders?: Prisma.OrderUncheckedCreateNestedManyWithoutUserInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedCreateNestedManyWithoutUserInput
 }
@@ -886,6 +918,7 @@ export type UserUpdateWithoutInventoryMovementsInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUpdateManyWithoutUserNestedInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUpdateManyWithoutUserNestedInput
 }
@@ -905,6 +938,7 @@ export type UserUncheckedUpdateWithoutInventoryMovementsInput = {
   role?: Prisma.EnumRoleFieldUpdateOperationsInput | $Enums.Role
   loyaltyPoints?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   orders?: Prisma.OrderUncheckedUpdateManyWithoutUserNestedInput
   loyaltyTransactions?: Prisma.LoyaltyTransactionUncheckedUpdateManyWithoutUserNestedInput
 }
@@ -973,6 +1007,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   role?: boolean
   loyaltyPoints?: boolean
   createdAt?: boolean
+  deletedAt?: boolean
   orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
   loyaltyTransactions?: boolean | Prisma.User$loyaltyTransactionsArgs<ExtArgs>
   inventoryMovements?: boolean | Prisma.User$inventoryMovementsArgs<ExtArgs>
@@ -994,6 +1029,7 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   role?: boolean
   loyaltyPoints?: boolean
   createdAt?: boolean
+  deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -1011,6 +1047,7 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   role?: boolean
   loyaltyPoints?: boolean
   createdAt?: boolean
+  deletedAt?: boolean
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectScalar = {
@@ -1028,9 +1065,10 @@ export type UserSelectScalar = {
   role?: boolean
   loyaltyPoints?: boolean
   createdAt?: boolean
+  deletedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "phone" | "isPhoneVerified" | "welcomePointsGrantedAt" | "otpHash" | "otpExpiresAt" | "otpSentAt" | "otpAttempts" | "passwordHash" | "fullName" | "role" | "loyaltyPoints" | "createdAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "phone" | "isPhoneVerified" | "welcomePointsGrantedAt" | "otpHash" | "otpExpiresAt" | "otpSentAt" | "otpAttempts" | "passwordHash" | "fullName" | "role" | "loyaltyPoints" | "createdAt" | "deletedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   orders?: boolean | Prisma.User$ordersArgs<ExtArgs>
   loyaltyTransactions?: boolean | Prisma.User$loyaltyTransactionsArgs<ExtArgs>
@@ -1062,6 +1100,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     role: $Enums.Role
     loyaltyPoints: number
     createdAt: Date
+    deletedAt: Date | null
   }, ExtArgs["result"]["user"]>
   composites: {}
 }
@@ -1502,6 +1541,7 @@ export interface UserFieldRefs {
   readonly role: Prisma.FieldRef<"User", 'Role'>
   readonly loyaltyPoints: Prisma.FieldRef<"User", 'Int'>
   readonly createdAt: Prisma.FieldRef<"User", 'DateTime'>
+  readonly deletedAt: Prisma.FieldRef<"User", 'DateTime'>
 }
     
 

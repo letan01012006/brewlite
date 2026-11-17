@@ -35,7 +35,7 @@ export class ProductsController {
 
   @Patch(':id/toppings')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Thay thế toàn bộ topping được phép của sản phẩm; [] để gỡ hết',
@@ -49,7 +49,7 @@ export class ProductsController {
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
   @ApiResponse({
     status: 403,
-    description: 'Chỉ BARISTA được cấu hình topping',
+    description: 'BARISTA/STAFF được cấu hình topping',
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
   updateToppings(
@@ -61,7 +61,7 @@ export class ProductsController {
 
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Cập nhật trạng thái bán (Đang bán / Tạm dừng) của sản phẩm',
@@ -74,7 +74,7 @@ export class ProductsController {
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
   @ApiResponse({
     status: 403,
-    description: 'Chỉ BARISTA được cập nhật trạng thái bán',
+    description: 'BARISTA/STAFF được cập nhật trạng thái bán',
   })
   @ApiResponse({ status: 404, description: 'Không tìm thấy sản phẩm' })
   updateStatus(
@@ -93,7 +93,7 @@ export class ProductsController {
   @ApiBearerAuth()
   @ApiOperation({
     description:
-      'Danh sách đang bán được xem công khai. includeInactive=true yêu cầu token BARISTA.',
+      'Danh sách đang bán được xem công khai. includeInactive=true yêu cầu token BARISTA hoặc STAFF.',
     summary:
       'Lấy danh sách sản phẩm (hỗ trợ tìm kiếm, lọc danh mục và phân trang)',
   })
@@ -108,7 +108,7 @@ export class ProductsController {
   })
   @ApiResponse({
     status: 403,
-    description: 'Chỉ BARISTA được xem sản phẩm đang tạm dừng bán',
+    description: 'BARISTA/STAFF được xem sản phẩm đang tạm dừng bán',
   })
   async findAll(@Query() query: QueryProductDto) {
     return this.productsService.findAll(query);
@@ -140,12 +140,12 @@ export class ProductsController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('BARISTA')
+  @Roles('BARISTA', 'STAFF')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Thêm sản phẩm mới vào thực đơn' })
   @ApiResponse({ status: 201, description: 'Tạo sản phẩm thành công' })
   @ApiResponse({ status: 401, description: 'Chưa đăng nhập' })
-  @ApiResponse({ status: 403, description: 'Chỉ BARISTA được thêm sản phẩm' })
+  @ApiResponse({ status: 403, description: 'BARISTA/STAFF được thêm sản phẩm' })
   @ApiResponse({ status: 400, description: 'Dữ liệu đầu vào không hợp lệ' })
   @ApiResponse({ status: 409, description: 'Tên sản phẩm đã tồn tại' })
   async create(@Body() createProductDto: CreateProductDto) {

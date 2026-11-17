@@ -106,7 +106,7 @@ export function AppHeader() {
 
         {/* Right: Actions */}
         <div className="col-start-2 row-start-1 justify-self-end flex items-center gap-1.5 shrink-0">
-          {user?.role === 'BARISTA' && (
+          {(user?.role === 'BARISTA' || user?.role === 'STAFF') && (
             <Link
               href="/barista"
               className="text-[11px] font-bold text-amber-300 hover:text-amber-100 bg-amber-900/50 px-2 py-1 rounded-lg border border-amber-600/40 transition-colors light:bg-cafe-accent light:border-cafe-line light:text-cafe-primary light:hover:text-cafe-hover"

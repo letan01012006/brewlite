@@ -23,7 +23,8 @@ services:
       # Keep credentials/database/schema from backend/.env; replace only host/port.
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
-    ports: ["4000:4000"]
+      VNPAY_RETURN_URL: http://localhost:3001/payment/vnpay-return
+    ports: ["4001:4000"]
     depends_on:
       db:
         condition: service_healthy
@@ -43,7 +44,7 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       BACKEND_API_URL: http://backend:4000/api
-    ports: ["3000:3000"]
+    ports: ["3001:3000"]
     depends_on:
       backend:
         condition: service_healthy

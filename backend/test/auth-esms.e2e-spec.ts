@@ -92,7 +92,16 @@ describe('Registration and resend through eSMS (mock gateway, real HTTP and Post
       (await f.db.user.findUniqueOrThrow({ where: { phone: p } }))
         .loyaltyPoints,
     ).toBe(WELCOME_POINTS);
-    for (const spy of logs) expect(spy).not.toHaveBeenCalled();
+    const { RequestId: requestId } = JSON.parse(
+      gateway.mock.calls[0][1]!.body as string,
+    );
+    // Delivery references are allowed; the exact message excludes OTPs,
+    // recipient details, credentials and arbitrary provider response text.
+    expect(logs[0]).toHaveBeenCalledTimes(1);
+    expect(logs[0]).toHaveBeenCalledWith(
+      `eSMS accepted requestId=${requestId} smsId=unavailable; delivery not confirmed.`,
+    );
+    for (const spy of logs.slice(1)) expect(spy).not.toHaveBeenCalled();
   });
 
   it('does not return success until the gateway response arrives', async () => {
